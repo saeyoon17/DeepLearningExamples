@@ -100,13 +100,14 @@ spark-submit --master $MASTER \
     	--conf spark.network.timeout=1800s \
     	spark_data_utils.py --mode transform \
     	--input_folder $INPUT_PATH \
-    	--days 0-22 \
+    	--days 0-0 \
     	--output_folder $OUTPUT_PATH/train \
         --model_size_file $OUTPUT_PATH/model_size.json \
     	--model_folder $OUTPUT_PATH/models \
     	--write_mode overwrite --low_mem 2>&1 | tee submit_train_log.txt
 
-echo "Splitting the last day into 2 parts of test and validation..."
+echo "Splitting the first day into 2 parts of test and validation..."
+echo "WARNING: test/validation uses the same data..."
 last_day=$INPUT_PATH/day_23
 temp_test=$OUTPUT_PATH/temp/test
 temp_validation=$OUTPUT_PATH/temp/validation
@@ -133,13 +134,13 @@ spark-submit --master $MASTER \
     	--conf spark.network.timeout=1800s \
     	spark_data_utils.py --mode transform \
     	--input_folder $temp_test \
-    	--days 23-23 \
+    	--days 0-0 \
     	--output_folder $OUTPUT_PATH/test \
     	--output_ordering input \
     	--model_folder $OUTPUT_PATH/models \
     	--write_mode overwrite --low_mem 2>&1 | tee submit_test_log.txt
 
-echo "Transforming the validation data in day_23..."
+echo "Transforming the validation data in day_0..."
 spark-submit --master $MASTER \
     	--driver-memory "${DRIVER_MEMORY}G" \
     	--executor-cores $NUM_EXECUTOR_CORES \
@@ -153,7 +154,7 @@ spark-submit --master $MASTER \
     	--conf spark.network.timeout=1800s \
     	spark_data_utils.py --mode transform \
     	--input_folder $temp_validation \
-    	--days 23-23 \
+    	--days 0-0 \
     	--output_folder $OUTPUT_PATH/validation \
     	--output_ordering input \
     	--model_folder $OUTPUT_PATH/models \
