@@ -20,15 +20,13 @@ set -x
 download_dir=${1:-'/data/dlrm/criteo'}
 
 cd ${download_dir}
-for i in $(seq 0 23); do
-    filename=day_${i}
-    if [ -f $filename ]; then
-        echo "$filename exists, OK"
-    else
-        echo "$filename does not exist. Please follow the instructions at: http://labs.criteo.com/2013/12/download-terabyte-click-logs/ to download it"
-        exit 1
-    fi
-done
+filename=day_0
+if [ -f $filename ]; then
+    echo "$filename exists, OK"
+else
+    echo "$filename does not exist. Please follow the instructions at: http://labs.criteo.com/2013/12/download-terabyte-click-logs/ to download it"
+    exit 1
+fi
 cd -
 
 echo "Criteo data verified"
