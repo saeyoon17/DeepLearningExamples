@@ -39,7 +39,7 @@ source DGX-A100_config.sh
 OPTS="--frequency_limit $FREQUENCY_LIMIT"
 
 export SPARK_HOME=/opt/spark
-export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 export PATH=$SPARK_HOME/bin:$SPARK_HOME/sbin:$PATH
 
 # we use spark standalone to run the job
