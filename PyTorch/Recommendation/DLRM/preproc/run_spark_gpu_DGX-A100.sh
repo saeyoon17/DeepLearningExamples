@@ -104,14 +104,14 @@ spark-submit --master $MASTER \
     --conf spark.executor.extraJavaOptions="-Dcom.nvidia.cudf.prefer-pinned=true\ -Djava.io.tmpdir=$SPARK_LOCAL_DIRS" \
     spark_data_utils.py --mode transform \
     --input_folder $INPUT_PATH \
-    --days 0-22 \
+    --days 0-0 \
     --output_folder $OUTPUT_PATH/train \
     --model_size_file $OUTPUT_PATH/model_size.json \
     --model_folder $OUTPUT_PATH/models \
     --write_mode overwrite --low_mem 2>&1 | tee submit_train_log.txt
 
 echo "Splitting the last day into 2 parts of test and validation..."
-last_day=$INPUT_PATH/day_23
+last_day=$INPUT_PATH/day_0
 temp_test=$OUTPUT_PATH/temp/test
 temp_validation=$OUTPUT_PATH/temp/validation
 mkdir -p $temp_test $temp_validation
@@ -148,7 +148,7 @@ spark-submit --master $MASTER \
     --conf spark.executor.extraJavaOptions="-Dcom.nvidia.cudf.prefer-pinned=true\ -Djava.io.tmpdir=$SPARK_LOCAL_DIRS" \
     spark_data_utils.py --mode transform \
     --input_folder $temp_test \
-    --days 23-23 \
+    --days 0-0 \
     --output_folder $OUTPUT_PATH/test \
     --output_ordering input \
     --model_folder $OUTPUT_PATH/models \
@@ -179,7 +179,7 @@ spark-submit --master $MASTER \
     --conf spark.executor.extraJavaOptions="-Dcom.nvidia.cudf.prefer-pinned=true\ -Djava.io.tmpdir=$SPARK_LOCAL_DIRS" \
     spark_data_utils.py --mode transform \
     --input_folder $temp_validation \
-    --days 23-23 \
+    --days 0-0 \
     --output_folder $OUTPUT_PATH/validation \
     --output_ordering input \
     --model_folder $OUTPUT_PATH/models \
