@@ -1,0 +1,117 @@
+23/06/21 03:58:25 INFO SparkContext: Running Spark version 3.4.0
+23/06/21 03:58:25 WARN NativeCodeLoader: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+23/06/21 03:58:25 INFO ResourceUtils: ==============================================================
+23/06/21 03:58:25 INFO ResourceUtils: No custom resources configured for spark.driver.
+23/06/21 03:58:25 INFO ResourceUtils: ==============================================================
+23/06/21 03:58:25 INFO SparkContext: Submitted application: spark_data_utils.py
+23/06/21 03:58:25 INFO ResourceProfile: Default ResourceProfile created, executor resources: Map(cores -> name: cores, amount: 32, script: , vendor: , memory -> name: memory, amount: 235520, script: , vendor: , offHeap -> name: offHeap, amount: 0, script: , vendor: , gpu -> name: gpu, amount: 1, script: , vendor: ), task resources: Map(cpus -> name: cpus, amount: 1.0, gpu -> name: gpu, amount: 0.01)
+23/06/21 03:58:25 INFO ResourceProfile: Limiting resource is cpus at 32 tasks per executor
+23/06/21 03:58:25 WARN ResourceUtils: The configuration of resource: gpu (exec = 1, task = 0.01/100, runnable tasks = 100) will result in wasted resources due to resource cpus limiting the number of runnable tasks per executor to: 32. Please adjust your configuration.
+23/06/21 03:58:25 INFO ResourceProfileManager: Added ResourceProfile id: 0
+23/06/21 03:58:25 INFO SecurityManager: Changing view acls to: root
+23/06/21 03:58:25 INFO SecurityManager: Changing modify acls to: root
+23/06/21 03:58:25 INFO SecurityManager: Changing view acls groups to: 
+23/06/21 03:58:25 INFO SecurityManager: Changing modify acls groups to: 
+23/06/21 03:58:25 INFO SecurityManager: SecurityManager: authentication disabled; ui acls disabled; users with view permissions: root; groups with view permissions: EMPTY; users with modify permissions: root; groups with modify permissions: EMPTY
+23/06/21 03:58:25 INFO Utils: Successfully started service 'sparkDriver' on port 41319.
+23/06/21 03:58:25 INFO SparkEnv: Registering MapOutputTracker
+23/06/21 03:58:25 INFO SparkEnv: Registering BlockManagerMaster
+23/06/21 03:58:25 INFO BlockManagerMasterEndpoint: Using org.apache.spark.storage.DefaultTopologyMapper for getting topology information
+23/06/21 03:58:25 INFO BlockManagerMasterEndpoint: BlockManagerMasterEndpoint up
+23/06/21 03:58:25 INFO SparkEnv: Registering BlockManagerMasterHeartbeat
+23/06/21 03:58:25 INFO DiskBlockManager: Created local directory at /data/dlrm/spark/tmp/blockmgr-c3fc3685-9601-45f6-8ff3-a2a8e1c0c228
+23/06/21 03:58:25 INFO MemoryStore: MemoryStore started with capacity 19.0 GiB
+23/06/21 03:58:25 INFO SparkEnv: Registering OutputCommitCoordinator
+23/06/21 03:58:25 INFO JettyUtils: Start Jetty 0.0.0.0:4040 for SparkUI
+23/06/21 03:58:25 INFO Utils: Successfully started service 'SparkUI' on port 4040.
+23/06/21 03:58:25 ERROR SparkContext: Error initializing SparkContext.
+java.lang.ClassNotFoundException: com.nvidia.spark.SQLPlugin
+	at java.base/java.net.URLClassLoader.findClass(URLClassLoader.java:476)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:589)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:522)
+	at java.base/java.lang.Class.forName0(Native Method)
+	at java.base/java.lang.Class.forName(Class.java:398)
+	at org.apache.spark.util.Utils$.classForName(Utils.scala:225)
+	at org.apache.spark.util.Utils$.$anonfun$loadExtensions$1(Utils.scala:2946)
+	at scala.collection.TraversableLike.$anonfun$flatMap$1(TraversableLike.scala:293)
+	at scala.collection.mutable.ResizableArray.foreach(ResizableArray.scala:62)
+	at scala.collection.mutable.ResizableArray.foreach$(ResizableArray.scala:55)
+	at scala.collection.mutable.ArrayBuffer.foreach(ArrayBuffer.scala:49)
+	at scala.collection.TraversableLike.flatMap(TraversableLike.scala:293)
+	at scala.collection.TraversableLike.flatMap$(TraversableLike.scala:290)
+	at scala.collection.AbstractTraversable.flatMap(Traversable.scala:108)
+	at org.apache.spark.util.Utils$.loadExtensions(Utils.scala:2944)
+	at org.apache.spark.internal.plugin.PluginContainer$.apply(PluginContainer.scala:207)
+	at org.apache.spark.internal.plugin.PluginContainer$.apply(PluginContainer.scala:193)
+	at org.apache.spark.SparkContext.<init>(SparkContext.scala:565)
+	at org.apache.spark.api.java.JavaSparkContext.<init>(JavaSparkContext.scala:58)
+	at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+	at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
+	at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:490)
+	at py4j.reflection.MethodInvoker.invoke(MethodInvoker.java:247)
+	at py4j.reflection.ReflectionEngine.invoke(ReflectionEngine.java:374)
+	at py4j.Gateway.invoke(Gateway.java:238)
+	at py4j.commands.ConstructorCommand.invokeConstructor(ConstructorCommand.java:80)
+	at py4j.commands.ConstructorCommand.execute(ConstructorCommand.java:69)
+	at py4j.ClientServerConnection.waitForCommands(ClientServerConnection.java:182)
+	at py4j.ClientServerConnection.run(ClientServerConnection.java:106)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+23/06/21 03:58:25 INFO SparkContext: SparkContext is stopping with exitCode 0.
+23/06/21 03:58:25 INFO SparkUI: Stopped Spark web UI at http://workspace-oqoestzx2ajt-0:4040
+23/06/21 03:58:25 INFO MapOutputTrackerMasterEndpoint: MapOutputTrackerMasterEndpoint stopped!
+23/06/21 03:58:25 INFO MemoryStore: MemoryStore cleared
+23/06/21 03:58:25 INFO BlockManager: BlockManager stopped
+23/06/21 03:58:25 INFO BlockManagerMaster: BlockManagerMaster stopped
+23/06/21 03:58:25 WARN MetricsSystem: Stopping a MetricsSystem that is not running
+23/06/21 03:58:25 INFO OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: OutputCommitCoordinator stopped!
+23/06/21 03:58:25 INFO SparkContext: Successfully stopped SparkContext
+Traceback (most recent call last):
+  File "/root/DeepLearningExamples/PyTorch/Recommendation/DLRM/preproc/spark_data_utils.py", line 506, in <module>
+    _main()
+  File "/root/DeepLearningExamples/PyTorch/Recommendation/DLRM/preproc/spark_data_utils.py", line 393, in _main
+    spark = SparkSession.builder.getOrCreate()
+  File "/opt/spark/python/lib/pyspark.zip/pyspark/sql/session.py", line 477, in getOrCreate
+  File "/opt/spark/python/lib/pyspark.zip/pyspark/context.py", line 512, in getOrCreate
+  File "/opt/spark/python/lib/pyspark.zip/pyspark/context.py", line 200, in __init__
+  File "/opt/spark/python/lib/pyspark.zip/pyspark/context.py", line 287, in _do_init
+  File "/opt/spark/python/lib/pyspark.zip/pyspark/context.py", line 417, in _initialize_context
+  File "/opt/spark/python/lib/py4j-0.10.9.7-src.zip/py4j/java_gateway.py", line 1587, in __call__
+  File "/opt/spark/python/lib/py4j-0.10.9.7-src.zip/py4j/protocol.py", line 326, in get_return_value
+py4j.protocol.Py4JJavaError: An error occurred while calling None.org.apache.spark.api.java.JavaSparkContext.
+: java.lang.ClassNotFoundException: com.nvidia.spark.SQLPlugin
+	at java.base/java.net.URLClassLoader.findClass(URLClassLoader.java:476)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:589)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:522)
+	at java.base/java.lang.Class.forName0(Native Method)
+	at java.base/java.lang.Class.forName(Class.java:398)
+	at org.apache.spark.util.Utils$.classForName(Utils.scala:225)
+	at org.apache.spark.util.Utils$.$anonfun$loadExtensions$1(Utils.scala:2946)
+	at scala.collection.TraversableLike.$anonfun$flatMap$1(TraversableLike.scala:293)
+	at scala.collection.mutable.ResizableArray.foreach(ResizableArray.scala:62)
+	at scala.collection.mutable.ResizableArray.foreach$(ResizableArray.scala:55)
+	at scala.collection.mutable.ArrayBuffer.foreach(ArrayBuffer.scala:49)
+	at scala.collection.TraversableLike.flatMap(TraversableLike.scala:293)
+	at scala.collection.TraversableLike.flatMap$(TraversableLike.scala:290)
+	at scala.collection.AbstractTraversable.flatMap(Traversable.scala:108)
+	at org.apache.spark.util.Utils$.loadExtensions(Utils.scala:2944)
+	at org.apache.spark.internal.plugin.PluginContainer$.apply(PluginContainer.scala:207)
+	at org.apache.spark.internal.plugin.PluginContainer$.apply(PluginContainer.scala:193)
+	at org.apache.spark.SparkContext.<init>(SparkContext.scala:565)
+	at org.apache.spark.api.java.JavaSparkContext.<init>(JavaSparkContext.scala:58)
+	at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+	at java.base/jdk.internal.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
+	at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:490)
+	at py4j.reflection.MethodInvoker.invoke(MethodInvoker.java:247)
+	at py4j.reflection.ReflectionEngine.invoke(ReflectionEngine.java:374)
+	at py4j.Gateway.invoke(Gateway.java:238)
+	at py4j.commands.ConstructorCommand.invokeConstructor(ConstructorCommand.java:80)
+	at py4j.commands.ConstructorCommand.execute(ConstructorCommand.java:69)
+	at py4j.ClientServerConnection.waitForCommands(ClientServerConnection.java:182)
+	at py4j.ClientServerConnection.run(ClientServerConnection.java:106)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+
+23/06/21 03:58:25 INFO ShutdownHookManager: Shutdown hook called
+23/06/21 03:58:25 INFO ShutdownHookManager: Deleting directory /tmp/spark-dc555127-7f86-4d1b-94c4-a890e6cc3ce4
+23/06/21 03:58:25 INFO ShutdownHookManager: Deleting directory /data/dlrm/spark/tmp/spark-943a94da-e67a-4f5e-946a-eacb6f9480a2
