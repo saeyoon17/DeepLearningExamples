@@ -188,7 +188,40 @@ def get_device_mapping(embedding_sizes: Sequence[int], num_gpus: int = 8):
         'embedding': gpu_buckets,
         'vectors_per_gpu': vectors_per_gpu,
     }
-    
+
+
+class SyntheticDataset(Dataset):
+    """Synthetic dataset version of criteo dataset."""
+
+    def __init__(
+            self,
+            num_entries: int,
+            device: str = 'cuda',
+            batch_size: int = 32768,
+            numerical_features: Optional[int] = None,
+            categorical_feature_sizes: Optional[Sequence[int]] = None  # features are returned in this order
+    ):
+        cat_features_count = len(categorical_feature_sizes) if categorical_feature_sizes is not None else 0
+        num_features_count = numerical_features if numerical_features is not None else 0
+
+        self._batches_per_epoch = math.ceil(num_entries / batch_size)
+        self._num_tensor = torch.rand(size=(batch_size, num_features_count), device=device, dtype=torch.float32) \
+            if num_features_count > 0 else None
+        self._label_tensor = torch.randint(low=0, high=2, size=(batch_size,), device=device, dtype=torch.float32)
+        self._cat_tensor = torch.cat(
+            [torch.randint(low=0, high=cardinality, size=(batch_size, 1), device=device, dtype=torch.long)
+             for cardinality in categorical_feature_sizes], dim=1) if cat_features_count > 0 else None
+
+    def __len__(self):
+        return self._batches_per_epoch
+
+    def __getitem__(self, idx: int):
+        if idx >= self._batches_per_epoch:
+            raise IndexError()
+
+        return self._num_tensor, self._cat_tensor, self._label_tensor
+
+
 import argparse
 import json
 import sys
@@ -199,7 +232,7 @@ import tritonclient.http as http_client
 from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
 
-from dlrm.data.datasets import SyntheticDataset
+#from dlrm.data.datasets import SyntheticDataset
 #from dlrm.utils.distributed import get_device_mapping
 
 
