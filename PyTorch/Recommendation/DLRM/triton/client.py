@@ -35,14 +35,14 @@ import tritonclient.http as http_client
 from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
 
-from dlrm.data.datasets import SyntheticDataset, SplitCriteoDataset
+from dlrm.data.datasets import SyntheticDataset
 from dlrm.utils.distributed import get_device_mapping
 
 
 def get_data_loader(batch_size, *, data_path, model_config):
     with open(model_config.dataset_config) as f:
         categorical_sizes = list(json.load(f).values())
-    categorical_sizes = [s + 1 for s in categorical_sizes]
+    categorical_sizes = [s - 1 for s in categorical_sizes]
 
     device_mapping = get_device_mapping(categorical_sizes, num_gpus=1)
 
@@ -129,7 +129,12 @@ if __name__ == '__main__':
 
     FLAGS = parser.parse_args()
     try:
-        triton_client = http_client.InferenceServerClient(url=FLAGS.triton_server_url, verbose=FLAGS.verbose)
+        url = FLAGS.triton_server_url
+        ssl = False
+        if url.startswith('https://'):
+            url = url[len('https://'):]
+            ssl = True
+        triton_client = http_client.InferenceServerClient(url=url, verbose=FLAGS.verbose, ssl=ssl)
     except Exception as e:
         print("channel creation failed: " + str(e))
         sys.exit(1)
