@@ -756,6 +756,55 @@ def dist_evaluate(model, data_loader):
     metric_logger = utils.MetricLogger(delimiter="  ")
     metric_logger.add_meter('step_time', utils.SmoothedValue(window_size=1, fmt='{avg:.4f}'))
 
+    import concurrent
+    import math
+    import os
+    import queue
+    
+    import torch
+    
+    import numpy as np
+    from torch.utils.data import Dataset
+    from typing import Optional, Sequence, Tuple, List
+    import math
+    import os
+    import warnings
+    from collections import deque
+    from functools import reduce
+    from itertools import combinations_with_replacement
+    from typing import Sequence
+    
+    import torch
+    import torch.distributed as 
+    import argparse
+    import json
+    import sys
+    
+    import numpy as np
+    import torch
+    import tritonclient.http as http_client
+    from sklearn.metrics import roc_auc_score
+    from tqdm import tqdm
+  
+    def run_infer(model_name, model_version, numerical_features, categorical_features, headers=None):
+        inputs = []
+        outputs = []
+        num_type = "FP16" if numerical_features.dtype == np.float16 else "FP32"
+        inputs.append(http_client.InferInput('input__0', numerical_features.shape, num_type))
+        inputs.append(http_client.InferInput('input__1', categorical_features.shape, "INT64"))
+    
+        # Initialize the data
+        inputs[0].set_data_from_numpy(numerical_features, binary_data=True)
+        inputs[1].set_data_from_numpy(categorical_features, binary_data=False)
+    
+        outputs.append(http_client.InferRequestedOutput('output__0', binary_data=True))
+        results = triton_client.infer(model_name,
+                                      inputs,
+                                      model_version=str(model_version) if model_version != -1 else '',
+                                      outputs=outputs,
+                                      headers=headers)
+        return results
+  
     with torch.no_grad():
         timer = utils.StepTimer()
 
@@ -769,69 +818,66 @@ def dist_evaluate(model, data_loader):
         loss_fn = torch.nn.BCELoss(reduction="mean")
 
         timer.click(synchronize=(device=='cuda'))
+
+        FLAGS.triton_server_url = ''
+        FLAGS.triton_model_name = 'dlrm-ts-trace'
+        FLAGS.dataset_config = '/data/model_size.json'
+        FLAGS.inference_data = '/data/test'
+        FLAGS.batch_size = 4096
+      
         for step in range(len(data_loader)):
-            numerical_features, categorical_features, click = next(batch_iter)
-            torch.cuda.synchronize()
-
-            last_batch_size = None
-            if click.shape[0] != test_batch_size:  # last batch
-                last_batch_size = click.shape[0]
-                padding_size = test_batch_size - last_batch_size
-
-                if numerical_features is not None:
-                    padding_numerical = torch.empty(
-                        padding_size, numerical_features.shape[1],
-                        device=numerical_features.device, dtype=numerical_features.dtype)
-                    numerical_features = torch.cat((numerical_features, padding_numerical), dim=0)
-
-                if categorical_features is not None:
-                    padding_categorical = torch.ones(
-                        padding_size, categorical_features.shape[1],
-                        device=categorical_features.device, dtype=categorical_features.dtype)
-                    categorical_features = torch.cat((categorical_features, padding_categorical), dim=0)
-
-            with torch.cuda.amp.autocast(enabled=FLAGS.amp):
-                output = model(numerical_features, categorical_features, batch_sizes_per_gpu)
-                output = output.squeeze()
-                output = output.float()
-
-            if world_size > 1:
-                output_receive_buffer = torch.empty(test_batch_size, device=device)
-                torch.distributed.all_gather(list(output_receive_buffer.split(batch_sizes_per_gpu)), output)
-                output = output_receive_buffer
-
-            if last_batch_size is not None:
-                output = output[:last_batch_size]
-
-            if FLAGS.auc_device == "CPU":
-                click = click.cpu()
-                output = output.cpu()
-
-            y_true.append(click)
-            y_score.append(output)
-
-            timer.click(synchronize=(device == 'cuda'))
-
-            if timer.measured is not None:
-                metric_logger.update(step_time=timer.measured)
-                if step % print_freq == 0 and step > 0:
-                    metric_logger.print(header=f"Test: [{step}/{steps_per_epoch}]")
-
-        if is_main_process():
-            y_true = torch.cat(y_true)
-            y_score = torch.sigmoid(torch.cat(y_score)).float()
-            auc = utils.roc_auc_score(y_true, y_score)
-            loss = loss_fn(y_score, y_true).item()
-            print(f'test loss: {loss:.8f}', )
-        else:
-            auc = None
-            loss = None
-
-        if world_size > 1:
-            torch.distributed.barrier()
-
-    model.train()
-
+            numerical_features, categorical_features, click = next(batch_iter
+          
+            try:
+                url = FLAGS.triton_server_url
+                ssl = False
+                if url.startswith('https://'):
+                    url = url[len('https://'):]
+                    ssl = True
+                triton_client = http_client.InferenceServerClient(url=url, verbose=FLAGS.verbose, ssl=ssl)
+            except Exception as e:
+                print("channel creation failed: " + str(e))
+                sys.exit(1)
+        
+            if FLAGS.http_headers is not None:
+                headers_dict = {l.split(':')[0]: l.split(':')[1]
+                                for l in FLAGS.http_headers}
+            else:
+                headers_dict = None
+        
+            triton_client.load_model(FLAGS.triton_model_name)
+            if not triton_client.is_model_ready(FLAGS.triton_model_name):
+                sys.exit(1)
+        
+            dataloader = get_data_loader(FLAGS.batch_size,
+                                         data_path=FLAGS.inference_data,
+                                         model_config=FLAGS)
+            results = []
+            tgt_list = []
+        
+            for numerical_features, categorical_features, target in tqdm(dataloader):
+                numerical_features = numerical_features.cpu().numpy()
+                numerical_features = numerical_features.astype(np.float16 if FLAGS.fp16 else np.float32)
+                categorical_features = categorical_features.long().cpu().numpy()
+        
+                output = run_infer(FLAGS.triton_model_name, FLAGS.triton_model_version,
+                                   numerical_features, categorical_features, headers_dict)
+        
+                results.append(output.as_numpy('output__0'))
+                tgt_list.append(target.cpu().numpy())
+        
+            results = np.concatenate(results).squeeze()
+            tgt_list = np.concatenate(tgt_list)
+        
+            score = roc_auc_score(tgt_list, results)
+            print(f"Model score: {score}")
+        
+            statistics = triton_client.get_inference_statistics(model_name=FLAGS.triton_model_name, headers=headers_dict)
+            print(statistics)
+            if len(statistics['model_stats']) != 1:
+                print("FAILED: Inference Statistics")
+                sys.exit(1)
+        
     return auc, loss
 
 
