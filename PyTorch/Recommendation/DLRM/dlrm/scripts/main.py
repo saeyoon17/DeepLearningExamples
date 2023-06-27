@@ -37,6 +37,30 @@ import dlrm.scripts.utils as utils
 from dlrm.data.data_loader import get_data_loaders
 from dlrm.data.utils import prefetcher, get_embedding_sizes
 
+import concurrent
+import math
+import queue
+
+from typing import Sequence, Optional, Sequence, Tuple, List
+import math
+import warnings
+from collections import deque
+from functools import reduce
+from itertools import combinations_with_replacement
+
+import torch
+from torch.utils.data import Dataset
+import torch.distributed as dist
+import argparse
+import json
+import sys
+
+import numpy as np
+import torch
+import tritonclient.http as http_client
+from sklearn.metrics import roc_auc_score
+from tqdm import tqdm
+
 FLAGS = flags.FLAGS
 
 # Basic run settings
@@ -737,54 +761,6 @@ def dist_evaluate(model, data_loader):
         model (DistDLRM):
         data_loader (torch.utils.data.DataLoader):
     """
-    #model.eval()
-    #import torch.distributed as dist
-    #device = FLAGS.base_device
-    #world_size = dist.get_world_size()
-
-    #batch_sizes_per_gpu = [FLAGS.test_batch_size // world_size for _ in range(world_size)]
-    #test_batch_size = sum(batch_sizes_per_gpu)
-
-    #if FLAGS.test_batch_size != test_batch_size:
-    #    print(f"Rounded test_batch_size to {test_batch_size}")
-
-    # Test bach size could be big, make sure it prints
-    #default_print_freq = max(524288 * 100 // test_batch_size, 1)
-    #print_freq = default_print_freq if FLAGS.print_freq is None else FLAGS.print_freq
-
-    #steps_per_epoch = len(data_loader)
-    #metric_logger = utils.MetricLogger(delimiter="  ")
-    #metric_logger.add_meter('step_time', utils.SmoothedValue(window_size=1, fmt='{avg:.4f}'))
-
-    import concurrent
-    import math
-    import os
-    import queue
-
-    import torch
-
-    import numpy as np
-    from torch.utils.data import Dataset
-    from typing import Optional, Sequence, Tuple, List
-    import math
-    import os
-    import warnings
-    from collections import deque
-    from functools import reduce
-    from itertools import combinations_with_replacement
-    from typing import Sequence
-
-    import torch
-    import torch.distributed as dist
-    import argparse
-    import json
-    import sys
-
-    import numpy as np
-    import torch
-    import tritonclient.http as http_client
-    from sklearn.metrics import roc_auc_score
-    from tqdm import tqdm
 
     def run_infer(model_name, model_version, numerical_features, categorical_features, headers=None):
         inputs = []
@@ -806,24 +782,14 @@ def dist_evaluate(model, data_loader):
         return results
 
     with torch.no_grad():
-        timer = utils.StepTimer()
-
-        # ROC can be computed per batch and then compute AUC globally, but I don't have the code.
-        # So pack all the outputs and labels together to compute AUC. y_true and y_score naming follows sklearn
-        y_true = []
-        y_score = []
         data_stream = torch.cuda.Stream()
-
         batch_iter = prefetcher(iter(data_loader), data_stream)
-        #loss_fn = torch.nn.BCELoss(reduction="mean")
-
-        #timer.click(synchronize=(device=='cuda'))
 
         triton_server_url = 'https://model-service-gateway-0t7o4mrjj8wy.uw2-dev-cluster.savvihub.com'
         triton_model_name = 'dlrm-ts-trace'
         dataset_config = '/data/model_size.json'
         inference_data = '/data/data/test'
-        batch_size = 4096
+  
         from tqdm import tqdm
         results = []
         tgt_list = []
@@ -843,23 +809,11 @@ def dist_evaluate(model, data_loader):
                 print("channel creation failed: " + str(e))
                 sys.exit(1)
 
-            #if FLAGS.http_headers is not None:
-            #    headers_dict = {l.split(':')[0]: l.split(':')[1]
-            #                    for l in FLAGS.http_headers}
-            #else:
             headers_dict = None
-
             triton_client.load_model(triton_model_name)
             if not triton_client.is_model_ready(triton_model_name):
                 sys.exit(1)
 
-            #dataloader = get_data_loader(batch_size,
-            #                             data_path=inference_data,
-            #                             model_config=FLAGS)
-            #results = []
-            #tgt_list = []
-
-            #for numerical_features, categorical_features, target in tqdm(dataloader):
             numerical_features = numerical_features.cpu().numpy()
             numerical_features = numerical_features.astype(np.float32)
             categorical_features = categorical_features.long().cpu().numpy()
@@ -882,7 +836,7 @@ def dist_evaluate(model, data_loader):
             print("FAILED: Inference Statistics")
             sys.exit(1)
 
-    return auc, loss
+    return 
 
 
 if __name__ == '__main__':
