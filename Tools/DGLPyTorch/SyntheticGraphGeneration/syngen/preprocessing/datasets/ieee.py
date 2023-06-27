@@ -21,7 +21,6 @@ from typing import List, Union
 
 import pandas as pd
 from sklearn.utils import shuffle
-
 from syngen.preprocessing.base_preprocessing import BasePreprocessing
 from syngen.utils.types import MetaData
 
@@ -32,10 +31,10 @@ log = logger
 class IEEEPreprocessing(BasePreprocessing):
     """Graph preprocessing for https://www.kaggle.com/competitions/ieee-fraud-detection
 
-        Args:
-            cached (bool): skip preprocessing and use cached files
-            nrows (int): number of rows to load from dataframe
-            drop_cols (list): columns to drop from dataframe
+    Args:
+        cached (bool): skip preprocessing and use cached files
+        nrows (int): number of rows to load from dataframe
+        drop_cols (list): columns to drop from dataframe
     """
 
     def __init__(
@@ -58,12 +57,53 @@ class IEEEPreprocessing(BasePreprocessing):
             MetaData.UNDIRECTED: True,
         }
         self.graph_info[MetaData.EDGE_DATA][MetaData.CONTINUOUS_COLUMNS] = [
-            'TransactionDT', 'TransactionAmt', 'C1', 'C2', 'C3', 'C4',
-            'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C14', 'V279',
-            'V280', 'V284', 'V285', 'V286', 'V287', 'V290', 'V291', 'V292', 'V293',
-            'V294', 'V295', 'V297', 'V298', 'V299', 'V302', 'V303', 'V304', 'V305',
-            'V306', 'V307', 'V308', 'V309', 'V310', 'V311', 'V312', 'V316', 'V317',
-            'V318', 'V319', 'V320', 'V321',
+            "TransactionDT",
+            "TransactionAmt",
+            "C1",
+            "C2",
+            "C3",
+            "C4",
+            "C5",
+            "C6",
+            "C7",
+            "C8",
+            "C9",
+            "C10",
+            "C11",
+            "C12",
+            "C14",
+            "V279",
+            "V280",
+            "V284",
+            "V285",
+            "V286",
+            "V287",
+            "V290",
+            "V291",
+            "V292",
+            "V293",
+            "V294",
+            "V295",
+            "V297",
+            "V298",
+            "V299",
+            "V302",
+            "V303",
+            "V304",
+            "V305",
+            "V306",
+            "V307",
+            "V308",
+            "V309",
+            "V310",
+            "V311",
+            "V312",
+            "V316",
+            "V317",
+            "V318",
+            "V319",
+            "V320",
+            "V321",
         ]
         self.graph_info[MetaData.EDGE_DATA][MetaData.CATEGORICAL_COLUMNS] = [
             "user_id",
@@ -72,23 +112,18 @@ class IEEEPreprocessing(BasePreprocessing):
         ]
 
     def transform_graph(self, data) -> pd.DataFrame:
-        """ Preprocess data into graph
-        """
+        """Preprocess data into graph"""
         data = self.add_graph_edge_cols(data)
         data = data.fillna(0)
         continuous_columns = [
             c
             for c in data.columns
-            if c
-            in self.graph_info[MetaData.EDGE_DATA][MetaData.CONTINUOUS_COLUMNS]
+            if c in self.graph_info[MetaData.EDGE_DATA][MetaData.CONTINUOUS_COLUMNS]
         ]
         categorical_columns = [
             c
             for c in data.columns
-            if c
-            in self.graph_info[MetaData.EDGE_DATA][
-                MetaData.CATEGORICAL_COLUMNS
-            ]
+            if c in self.graph_info[MetaData.EDGE_DATA][MetaData.CATEGORICAL_COLUMNS]
         ]
 
         columns_to_select = categorical_columns + continuous_columns

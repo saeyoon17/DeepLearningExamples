@@ -4,7 +4,6 @@ from collections import defaultdict
 
 import numpy as np
 import tensorflow as tf
-
 from mrcnn_tf2.utils.keras import KerasCallback
 
 CONFIDENCE_INTERVAL_Z = {
@@ -39,11 +38,11 @@ class DLLoggerMetricsCallback(KerasCallback):
         if not isinstance(log_every, dict):
             self._log_every = defaultdict(lambda: log_every)
 
-        self._dllogger.metadata('loss', {'unit': None})
-        self._dllogger.metadata('AP', {'unit': None})
-        self._dllogger.metadata('mask_AP', {'unit': None})
+        self._dllogger.metadata("loss", {"unit": None})
+        self._dllogger.metadata("AP", {"unit": None})
+        self._dllogger.metadata("mask_AP", {"unit": None})
 
-        logging.getLogger('hooks').info('Created metrics logging hook')
+        logging.getLogger("hooks").info("Created metrics logging hook")
 
     def on_any_batch_end(self, mode, epoch, batch, logs):
         if (batch + 1) % self._log_every[mode] != 0:
@@ -53,7 +52,7 @@ class DLLoggerMetricsCallback(KerasCallback):
         self._log_metrics(mode, logs, step=step)
 
     def on_any_epoch_end(self, mode, epoch, logs):
-        step = (None if epoch is None else epoch + 1, )
+        step = (None if epoch is None else epoch + 1,)
         self._log_metrics(mode, logs, step=step)
 
     def on_any_end(self, mode, logs):
@@ -63,10 +62,10 @@ class DLLoggerMetricsCallback(KerasCallback):
         logs = logs or {}
 
         # remove outputs that are not in fact a metric
-        logs.pop('outputs', None)
+        logs.pop("outputs", None)
 
-        if mode == 'train' and self._log_learning_rate:
-            logs['learning_rate'] = float(self.model.optimizer._decayed_lr(tf.float32))
+        if mode == "train" and self._log_learning_rate:
+            logs["learning_rate"] = float(self.model.optimizer._decayed_lr(tf.float32))
 
         # no point in logging with empty data
         if not logs:
@@ -98,16 +97,16 @@ class DLLoggerPerfCallback(KerasCallback):
         self._batch_timestamps = {}
         self._start_timestamps = {}
 
-        for mode in ['train', 'test', 'predict']:
-            self._dllogger.metadata(f'{mode}_throughput', {'unit': 'images/s'})
-            self._dllogger.metadata(f'{mode}_latency', {'unit': 's'})
-            self._dllogger.metadata(f'{mode}_latency_90', {'unit': 's'})
-            self._dllogger.metadata(f'{mode}_latency_95', {'unit': 's'})
-            self._dllogger.metadata(f'{mode}_latency_99', {'unit': 's'})
-            self._dllogger.metadata(f'{mode}_time', {'unit': 's'})
+        for mode in ["train", "test", "predict"]:
+            self._dllogger.metadata(f"{mode}_throughput", {"unit": "images/s"})
+            self._dllogger.metadata(f"{mode}_latency", {"unit": "s"})
+            self._dllogger.metadata(f"{mode}_latency_90", {"unit": "s"})
+            self._dllogger.metadata(f"{mode}_latency_95", {"unit": "s"})
+            self._dllogger.metadata(f"{mode}_latency_99", {"unit": "s"})
+            self._dllogger.metadata(f"{mode}_time", {"unit": "s"})
 
-        self._logger = logging.getLogger('hooks')
-        self._logger.info('Created perf logging hooks')
+        self._logger = logging.getLogger("hooks")
+        self._logger.info("Created perf logging hooks")
 
     def on_any_begin(self, mode, logs):
         self._deltas[mode] = []
@@ -123,15 +122,15 @@ class DLLoggerPerfCallback(KerasCallback):
             return
 
         step = (None if epoch is None else epoch + 1, batch + 1)
-        self._log_perf(self._deltas[mode][-self._log_every[mode]:], mode, step=step)
+        self._log_perf(self._deltas[mode][-self._log_every[mode] :], mode, step=step)
 
     def on_any_end(self, mode, logs):
         if len(self._deltas[mode]) > self._warmup_steps[mode]:
-            self._log_perf(self._deltas[mode][self._warmup_steps[mode]:], mode)
+            self._log_perf(self._deltas[mode][self._warmup_steps[mode] :], mode)
         else:
             self._logger.warning(
-                f'Number of all {mode} steps was smaller then number of warm up steps, '
-                f'no stats were collected.'
+                f"Number of all {mode} steps was smaller then number of warm up steps, "
+                f"no stats were collected."
             )
 
     def _log_perf(self, deltas, mode, step=tuple()):
@@ -139,13 +138,17 @@ class DLLoggerPerfCallback(KerasCallback):
         self._dllogger.log(
             step=step,
             data={
-                f'{mode}_throughput': self._calculate_throughput(deltas, self._batch_sizes[mode]),
-                f'{mode}_latency': self._calculate_latency(deltas),
-                f'{mode}_latency_90': self._calculate_latency_confidence(deltas, 90.0),
-                f'{mode}_latency_95': self._calculate_latency_confidence(deltas, 95.0),
-                f'{mode}_latency_99': self._calculate_latency_confidence(deltas, 99.0),
-                f'{mode}_time': self._calculate_total_time(self._start_timestamps[mode], time.time())
-            }
+                f"{mode}_throughput": self._calculate_throughput(
+                    deltas, self._batch_sizes[mode]
+                ),
+                f"{mode}_latency": self._calculate_latency(deltas),
+                f"{mode}_latency_90": self._calculate_latency_confidence(deltas, 90.0),
+                f"{mode}_latency_95": self._calculate_latency_confidence(deltas, 95.0),
+                f"{mode}_latency_99": self._calculate_latency_confidence(deltas, 99.0),
+                f"{mode}_time": self._calculate_total_time(
+                    self._start_timestamps[mode], time.time()
+                ),
+            },
         )
 
     @staticmethod
@@ -187,8 +190,10 @@ class PretrainedWeightsLoadingCallback(KerasCallback):
 
         self._loaded = False
 
-        self._logger = logging.getLogger('hooks')
-        self._logger.info(f'Created pretrained backbone weights loading hook that loads from {checkpoint_path}')
+        self._logger = logging.getLogger("hooks")
+        self._logger.info(
+            f"Created pretrained backbone weights loading hook that loads from {checkpoint_path}"
+        )
 
     def on_train_batch_end(self, batch, logs=None):
         super().on_train_batch_end(batch, logs)
@@ -209,4 +214,6 @@ class PretrainedWeightsLoadingCallback(KerasCallback):
             var.assign(reader.get_tensor(cp_name))
             self._logger.debug(f'Assigned "{cp_name}" from checkpoint to "{var.name}"')
 
-        self._logger.info(f'Loaded {len(variable_mapping)} pretrained backbone variables')
+        self._logger.info(
+            f"Loaded {len(variable_mapping)} pretrained backbone variables"
+        )

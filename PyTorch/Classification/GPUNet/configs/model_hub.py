@@ -15,31 +15,46 @@
 import json
 import os
 import pathlib
-from pathlib import Path
 import shutil
 import urllib.request
+from pathlib import Path
 from typing import Any, Callable
 from zipfile import ZipFile
+
 from tqdm.auto import tqdm
 
 # Predefined model config files
 MODEL_ZOO_KEYS_B1_NGC = {}
 MODEL_ZOO_KEYS_B1_NGC["GV100"] = {}
 # GPUNet-0: 0.62ms on GV100
-MODEL_ZOO_KEYS_B1_NGC["GV100"]["0.65ms"] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_0_pyt_ckpt/versions/21.12.0_amp/zip"
+MODEL_ZOO_KEYS_B1_NGC["GV100"][
+    "0.65ms"
+] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_0_pyt_ckpt/versions/21.12.0_amp/zip"
 # GPUNet-1: 0.85ms on GV100
-MODEL_ZOO_KEYS_B1_NGC["GV100"]["0.85ms"] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_1_pyt_ckpt/versions/21.12.0_amp/zip"
+MODEL_ZOO_KEYS_B1_NGC["GV100"][
+    "0.85ms"
+] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_1_pyt_ckpt/versions/21.12.0_amp/zip"
 # GPUNet-2: 1.76ms on GV100
-MODEL_ZOO_KEYS_B1_NGC["GV100"]["1.75ms"] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_2_pyt_ckpt/versions/21.12.0_amp/zip"
+MODEL_ZOO_KEYS_B1_NGC["GV100"][
+    "1.75ms"
+] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_2_pyt_ckpt/versions/21.12.0_amp/zip"
 # GPUNet-D1: 1.25ms on GV100
-MODEL_ZOO_KEYS_B1_NGC["GV100"]["1.25ms-D"] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_d1_pyt_ckpt/versions/21.12.0_amp/zip"
+MODEL_ZOO_KEYS_B1_NGC["GV100"][
+    "1.25ms-D"
+] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_d1_pyt_ckpt/versions/21.12.0_amp/zip"
 # GPUNet-D2: 2.25ms on GV100
-MODEL_ZOO_KEYS_B1_NGC["GV100"]["2.25ms-D"] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_d2_pyt_ckpt/versions/21.12.0_amp/zip"
+MODEL_ZOO_KEYS_B1_NGC["GV100"][
+    "2.25ms-D"
+] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_d2_pyt_ckpt/versions/21.12.0_amp/zip"
 
 # GPUNet-P0: 0.5ms on GV100
-MODEL_ZOO_KEYS_B1_NGC["GV100"]["0.5ms-D"] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_p0_pyt_ckpt/versions/21.12.0_amp/zip"
+MODEL_ZOO_KEYS_B1_NGC["GV100"][
+    "0.5ms-D"
+] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_p0_pyt_ckpt/versions/21.12.0_amp/zip"
 # GPUNet-P1: 0.8ms on GV100
-MODEL_ZOO_KEYS_B1_NGC["GV100"]["0.8ms-D"] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_p1_pyt_ckpt/versions/21.12.0_amp/zip"
+MODEL_ZOO_KEYS_B1_NGC["GV100"][
+    "0.8ms-D"
+] = "https://api.ngc.nvidia.com/v2/models/nvidia/dle/gpunet_p1_pyt_ckpt/versions/21.12.0_amp/zip"
 MODEL_ZOO_BATCH_NGC = {
     "1": MODEL_ZOO_KEYS_B1_NGC,
 }
@@ -53,6 +68,7 @@ MODEL_ZOO_NAME2TYPE_B1["GPUNet-P1"] = "0.8ms-D"
 MODEL_ZOO_NAME2TYPE_B1["GPUNet-D1"] = "1.25ms-D"
 MODEL_ZOO_NAME2TYPE_B1["GPUNet-D2"] = "2.25ms-D"
 
+
 def get_model_list(batch: int = 1):
     """Get a list of models in model zoo."""
     batch = str(batch)
@@ -61,14 +77,12 @@ def get_model_list(batch: int = 1):
     return list(MODEL_ZOO_BATCH_NGC[batch].keys())
 
 
-
-
 def get_configs(
     batch: int = 1,
     latency: str = "GPUNet_1ms",
     gpuType: str = "GV100",
     config_root_dir: str = "./configs",
-    download: bool = True
+    download: bool = True,
 ):
     """Get file with model config (downloads if necessary)."""
     batch = str(batch)
@@ -87,7 +101,7 @@ def get_configs(
     assert latency in MODEL_ZOO_BATCH_NGC[batch][gpuType].keys(), errMsg2
 
     print("testing:", " batch=", batch, " latency=", latency, " gpu=", gpuType)
-    
+
     configPath = config_root_dir + "/batch" + str(batch)
     configPath += "/" + gpuType + "/" + latency + ".json"
     checkpointPath = config_root_dir + "/batch" + str(batch) + "/"
@@ -102,7 +116,6 @@ def get_configs(
         configFile.close()
 
     return modelJSON, checkpointPath
-
 
 
 def unzip(checkpoint_path: pathlib.Path, archive_path: pathlib.Path) -> None:
@@ -166,5 +179,3 @@ def download_checkpoint_ngc(checkpoint_url: str, checkpoint_path: pathlib.Path) 
 
     archive_path = checkpoint_path.parent / file_path.name
     unzip(checkpoint_path, archive_path)
-
-

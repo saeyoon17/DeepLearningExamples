@@ -35,7 +35,10 @@ def get_stats(pred, targ, class_idx):
 if __name__ == "__main__":
     args = parser.parse_args()
     y_pred = sorted(glob.glob(os.path.join(args.preds, "*.npy")))
-    y_true = [os.path.join(args.lbls, os.path.basename(pred).replace("npy", "nii.gz")) for pred in y_pred]
+    y_true = [
+        os.path.join(args.lbls, os.path.basename(pred).replace("npy", "nii.gz"))
+        for pred in y_pred
+    ]
     assert len(y_pred) > 0
     n_class = np.load(y_pred[0]).shape[0] - 1
 
@@ -54,5 +57,7 @@ if __name__ == "__main__":
                 dice[i - 1].append(2 * tp / denum if denum != 0 else 0)
 
     dice_score = np.mean(np.array(dice), axis=-1)
-    dice_cls = " ".join([f"L{i+1} {round(dice_score[i], 4)}" for i, dice in enumerate(dice_score)])
+    dice_cls = " ".join(
+        [f"L{i+1} {round(dice_score[i], 4)}" for i, dice in enumerate(dice_score)]
+    )
     print(f"mean dice: {round(np.mean(dice_score), 4)} - {dice_cls}")

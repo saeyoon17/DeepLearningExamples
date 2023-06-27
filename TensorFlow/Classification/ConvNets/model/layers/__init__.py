@@ -15,51 +15,33 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from model.layers.activation import relu
-from model.layers.activation import softmax
-from model.layers.activation import tanh
-from model.layers.activation import sigmoid
-
+from model.layers.activation import relu, sigmoid, softmax, tanh
 from model.layers.conv2d import conv2d
-
 from model.layers.dense import dense
-
 from model.layers.math_ops import reduce_mean
-
 from model.layers.normalization import batch_norm
-
 from model.layers.padding import pad
-
-from model.layers.pooling import average_pooling2d
-from model.layers.pooling import max_pooling2d
+from model.layers.pooling import average_pooling2d, max_pooling2d
 from model.layers.squeeze_excitation_layer import squeeze_excitation_layer
 
 __all__ = [
-
     # activation layers
-    'relu',
-    'softmax',
-    'tanh',
-    'sigmoid',
-
+    "relu",
+    "softmax",
+    "tanh",
+    "sigmoid",
     # conv layers
-    'conv2d',
-
+    "conv2d",
     # dense layers
-    'dense',
-
+    "dense",
     # math_ops layers
-    'reduce_mean',
-
+    "reduce_mean",
     # normalization layers
-    'batch_norm',
-
+    "batch_norm",
     # padding layers
-    'pad',
-
+    "pad",
     # pooling layers
-    'average_pooling2d',
-    'max_pooling2d',
-
-    'squeeze_excitation_layer'
+    "average_pooling2d",
+    "max_pooling2d",
+    "squeeze_excitation_layer",
 ]

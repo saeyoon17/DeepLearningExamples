@@ -20,15 +20,16 @@ from google_drive_downloader import GoogleDriveDownloader as gdd
 
 PARSER = argparse.ArgumentParser(description="V-Net medical")
 
-PARSER.add_argument('--data_dir',
-                    type=str,
-                    default='./data',
-                    help="""Directory where to download the dataset""")
+PARSER.add_argument(
+    "--data_dir",
+    type=str,
+    default="./data",
+    help="""Directory where to download the dataset""",
+)
 
-PARSER.add_argument('--dataset',
-                    type=str,
-                    default='hippocampus',
-                    help="""Dataset to download""")
+PARSER.add_argument(
+    "--dataset", type=str, default="hippocampus", help="""Dataset to download"""
+)
 
 
 def main():
@@ -37,25 +38,27 @@ def main():
     if not os.path.exists(FLAGS.data_dir):
         os.makedirs(FLAGS.data_dir)
 
-    filename = ''
+    filename = ""
 
-    if FLAGS.dataset == 'hippocampus':
-        filename = 'Task04_Hippocampus.tar'
-        gdd.download_file_from_google_drive(file_id='1RzPB1_bqzQhlWvU-YGvZzhx2omcDh38C',
-                                            dest_path=os.path.join(FLAGS.data_dir, filename),
-                                            unzip=False)
+    if FLAGS.dataset == "hippocampus":
+        filename = "Task04_Hippocampus.tar"
+        gdd.download_file_from_google_drive(
+            file_id="1RzPB1_bqzQhlWvU-YGvZzhx2omcDh38C",
+            dest_path=os.path.join(FLAGS.data_dir, filename),
+            unzip=False,
+        )
 
-    print('Unpacking...')
+    print("Unpacking...")
 
     tf = tarfile.open(os.path.join(FLAGS.data_dir, filename))
     tf.extractall(path=FLAGS.data_dir)
 
-    print('Cleaning up...')
+    print("Cleaning up...")
 
     os.remove(os.path.join(FLAGS.data_dir, filename))
 
     print("Finished downloading files for V-Net medical to {}".format(FLAGS.data_dir))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

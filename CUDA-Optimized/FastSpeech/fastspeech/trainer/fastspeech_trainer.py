@@ -23,19 +23,57 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import torch
-
-from fastspeech.align_tacotron2 import get_tacotron2, get_duration
+from fastspeech.align_tacotron2 import get_duration, get_tacotron2
 from fastspeech.trainer.trainer import Trainer
-from fastspeech.utils.pytorch import to_device_async, to_cpu_numpy
+from fastspeech.utils.pytorch import to_cpu_numpy, to_device_async
 from torch.nn import functional as F
 
 
 class FastspeechTrainer(Trainer):
-
-    def __init__(self, data_loader, model_name, model, optimizer_fn, final_steps, lr_scheduler_fn=None, step=0, ckpt_path=None, log_path=None,
-                 n_epochs=None, save_steps=None, log_steps=10, device='cuda', use_amp='O0', nvprof_iter_start=None, nvprof_iter_end=None, pyprof_enabled=False, detect_anomaly=False, seed=None, pre_aligns=True):
-        super(FastspeechTrainer, self).__init__(data_loader, model_name, model, optimizer_fn, final_steps, lr_scheduler_fn, step, ckpt_path,
-                                                log_path, n_epochs, save_steps, log_steps, device, use_amp, nvprof_iter_start, nvprof_iter_end, pyprof_enabled, detect_anomaly, seed)
+    def __init__(
+        self,
+        data_loader,
+        model_name,
+        model,
+        optimizer_fn,
+        final_steps,
+        lr_scheduler_fn=None,
+        step=0,
+        ckpt_path=None,
+        log_path=None,
+        n_epochs=None,
+        save_steps=None,
+        log_steps=10,
+        device="cuda",
+        use_amp="O0",
+        nvprof_iter_start=None,
+        nvprof_iter_end=None,
+        pyprof_enabled=False,
+        detect_anomaly=False,
+        seed=None,
+        pre_aligns=True,
+    ):
+        super(FastspeechTrainer, self).__init__(
+            data_loader,
+            model_name,
+            model,
+            optimizer_fn,
+            final_steps,
+            lr_scheduler_fn,
+            step,
+            ckpt_path,
+            log_path,
+            n_epochs,
+            save_steps,
+            log_steps,
+            device,
+            use_amp,
+            nvprof_iter_start,
+            nvprof_iter_end,
+            pyprof_enabled,
+            detect_anomaly,
+            seed,
+        )
         self.pre_aligns = pre_aligns
 
         if not pre_aligns:
@@ -56,24 +94,23 @@ class FastspeechTrainer(Trainer):
             dur_tgt = dur_tgt.float()
             dur_tgt = to_device_async(dur_tgt, self.device)
         else:
-            text_len = inputs['text_len']
-            mel_len = inputs['mel_len']
+            text_len = inputs["text_len"]
+            mel_len = inputs["mel_len"]
             dur_tgt = get_duration(
-                text, text_len, mel_tgt, mel_len, self.tacotron2, self.device)
+                text, text_len, mel_tgt, mel_len, self.tacotron2, self.device
+            )
 
         # (B,H,T) => (B,T,H)
         mel_tgt = mel_tgt.transpose(1, 2)
 
         # Forward
         mel, mask, dur = model(
-            text,
-            text_pos,
-            duration_target=dur_tgt,
-            seq_output_len=mel_tgt.size(1))
-        assert(mel.size(1) == mel_tgt.size(1))
+            text, text_pos, duration_target=dur_tgt, seq_output_len=mel_tgt.size(1)
+        )
+        assert mel.size(1) == mel_tgt.size(1)
 
         # Loss
-        mel_loss = F.mse_loss(mel, mel_tgt, reduction='none')
+        mel_loss = F.mse_loss(mel, mel_tgt, reduction="none")
         mel_mask = mel_tgt.ne(0).float()
         mel_loss *= mel_mask
         mel_loss = mel_loss.mean()
@@ -87,8 +124,8 @@ class FastspeechTrainer(Trainer):
         loss = mel_loss + dur_pred_loss
 
         meta = {
-            'mel_loss': to_cpu_numpy(mel_loss),
-            'duration_predictor_loss': to_cpu_numpy(dur_pred_loss),
+            "mel_loss": to_cpu_numpy(mel_loss),
+            "duration_predictor_loss": to_cpu_numpy(dur_pred_loss),
         }
         # meta = {}
 

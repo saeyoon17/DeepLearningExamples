@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Any
 import math
-import numpy as np
+from typing import Any, Dict
 
+import numpy as np
 import torch
 
 
 class Scheduler:
-    """ Parameter Scheduler Base Class
+    """Parameter Scheduler Base Class
     A scheduler base class that can be used to schedule any optimizer parameter groups.
     Unlike the builtin PyTorch schedulers, this is intended to be consistently called
     * At the END of each epoch, before incrementing the epoch count, to calculate next epoch's value
@@ -34,28 +34,39 @@ class Scheduler:
      * https://github.com/allenai/allennlp/tree/master/allennlp/training/learning_rate_schedulers
     """
 
-    def __init__(self,
-                 optimizer: torch.optim.Optimizer,
-                 param_group_field: str,
-                 noise_range_t=None,
-                 noise_type='normal',
-                 noise_pct=0.67,
-                 noise_std=1.0,
-                 noise_seed=None,
-                 initialize: bool = True) -> None:
+    def __init__(
+        self,
+        optimizer: torch.optim.Optimizer,
+        param_group_field: str,
+        noise_range_t=None,
+        noise_type="normal",
+        noise_pct=0.67,
+        noise_std=1.0,
+        noise_seed=None,
+        initialize: bool = True,
+    ) -> None:
         self.optimizer = optimizer
         self.param_group_field = param_group_field
         self._initial_param_group_field = f"initial_{param_group_field}"
         if initialize:
             for i, group in enumerate(self.optimizer.param_groups):
                 if param_group_field not in group:
-                    raise KeyError(f"{param_group_field} missing from param_groups[{i}]")
-                group.setdefault(self._initial_param_group_field, group[param_group_field])
+                    raise KeyError(
+                        f"{param_group_field} missing from param_groups[{i}]"
+                    )
+                group.setdefault(
+                    self._initial_param_group_field, group[param_group_field]
+                )
         else:
             for i, group in enumerate(self.optimizer.param_groups):
                 if self._initial_param_group_field not in group:
-                    raise KeyError(f"{self._initial_param_group_field} missing from param_groups[{i}]")
-        self.base_values = [group[self._initial_param_group_field] for group in self.optimizer.param_groups]
+                    raise KeyError(
+                        f"{self._initial_param_group_field} missing from param_groups[{i}]"
+                    )
+        self.base_values = [
+            group[self._initial_param_group_field]
+            for group in self.optimizer.param_groups
+        ]
         self.metric = None  # any point to having this for all?
         self.noise_range_t = noise_range_t
         self.noise_pct = noise_pct
@@ -65,7 +76,9 @@ class Scheduler:
         self.update_groups(self.base_values)
 
     def state_dict(self) -> Dict[str, Any]:
-        return {key: value for key, value in self.__dict__.items() if key != 'optimizer'}
+        return {
+            key: value for key, value in self.__dict__.items() if key != "optimizer"
+        }
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         self.__dict__.update(state_dict)
@@ -105,17 +118,18 @@ class Scheduler:
             if apply_noise:
                 g = torch.Generator()
                 g.manual_seed(self.noise_seed + t)
-                if self.noise_type == 'normal':
+                if self.noise_type == "normal":
                     while True:
                         # resample if noise out of percent limit, brute force but shouldn't spin much
                         noise = torch.randn(1, generator=g).item()
                         if abs(noise) < self.noise_pct:
                             break
                 else:
-                    noise = 2 * (torch.rand(1, generator=g).item() - 0.5) * self.noise_pct
+                    noise = (
+                        2 * (torch.rand(1, generator=g).item() - 0.5) * self.noise_pct
+                    )
                 lrs = [v + v * noise for v in lrs]
         return lrs
-
 
 
 class CosineLRScheduler(Scheduler):
@@ -126,32 +140,41 @@ class CosineLRScheduler(Scheduler):
     https://github.com/allenai/allennlp/blob/master/allennlp/training/learning_rate_schedulers/cosine.py
     """
 
-    def __init__(self,
-                 optimizer: torch.optim.Optimizer,
-                 t_initial: int,
-                 t_mul: float = 1.,
-                 lr_min: float = 0.,
-                 decay_rate: float = 1.,
-                 warmup_t=0,
-                 warmup_lr_init=0,
-                 warmup_prefix=False,
-                 cycle_limit=0,
-                 t_in_epochs=True,
-                 noise_range_t=None,
-                 noise_pct=0.67,
-                 noise_std=1.0,
-                 noise_seed=42,
-                 initialize=True) -> None:
+    def __init__(
+        self,
+        optimizer: torch.optim.Optimizer,
+        t_initial: int,
+        t_mul: float = 1.0,
+        lr_min: float = 0.0,
+        decay_rate: float = 1.0,
+        warmup_t=0,
+        warmup_lr_init=0,
+        warmup_prefix=False,
+        cycle_limit=0,
+        t_in_epochs=True,
+        noise_range_t=None,
+        noise_pct=0.67,
+        noise_std=1.0,
+        noise_seed=42,
+        initialize=True,
+    ) -> None:
         super().__init__(
-            optimizer, param_group_field="lr",
-            noise_range_t=noise_range_t, noise_pct=noise_pct, noise_std=noise_std, noise_seed=noise_seed,
-            initialize=initialize)
+            optimizer,
+            param_group_field="lr",
+            noise_range_t=noise_range_t,
+            noise_pct=noise_pct,
+            noise_std=noise_std,
+            noise_seed=noise_seed,
+            initialize=initialize,
+        )
 
         assert t_initial > 0
         assert lr_min >= 0
         if t_initial == 1 and t_mul == 1 and decay_rate == 1:
-            print("Cosine annealing scheduler will have no effect on the learning "
-                           "rate since t_initial = t_mul = eta_mul = 1.")
+            print(
+                "Cosine annealing scheduler will have no effect on the learning "
+                "rate since t_initial = t_mul = eta_mul = 1."
+            )
         self.t_initial = t_initial
         self.t_mul = t_mul
         self.lr_min = lr_min
@@ -162,7 +185,9 @@ class CosineLRScheduler(Scheduler):
         self.warmup_prefix = warmup_prefix
         self.t_in_epochs = t_in_epochs
         if self.warmup_t:
-            self.warmup_steps = [(v - warmup_lr_init) / self.warmup_t for v in self.base_values]
+            self.warmup_steps = [
+                (v - warmup_lr_init) / self.warmup_t for v in self.base_values
+            ]
             super().update_groups(self.warmup_lr_init)
         else:
             self.warmup_steps = [1 for _ in self.base_values]
@@ -175,21 +200,25 @@ class CosineLRScheduler(Scheduler):
                 t = t - self.warmup_t
 
             if self.t_mul != 1:
-                i = math.floor(math.log(1 - t / self.t_initial * (1 - self.t_mul), self.t_mul))
-                t_i = self.t_mul ** i * self.t_initial
-                t_curr = t - (1 - self.t_mul ** i) / (1 - self.t_mul) * self.t_initial
+                i = math.floor(
+                    math.log(1 - t / self.t_initial * (1 - self.t_mul), self.t_mul)
+                )
+                t_i = self.t_mul**i * self.t_initial
+                t_curr = t - (1 - self.t_mul**i) / (1 - self.t_mul) * self.t_initial
             else:
                 i = t // self.t_initial
                 t_i = self.t_initial
                 t_curr = t - (self.t_initial * i)
 
-            gamma = self.decay_rate ** i
+            gamma = self.decay_rate**i
             lr_min = self.lr_min * gamma
             lr_max_values = [v * gamma for v in self.base_values]
 
             if self.cycle_limit == 0 or (self.cycle_limit > 0 and i < self.cycle_limit):
                 lrs = [
-                    lr_min + 0.5 * (lr_max - lr_min) * (1 + math.cos(math.pi * t_curr / t_i)) for lr_max in lr_max_values
+                    lr_min
+                    + 0.5 * (lr_max - lr_min) * (1 + math.cos(math.pi * t_curr / t_i))
+                    for lr_max in lr_max_values
                 ]
             else:
                 lrs = [self.lr_min for _ in self.base_values]
@@ -215,15 +244,18 @@ class CosineLRScheduler(Scheduler):
         if self.t_mul == 1.0:
             return self.t_initial * cycles
         else:
-            return int(math.floor(-self.t_initial * (self.t_mul ** cycles - 1) / (1 - self.t_mul)))
-
+            return int(
+                math.floor(
+                    -self.t_initial * (self.t_mul**cycles - 1) / (1 - self.t_mul)
+                )
+            )
 
 
 def create_scheduler(args, optimizer):
     num_epochs = args.epochs
 
-    if getattr(args, 'lr_noise', None) is not None:
-        lr_noise = getattr(args, 'lr_noise')
+    if getattr(args, "lr_noise", None) is not None:
+        lr_noise = getattr(args, "lr_noise")
         if isinstance(lr_noise, (list, tuple)):
             noise_range = [n * num_epochs for n in lr_noise]
             if len(noise_range) == 1:
@@ -234,21 +266,21 @@ def create_scheduler(args, optimizer):
         noise_range = None
 
     lr_scheduler = None
-    if args.sched == 'cosine':
+    if args.sched == "cosine":
         lr_scheduler = CosineLRScheduler(
             optimizer,
             t_initial=num_epochs,
-            t_mul=getattr(args, 'lr_cycle_mul', 1.),
+            t_mul=getattr(args, "lr_cycle_mul", 1.0),
             lr_min=args.min_lr,
             decay_rate=args.decay_rate,
             warmup_lr_init=args.warmup_lr,
             warmup_t=args.warmup_epochs,
-            cycle_limit=getattr(args, 'lr_cycle_limit', 1),
+            cycle_limit=getattr(args, "lr_cycle_limit", 1),
             t_in_epochs=True,
             noise_range_t=noise_range,
-            noise_pct=getattr(args, 'lr_noise_pct', 0.67),
-            noise_std=getattr(args, 'lr_noise_std', 1.),
-            noise_seed=getattr(args, 'seed', 42),
+            noise_pct=getattr(args, "lr_noise_pct", 0.67),
+            noise_std=getattr(args, "lr_noise_std", 1.0),
+            noise_seed=getattr(args, "seed", 42),
         )
         num_epochs = lr_scheduler.get_cycle_length() + args.cooldown_epochs
     else:

@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import math
-import numpy as np
 
 import dllogger as DLLogger
+import numpy as np
+
 
 class EpochMeter:
     def __init__(self, name):
@@ -43,7 +44,7 @@ class IterationAverageMeter:
         self.sum = 0
 
     def update_iter(self, val):
-        if math.isfinite(val): # sometimes loss === 'inf'
+        if math.isfinite(val):  # sometimes loss === 'inf'
             self.n += 1
             self.sum += 0 if math.isinf(val) else val
 
@@ -61,9 +62,11 @@ class Logger:
         self.val_acc_logger = EpochMeter("Validation accuracy")
         self.log_interval = log_interval
 
-        backends = [ DLLogger.StdOutBackend(DLLogger.Verbosity.DEFAULT) ]
+        backends = [DLLogger.StdOutBackend(DLLogger.Verbosity.DEFAULT)]
         if json_output:
-            backends.append(DLLogger.JSONStreamBackend(DLLogger.Verbosity.VERBOSE, json_output))
+            backends.append(
+                DLLogger.JSONStreamBackend(DLLogger.Verbosity.VERBOSE, json_output)
+            )
 
         DLLogger.init(backends)
         DLLogger.metadata("mAP", {"unit": None})
@@ -83,7 +86,7 @@ class Logger:
         DLLogger.flush()
 
     def log(self, key, value):
-        DLLogger.log(self.step(), { key: value })
+        DLLogger.log(self.step(), {key: value})
         DLLogger.flush()
 
     def add_to_summary(self, data):
@@ -98,24 +101,28 @@ class Logger:
         self.train_iter = iteration
         self.train_loss_logger.update_iter(loss)
         if iteration % self.log_interval == 0:
-            self.log('loss', loss)
+            self.log("loss", loss)
 
     def update_epoch(self, epoch, acc):
         self.epoch = epoch
         self.train_loss_logger.update_epoch(epoch)
         self.val_acc_logger.update(epoch, acc)
 
-        data = { 'mAP': acc }
+        data = {"mAP": acc}
         self.add_to_summary(data)
         DLLogger.log((self.epoch,), data)
 
     def update_epoch_time(self, epoch, time):
         self.epoch = epoch
         self.train_epoch_time_logger.update(epoch, time)
-        DLLogger.log((self.epoch,), { 'time': time })
+        DLLogger.log((self.epoch,), {"time": time})
 
     def print_results(self):
-        return self.train_loss_logger.data, self.val_acc_logger.data, self.train_epoch_time_logger
+        return (
+            self.train_loss_logger.data,
+            self.val_acc_logger.data,
+            self.train_epoch_time_logger,
+        )
 
 
 class BenchmarkMeter:
@@ -154,16 +161,18 @@ class BenchLogger(Logger):
         data = np.array(self.images_per_ses.data)
         med = np.median(data)
 
-        DLLogger.log((), {
-            'avg_img/sec': avr,
-            'med_img/sec': np.median(data),
-            'min_img/sec': np.min(data),
-            'max_img/sec': np.max(data),
-        })
-        print("Done benchmarking. Total images: {}\ttotal time: {:.3f}\tAverage images/sec: {:.3f}\tMedian images/sec: {:.3f}".format(
-            total_bs,
-            total_time,
-            avr,
-            med
-        ))
+        DLLogger.log(
+            (),
+            {
+                "avg_img/sec": avr,
+                "med_img/sec": np.median(data),
+                "min_img/sec": np.min(data),
+                "max_img/sec": np.max(data),
+            },
+        )
+        print(
+            "Done benchmarking. Total images: {}\ttotal time: {:.3f}\tAverage images/sec: {:.3f}\tMedian images/sec: {:.3f}".format(
+                total_bs, total_time, avr, med
+            )
+        )
         return med

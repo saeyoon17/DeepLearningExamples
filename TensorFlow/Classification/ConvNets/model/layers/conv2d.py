@@ -17,7 +17,7 @@
 
 import tensorflow as tf
 
-__all__ = ['conv2d']
+__all__ = ["conv2d"]
 
 
 def conv2d(
@@ -25,21 +25,25 @@ def conv2d(
     n_channels=8,
     kernel_size=(3, 3),
     strides=(1, 1),
-    padding='VALID',
-    data_format='NHWC',
+    padding="VALID",
+    data_format="NHWC",
     dilation_rate=(1, 1),
     use_bias=True,
     kernel_initializer=tf.compat.v1.variance_scaling_initializer(),
     bias_initializer=tf.zeros_initializer(),
     trainable=True,
-    name=None
+    name=None,
 ):
 
-    if data_format not in ['NHWC', 'NCHW']:
-        raise ValueError("Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format)
+    if data_format not in ["NHWC", "NCHW"]:
+        raise ValueError(
+            "Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format
+        )
 
-    if padding.upper() not in ['SAME', 'VALID']:
-        raise ValueError("Unknown padding: `%s` (accepted: ['SAME', 'VALID'])" % padding.upper())
+    if padding.upper() not in ["SAME", "VALID"]:
+        raise ValueError(
+            "Unknown padding: `%s` (accepted: ['SAME', 'VALID'])" % padding.upper()
+        )
 
     net = tf.layers.conv2d(
         inputs,
@@ -48,13 +52,13 @@ def conv2d(
         strides=strides,
         padding=padding,
         dilation_rate=dilation_rate,
-        data_format='channels_last' if data_format == 'NHWC' else 'channels_first',
+        data_format="channels_last" if data_format == "NHWC" else "channels_first",
         use_bias=use_bias,
         kernel_initializer=kernel_initializer,
         bias_initializer=bias_initializer,
         trainable=trainable,
         activation=None,
-        name=name
+        name=name,
     )
 
     return net

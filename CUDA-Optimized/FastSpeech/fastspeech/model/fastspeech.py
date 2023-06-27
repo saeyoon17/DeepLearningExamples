@@ -26,36 +26,38 @@ from collections import OrderedDict
 
 import numpy as np
 import torch
-from torch import nn as nn
-
 from fastspeech.model.module import FFTBlocks, LengthRegulator
-from fastspeech.utils.pytorch import to_device_async
-from fastspeech.utils.nvtx import Nvtx
-from torch.nn import functional as F
-from fastspeech.utils.logging import tprint
 from fastspeech.text_norm.symbols import symbols
+from fastspeech.utils.logging import tprint
+from fastspeech.utils.nvtx import Nvtx
+from fastspeech.utils.pytorch import to_device_async
+from torch import nn as nn
+from torch.nn import functional as F
+
 
 class Fastspeech(nn.Module):
-    """ FastSpeech """
+    """FastSpeech"""
 
-    def __init__(self, 
-                 max_seq_len, 
-                 d_model,
-                 phoneme_side_n_layer, 
-                 phoneme_side_head, 
-                 phoneme_side_conv1d_filter_size,
-                 phoneme_side_output_size, 
-                 mel_side_n_layer, 
-                 mel_side_head, 
-                 mel_side_conv1d_filter_size,
-                 mel_side_output_size,
-                 fft_conv1d_kernel, 
-                 fft_conv1d_padding,
-                 duration_predictor_filter_size, 
-                 duration_predictor_kernel_size, 
-                 dropout,
-                 n_mels,
-                 fused_layernorm=False):
+    def __init__(
+        self,
+        max_seq_len,
+        d_model,
+        phoneme_side_n_layer,
+        phoneme_side_head,
+        phoneme_side_conv1d_filter_size,
+        phoneme_side_output_size,
+        mel_side_n_layer,
+        mel_side_head,
+        mel_side_conv1d_filter_size,
+        mel_side_output_size,
+        fft_conv1d_kernel,
+        fft_conv1d_padding,
+        duration_predictor_filter_size,
+        duration_predictor_kernel_size,
+        dropout,
+        n_mels,
+        fused_layernorm=False,
+    ):
         super(Fastspeech, self).__init__()
 
         self.max_seq_len = max_seq_len
@@ -75,12 +77,9 @@ class Fastspeech(nn.Module):
         self.dropout = dropout
         self.n_mels = n_mels
         self.fused_layernorm = fused_layernorm
-        self.n_phns = len(symbols)+1
+        self.n_phns = len(symbols) + 1
 
-        self.word_emb = nn.Embedding(
-            self.n_phns, 
-            d_model, 
-            padding_idx=0)
+        self.word_emb = nn.Embedding(self.n_phns, d_model, padding_idx=0)
 
         self.phoneme_side = FFTBlocks(
             max_seq_len=max_seq_len,
@@ -94,7 +93,7 @@ class Fastspeech(nn.Module):
             fft_conv1d_padding=fft_conv1d_padding,
             dropout=dropout,
             name="phoneme_side",
-            fused_layernorm=fused_layernorm
+            fused_layernorm=fused_layernorm,
         )
 
         self.length_regulator = LengthRegulator(
@@ -102,7 +101,7 @@ class Fastspeech(nn.Module):
             duration_predictor_filter_size=duration_predictor_filter_size,
             duration_predictor_kernel_size=duration_predictor_kernel_size,
             dropout=dropout,
-            fused_layernorm=fused_layernorm
+            fused_layernorm=fused_layernorm,
         )
 
         self.mel_side = FFTBlocks(
@@ -117,12 +116,21 @@ class Fastspeech(nn.Module):
             fft_conv1d_padding=fft_conv1d_padding,
             dropout=dropout,
             name="mel_side",
-            fused_layernorm=fused_layernorm            
+            fused_layernorm=fused_layernorm,
         )
 
         self.mel_linear = nn.Linear(mel_side_output_size, n_mels, bias=True)
 
-    def forward(self, seq, pos, duration_target=None, alpha=1.0, seq_output_len=None, use_fp16=False, acts=None):
+    def forward(
+        self,
+        seq,
+        pos,
+        duration_target=None,
+        alpha=1.0,
+        seq_output_len=None,
+        use_fp16=False,
+        acts=None,
+    ):
 
         # Phoneme Embedding
         output = self.word_emb(seq)
@@ -141,24 +149,22 @@ class Fastspeech(nn.Module):
 
         # Length Regulator
         output, pos, duration = self.length_regulator(
-            output,
-            output_mask,
-            target=duration_target,
-            alpha=alpha)
+            output, output_mask, target=duration_target, alpha=alpha
+        )
 
         if seq_output_len:
             output = F.pad(output, pad=(0, 0, 0, seq_output_len - output.size(1)))
             pos = F.pad(pos, pad=(0, seq_output_len - pos.size(1)))
 
         # length of output mel shouldn't exceed max_seq_len
-        output = output[:, :self.max_seq_len]
-        pos = pos[:, :self.max_seq_len]
+        output = output[:, : self.max_seq_len]
+        pos = pos[:, : self.max_seq_len]
 
         if acts is not None:
             acts["act.length_regulator.seq"] = output
             acts["act.length_regulator.dur"] = torch.round(duration)
 
-        if self.training or output.bool().any():      
+        if self.training or output.bool().any():
             # Mel Side FFT Blocks
             output, output_mask = self.mel_side(output, pos, acts=acts)
 
@@ -190,6 +196,6 @@ class Fastspeech(nn.Module):
             output = output[:, :seq_output_len, :]
 
             output_mask = F.pad(output_mask, padding)
-            output_mask = output_mask[:, :seq_output_len, :]          
+            output_mask = output_mask[:, :seq_output_len, :]
 
         return output, output_mask, duration

@@ -19,7 +19,6 @@ import tensorflow as tf
 
 
 class RPNHead(tf.keras.models.Model):
-
     def __init__(self, name, num_anchors, trainable, *args, **kwargs):
         super().__init__(name=name, trainable=trainable, *args, **kwargs)
         """Shared RPN heads."""
@@ -33,9 +32,9 @@ class RPNHead(tf.keras.models.Model):
             activation=tf.nn.relu,
             bias_initializer=tf.keras.initializers.Zeros(),
             kernel_initializer=tf.random_normal_initializer(stddev=0.01),
-            padding='same',
+            padding="same",
             trainable=trainable,
-            name='rpn'
+            name="rpn",
         )
 
         # Proposal classification scores
@@ -46,9 +45,9 @@ class RPNHead(tf.keras.models.Model):
             strides=(1, 1),
             bias_initializer=tf.keras.initializers.Zeros(),
             kernel_initializer=tf.random_normal_initializer(stddev=0.01),
-            padding='valid',
+            padding="valid",
             trainable=trainable,
-            name='rpn-class'
+            name="rpn-class",
         )
 
         # Proposal bbox regression deltas
@@ -59,9 +58,9 @@ class RPNHead(tf.keras.models.Model):
             strides=(1, 1),
             bias_initializer=tf.keras.initializers.Zeros(),
             kernel_initializer=tf.random_normal_initializer(stddev=0.01),
-            padding='valid',
+            padding="valid",
             trainable=trainable,
-            name='rpn-box'
+            name="rpn-box",
         )
 
     def call(self, inputs, *args, **kwargs):
@@ -73,8 +72,15 @@ class RPNHead(tf.keras.models.Model):
 
 
 class BoxHead(tf.keras.Model):
-
-    def __init__(self, num_classes=91, mlp_head_dim=1024, name="box_head", trainable=True, *args, **kwargs):
+    def __init__(
+        self,
+        num_classes=91,
+        mlp_head_dim=1024,
+        name="box_head",
+        trainable=True,
+        *args,
+        **kwargs
+    ):
         """Box and class branches for the Mask-RCNN model.
 
         Args:
@@ -90,17 +96,11 @@ class BoxHead(tf.keras.Model):
         self._mlp_head_dim = mlp_head_dim
 
         self._dense_fc6 = tf.keras.layers.Dense(
-            units=mlp_head_dim,
-            activation=tf.nn.relu,
-            trainable=trainable,
-            name='fc6'
+            units=mlp_head_dim, activation=tf.nn.relu, trainable=trainable, name="fc6"
         )
 
         self._dense_fc7 = tf.keras.layers.Dense(
-            units=mlp_head_dim,
-            activation=tf.nn.relu,
-            trainable=trainable,
-            name='fc7'
+            units=mlp_head_dim, activation=tf.nn.relu, trainable=trainable, name="fc7"
         )
 
         self._dense_class = tf.keras.layers.Dense(
@@ -108,7 +108,7 @@ class BoxHead(tf.keras.Model):
             kernel_initializer=tf.random_normal_initializer(stddev=0.01),
             bias_initializer=tf.keras.initializers.Zeros(),
             trainable=trainable,
-            name='class-predict'
+            name="class-predict",
         )
 
         self._dense_box = tf.keras.layers.Dense(
@@ -116,7 +116,7 @@ class BoxHead(tf.keras.Model):
             kernel_initializer=tf.random_normal_initializer(stddev=0.001),
             bias_initializer=tf.keras.initializers.Zeros(),
             trainable=trainable,
-            name='box-predict'
+            name="box-predict",
         )
 
     def call(self, inputs, **kwargs):
@@ -147,7 +147,6 @@ class BoxHead(tf.keras.Model):
 
 
 class MaskHead(tf.keras.Model):
-
     @staticmethod
     def _get_stddev_equivalent_to_msra_fill(kernel_size, fan_out):
         """Returns the stddev of random normal initialization as MSRAFill."""
@@ -157,13 +156,13 @@ class MaskHead(tf.keras.Model):
         return (2 / (kernel_size[0] * kernel_size[1] * fan_out)) ** 0.5
 
     def __init__(
-            self,
-            num_classes=91,
-            mrcnn_resolution=28,
-            name="mask_head",
-            trainable=True,
-            *args,
-            **kwargs
+        self,
+        num_classes=91,
+        mrcnn_resolution=28,
+        name="mask_head",
+        trainable=True,
+        *args,
+        **kwargs
     ):
         """Mask branch for the Mask-RCNN model.
 
@@ -185,18 +184,20 @@ class MaskHead(tf.keras.Model):
         init_stddev = MaskHead._get_stddev_equivalent_to_msra_fill(kernel_size, fan_out)
 
         for conv_id in range(4):
-            self._conv_stage1.append(tf.keras.layers.Conv2D(
-                fan_out,
-                kernel_size=kernel_size,
-                strides=(1, 1),
-                padding='same',
-                dilation_rate=(1, 1),
-                activation=tf.nn.relu,
-                kernel_initializer=tf.random_normal_initializer(stddev=init_stddev),
-                bias_initializer=tf.keras.initializers.Zeros(),
-                trainable=trainable,
-                name='mask-conv-l%d' % conv_id
-            ))
+            self._conv_stage1.append(
+                tf.keras.layers.Conv2D(
+                    fan_out,
+                    kernel_size=kernel_size,
+                    strides=(1, 1),
+                    padding="same",
+                    dilation_rate=(1, 1),
+                    activation=tf.nn.relu,
+                    kernel_initializer=tf.random_normal_initializer(stddev=init_stddev),
+                    bias_initializer=tf.keras.initializers.Zeros(),
+                    trainable=trainable,
+                    name="mask-conv-l%d" % conv_id,
+                )
+            )
 
         kernel_size = (2, 2)
         fan_out = 256
@@ -207,12 +208,12 @@ class MaskHead(tf.keras.Model):
             fan_out,
             kernel_size=kernel_size,
             strides=(2, 2),
-            padding='valid',
+            padding="valid",
             activation=tf.nn.relu,
             kernel_initializer=tf.random_normal_initializer(stddev=init_stddev),
             bias_initializer=tf.keras.initializers.Zeros(),
             trainable=trainable,
-            name='conv5-mask'
+            name="conv5-mask",
         )
 
         kernel_size = (1, 1)
@@ -224,11 +225,11 @@ class MaskHead(tf.keras.Model):
             fan_out,
             kernel_size=kernel_size,
             strides=(1, 1),
-            padding='valid',
+            padding="valid",
             kernel_initializer=tf.random_normal_initializer(stddev=init_stddev),
             bias_initializer=tf.keras.initializers.Zeros(),
             trainable=trainable,
-            name='mask_fcn_logits'
+            name="mask_fcn_logits",
         )
 
     def call(self, inputs, training=True, **kwargs):
@@ -255,7 +256,13 @@ class MaskHead(tf.keras.Model):
         # fixed problems when running with Keras AMP
         class_indices = tf.cast(class_indices, dtype=indices_dtype)
 
-        batch_size, num_rois, height, width, filters = mask_roi_features.get_shape().as_list()
+        (
+            batch_size,
+            num_rois,
+            height,
+            width,
+            filters,
+        ) = mask_roi_features.get_shape().as_list()
 
         net = tf.reshape(mask_roi_features, [-1, height, width, filters])
 
@@ -268,10 +275,16 @@ class MaskHead(tf.keras.Model):
 
         mask_outputs = tf.reshape(
             mask_outputs,
-            [-1, num_rois, self._mrcnn_resolution, self._mrcnn_resolution, self._num_classes]
+            [
+                -1,
+                num_rois,
+                self._mrcnn_resolution,
+                self._mrcnn_resolution,
+                self._num_classes,
+            ],
         )
 
-        with tf.name_scope('masks_post_processing'):
+        with tf.name_scope("masks_post_processing"):
 
             mask_outputs = tf.transpose(a=mask_outputs, perm=[0, 1, 4, 2, 3])
 
@@ -279,35 +292,50 @@ class MaskHead(tf.keras.Model):
                 indices = tf.reshape(
                     tf.reshape(
                         tf.range(num_rois, dtype=indices_dtype),
-                        [batch_size, num_rois, 1]
-                    ) * self._num_classes + tf.expand_dims(class_indices, axis=-1),
-                    [batch_size, -1]
+                        [batch_size, num_rois, 1],
+                    )
+                    * self._num_classes
+                    + tf.expand_dims(class_indices, axis=-1),
+                    [batch_size, -1],
                 )
 
                 mask_outputs = tf.gather(
-                    tf.reshape(mask_outputs,
-                               [batch_size, -1, self._mrcnn_resolution, self._mrcnn_resolution]),
+                    tf.reshape(
+                        mask_outputs,
+                        [
+                            batch_size,
+                            -1,
+                            self._mrcnn_resolution,
+                            self._mrcnn_resolution,
+                        ],
+                    ),
                     indices,
-                    axis=1
+                    axis=1,
                 )
 
                 mask_outputs = tf.squeeze(mask_outputs, axis=1)
                 mask_outputs = tf.reshape(
                     mask_outputs,
-                    [batch_size, num_rois, self._mrcnn_resolution, self._mrcnn_resolution])
+                    [
+                        batch_size,
+                        num_rois,
+                        self._mrcnn_resolution,
+                        self._mrcnn_resolution,
+                    ],
+                )
 
             else:
-                batch_indices = (
-                        tf.expand_dims(tf.range(batch_size, dtype=indices_dtype), axis=1) *
-                        tf.ones([1, num_rois], dtype=indices_dtype)
-                )
+                batch_indices = tf.expand_dims(
+                    tf.range(batch_size, dtype=indices_dtype), axis=1
+                ) * tf.ones([1, num_rois], dtype=indices_dtype)
 
-                mask_indices = (
-                        tf.expand_dims(tf.range(num_rois, dtype=indices_dtype), axis=0) *
-                        tf.ones([batch_size, 1], dtype=indices_dtype)
-                )
+                mask_indices = tf.expand_dims(
+                    tf.range(num_rois, dtype=indices_dtype), axis=0
+                ) * tf.ones([batch_size, 1], dtype=indices_dtype)
 
-                gather_indices = tf.stack([batch_indices, mask_indices, class_indices], axis=2)
+                gather_indices = tf.stack(
+                    [batch_indices, mask_indices, class_indices], axis=2
+                )
 
                 mask_outputs = tf.gather_nd(mask_outputs, gather_indices)
 

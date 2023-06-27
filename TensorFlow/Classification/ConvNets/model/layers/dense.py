@@ -14,7 +14,7 @@
 
 import tensorflow as tf
 
-__all__ = ['dense']
+__all__ = ["dense"]
 
 
 def dense(
@@ -23,7 +23,7 @@ def dense(
     use_bias=True,
     trainable=True,
     kernel_initializer=tf.compat.v1.variance_scaling_initializer(),
-    bias_initializer=tf.zeros_initializer()
+    bias_initializer=tf.zeros_initializer(),
 ):
 
     net = tf.layers.dense(
@@ -33,7 +33,7 @@ def dense(
         use_bias=use_bias,
         kernel_initializer=kernel_initializer,
         bias_initializer=bias_initializer,
-        trainable=trainable
+        trainable=trainable,
     )
 
     return net

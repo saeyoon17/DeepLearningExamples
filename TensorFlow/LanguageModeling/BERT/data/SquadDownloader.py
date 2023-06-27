@@ -13,8 +13,9 @@
 
 import bz2
 import os
-import urllib.request
 import sys
+import urllib.request
+
 
 class SquadDownloader:
     def __init__(self, save_path):

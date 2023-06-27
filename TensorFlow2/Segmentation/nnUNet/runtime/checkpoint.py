@@ -17,12 +17,13 @@ from time import time
 
 import tensorflow as tf
 from models.nn_unet import NNUnet
-
 from runtime.utils import rank_zero_only
 
 
 class CheckpointManager:
-    def __init__(self, ckpt_dir, strategy, variables, step_counter=None, resume_training=False):
+    def __init__(
+        self, ckpt_dir, strategy, variables, step_counter=None, resume_training=False
+    ):
         self.dir = Path(ckpt_dir)
         self.strategy = strategy
         self.vars = variables
@@ -32,14 +33,22 @@ class CheckpointManager:
 
         if "last" in strategy:
             self.last_manager = tf.train.CheckpointManager(
-                self.ckpt, self.dir, max_to_keep=1, checkpoint_name="ckpt-last", step_counter=step_counter
+                self.ckpt,
+                self.dir,
+                max_to_keep=1,
+                checkpoint_name="ckpt-last",
+                step_counter=step_counter,
             )
             if resume_training:
                 self.ckpt.restore(self.last_manager.latest_checkpoint)
 
         if "best" in strategy:
             self.best_manager = tf.train.CheckpointManager(
-                self.ckpt, self.dir / "best", max_to_keep=1, checkpoint_name="ckpt-best", step_counter=step_counter
+                self.ckpt,
+                self.dir / "best",
+                max_to_keep=1,
+                checkpoint_name="ckpt-best",
+                step_counter=step_counter,
             )
             self.best_metric = None
 
@@ -73,7 +82,10 @@ def load_model(args):
         model = tf.saved_model.load(str(args.saved_model_dir))
         model = NNUnet(args, loaded_model=model)
     else:
-        if not (Path(args.ckpt_dir).is_dir() and (Path(args.ckpt_dir) / "checkpoint").exists()):
+        if not (
+            Path(args.ckpt_dir).is_dir()
+            and (Path(args.ckpt_dir) / "checkpoint").exists()
+        ):
             raise ValueError(f"Could not find checkpoint directory {args.ckpt_dir}")
         model = NNUnet(args)
         checkpoint = tf.train.Checkpoint(model=model)

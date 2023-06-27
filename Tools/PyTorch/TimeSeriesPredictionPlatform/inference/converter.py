@@ -18,12 +18,12 @@ import shutil
 import subprocess
 from typing import Dict, List, Optional, Tuple
 
-import shutil
-import yaml
 import conf.conf_utils
-
-from triton.xgboost_triton import run_XGBoost_triton
+import yaml
 from omegaconf import OmegaConf
+from triton.xgboost_triton import run_XGBoost_triton
+
+
 def run_converter(config, export, convert):
     cfg = config
     with open(os.path.join(cfg.checkpoint, ".hydra/config.yaml"), "rb") as f:
@@ -32,9 +32,9 @@ def run_converter(config, export, convert):
     with open(os.path.join(cfg.checkpoint, ".hydra/config_merged.yaml"), "wb") as f:
         OmegaConf.resolve(config)
         OmegaConf.save(config=config, f=f.name)
-    if config.dataset.config.get('xgb', False):
+    if config.dataset.config.get("xgb", False):
         return run_XGBoost_triton(cfg, config)
-    if config.dataset.config.get('stat', False):
+    if config.dataset.config.get("stat", False):
         raise ValueError("Stat models not supported in deployment")
     model_name = config.model._target_.split(".")[1]
     precision = cfg.precision
@@ -81,10 +81,18 @@ def run_converter(config, export, convert):
                     var_config_list.append(k + "=0,1")
             elif arg == "--max-shapes":
                 for k, v in var_config["inputs"].items():
-                    var_config_list.append(k + "=" + ",".join([str(cfg.batch_size)] + [str(x) for x in v["shape"][1:]]))
+                    var_config_list.append(
+                        k
+                        + "="
+                        + ",".join(
+                            [str(cfg.batch_size)] + [str(x) for x in v["shape"][1:]]
+                        )
+                    )
             elif arg == "--min-shapes":
                 for k, v in var_config["inputs"].items():
-                    var_config_list.append(k + "=" + ",".join([str(x) for x in v["shape"]]))
+                    var_config_list.append(
+                        k + "=" + ",".join([str(x) for x in v["shape"]])
+                    )
             else:
                 for k, v in var_config["inputs"].items():
                     var_config_list.append(k + "=" + v["dtype"])
@@ -206,7 +214,9 @@ def run_converter(config, export, convert):
             check=True,
         )
         convert_type = (
-            convert.config.type if convert.config.type != "torchscript" else export.config.type
+            convert.config.type
+            if convert.config.type != "torchscript"
+            else export.config.type
         )
         subprocess.run(
             [

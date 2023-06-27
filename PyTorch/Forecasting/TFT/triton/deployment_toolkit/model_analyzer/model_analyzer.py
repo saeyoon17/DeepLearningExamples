@@ -52,7 +52,13 @@ class ModelAnalyzer:
         self._analyzer_config = config
         self._log = None
 
-    def run(self, mode: str, verbose: bool = False, quiet: bool = False, report_mode: str = None):
+    def run(
+        self,
+        mode: str,
+        verbose: bool = False,
+        quiet: bool = False,
+        report_mode: str = None,
+    ):
         """
         Starts the model analyzer locally
         """

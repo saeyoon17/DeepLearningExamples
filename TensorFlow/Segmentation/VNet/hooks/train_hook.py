@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import tensorflow as tf
-
 import dllogger as DLLogger
+import tensorflow as tf
 
 
 class TrainHook(tf.estimator.SessionRunHook):
@@ -26,17 +25,17 @@ class TrainHook(tf.estimator.SessionRunHook):
     def before_run(self, run_context):
         run_args = tf.train.SessionRunArgs(
             fetches=[
-                'vnet/loss/total_loss_ref:0',
+                "vnet/loss/total_loss_ref:0",
             ]
         )
 
         return run_args
 
-    def after_run(self,
-                  run_context,
-                  run_values):
+    def after_run(self, run_context, run_values):
         if self._step % self._log_every == 0:
-            self._logger.log(step=(self._step,), data={'total_loss': str(run_values.results[0])})
+            self._logger.log(
+                step=(self._step,), data={"total_loss": str(run_values.results[0])}
+            )
         self._step += 1
 
     def end(self, session):

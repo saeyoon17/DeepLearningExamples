@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import numpy as np
 from functools import partial
+
+import numpy as np
 
 
 def round_n(x, n=8):
     return n * int(np.ceil(x / n))
+
 
 round_8 = partial(round_n, n=8)

@@ -20,28 +20,31 @@
 # ==============================================================================
 
 import tensorflow as tf
-
 from model.layers.utils import _log_hparams
 
-__all__ = ['reduce_mean']
+__all__ = ["reduce_mean"]
 
 
-def reduce_mean(inputs, keepdims=None, data_format='channels_last', name='spatial_mean'):
+def reduce_mean(
+    inputs, keepdims=None, data_format="channels_last", name="spatial_mean"
+):
 
-    if data_format not in ['NHWC', 'NCHW']:
-        raise ValueError("Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format)
+    if data_format not in ["NHWC", "NCHW"]:
+        raise ValueError(
+            "Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format
+        )
 
-    axes = [1, 2] if data_format == 'NHWC' else [2, 3]
+    axes = [1, 2] if data_format == "NHWC" else [2, 3]
 
     net = tf.math.reduce_mean(inputs, axis=axes, keepdims=keepdims, name=name)
 
     _log_hparams(
-        classname='ReduceMean',
+        classname="ReduceMean",
         layername=net.name,
         axis=axes,
         keepdims=keepdims,
         out_shape=str(net.get_shape()),
-        out_dtype=net.dtype
+        out_dtype=net.dtype,
     )
 
     return net

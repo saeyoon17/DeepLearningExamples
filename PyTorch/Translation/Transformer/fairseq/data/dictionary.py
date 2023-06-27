@@ -5,21 +5,22 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 
-from collections import Counter
 import os
+from collections import Counter
 
 import torch
 
 
 class Dictionary(object):
     """A mapping from symbols to consecutive integers"""
-    def __init__(self, pad='<pad>', eos='</s>', unk='<unk>'):
+
+    def __init__(self, pad="<pad>", eos="</s>", unk="<unk>"):
         self.unk_word, self.pad_word, self.eos_word = unk, pad, eos
         self.symbols = []
         self.count = []
         self.indices = {}
         # dictionary indexing starts at 1 for consistency with Lua
-        self.add_symbol('<Lua heritage>')
+        self.add_symbol("<Lua heritage>")
         self.pad_index = self.add_symbol(pad)
         self.eos_index = self.add_symbol(eos)
         self.unk_index = self.add_symbol(unk)
@@ -49,7 +50,7 @@ class Dictionary(object):
         Can optionally remove BPE symbols or escape <unk> words.
         """
         if torch.is_tensor(tensor) and tensor.dim() == 2:
-            return '\n'.join(self.string(t) for t in tensor)
+            return "\n".join(self.string(t) for t in tensor)
 
         def token_string(i):
             if i == self.unk():
@@ -57,15 +58,15 @@ class Dictionary(object):
             else:
                 return self[i]
 
-        sent = ' '.join(token_string(i) for i in tensor if i != self.eos())
+        sent = " ".join(token_string(i) for i in tensor if i != self.eos())
         if bpe_symbol is not None:
-            sent = (sent + ' ').replace(bpe_symbol, '').rstrip()
+            sent = (sent + " ").replace(bpe_symbol, "").rstrip()
         return sent
 
     def unk_string(self, escape=False):
         """Return unknown string, optionally escaped as: <<unk>>"""
         if escape:
-            return '<{}>'.format(self.unk_word)
+            return "<{}>".format(self.unk_word)
         else:
             return self.unk_word
 
@@ -109,11 +110,13 @@ class Dictionary(object):
         if nwords <= 0:
             nwords = len(self)
 
-        new_indices = dict(zip(self.symbols[:self.nspecial], range(self.nspecial)))
-        new_symbols = self.symbols[:self.nspecial]
-        new_count = self.count[:self.nspecial]
+        new_indices = dict(zip(self.symbols[: self.nspecial], range(self.nspecial)))
+        new_symbols = self.symbols[: self.nspecial]
+        new_count = self.count[: self.nspecial]
 
-        c = Counter(dict(zip(self.symbols[self.nspecial:], self.count[self.nspecial:])))
+        c = Counter(
+            dict(zip(self.symbols[self.nspecial :], self.count[self.nspecial :]))
+        )
         for symbol, count in c.most_common(nwords - self.nspecial):
             if count >= threshold:
                 new_indices[symbol] = len(new_symbols)
@@ -126,7 +129,7 @@ class Dictionary(object):
         if padding_factor > 1:
             i = 0
             while threshold_nwords % padding_factor != 0:
-                symbol = 'madeupword{:04d}'.format(i)
+                symbol = "madeupword{:04d}".format(i)
                 new_indices[symbol] = len(new_symbols)
                 new_symbols.append(symbol)
                 new_count.append(0)
@@ -154,12 +157,12 @@ class Dictionary(object):
 
     @classmethod
     def loads(cls, s):
-        lines = s.strip().split('\n')
+        lines = s.strip().split("\n")
         d = cls()
         for line in lines:
-            idx = line.rfind(' ')
+            idx = line.rfind(" ")
             word = line[:idx]
-            count = int(line[idx + 1:])
+            count = int(line[idx + 1 :])
             d.indices[word] = len(d.symbols)
             d.symbols.append(word)
             d.count.append(count)
@@ -178,16 +181,18 @@ class Dictionary(object):
         if isinstance(f, str):
             try:
                 if not ignore_utf_errors:
-                    with open(f, 'r', encoding='utf-8') as fd:
+                    with open(f, "r", encoding="utf-8") as fd:
                         return cls.load(fd)
                 else:
-                    with open(f, 'r', encoding='utf-8', errors='ignore') as fd:
+                    with open(f, "r", encoding="utf-8", errors="ignore") as fd:
                         return cls.load(fd)
             except FileNotFoundError as fnfe:
                 raise fnfe
             except Exception:
-                raise Exception("Incorrect encoding detected in {}, please "
-                                "rebuild the dataset".format(f))
+                raise Exception(
+                    "Incorrect encoding detected in {}, please "
+                    "rebuild the dataset".format(f)
+                )
         cont = f.read()
         d = cls.loads(cont)
         return d
@@ -196,15 +201,17 @@ class Dictionary(object):
         """Stores dictionary into a text file"""
         if isinstance(f, str):
             os.makedirs(os.path.dirname(f), exist_ok=True)
-            with open(f, 'w', encoding='utf-8') as fd:
+            with open(f, "w", encoding="utf-8") as fd:
                 return self.save(fd)
         d = self.saves()
         f.write(d)
 
     def saves(self):
-        rv = ''
-        for symbol, count in zip(self.symbols[self.nspecial:], self.count[self.nspecial:]):
-            rv += '{} {}\n'.format(symbol, count)
+        rv = ""
+        for symbol, count in zip(
+            self.symbols[self.nspecial :], self.count[self.nspecial :]
+        ):
+            rv += "{} {}\n".format(symbol, count)
         return rv
 
     def dummy_sentence(self, length):
@@ -213,9 +220,10 @@ class Dictionary(object):
         return t
 
     def get_metadata(self):
-        return {'len': self.__len__(),
-                'pad': self.pad_index,
-                'eos': self.eos_index,
-                'unk': self.unk_index,
-                'nspecial': self.nspecial
-                }
+        return {
+            "len": self.__len__(),
+            "pad": self.pad_index,
+            "eos": self.eos_index,
+            "unk": self.unk_index,
+            "nspecial": self.nspecial,
+        }

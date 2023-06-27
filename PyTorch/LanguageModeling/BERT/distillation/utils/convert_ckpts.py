@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import copy
+import sys
+
 import torch
+
 ckpt = sys.argv[1]
 
 model = torch.load(ckpt)
 if "model" in model.keys():
-	model = model["model"]
+    model = model["model"]
 torch.save(model, ckpt)

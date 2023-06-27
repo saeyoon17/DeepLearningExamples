@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import torch
-
 from dlrm.cuda_ext import dotBasedInteract
 
 
@@ -23,7 +22,6 @@ def padding_size(n: int) -> int:
 
 
 class Interaction:
-
     @property
     def num_interactions(self) -> int:
         raise NotImplementedError()
@@ -38,7 +36,6 @@ class Interaction:
 
 
 class DotInteraction(Interaction):
-
     def __init__(self, embedding_num: int, embedding_dim: int):
         """
         Interactions are among outputs of all the embedding tables and bottom MLP, total number of
@@ -47,15 +44,19 @@ class DotInteraction(Interaction):
         """
         self._num_interaction_inputs = embedding_num + 1
         self._embedding_dim = embedding_dim
-        self._tril_indices = torch.tensor([[i for i in range(self._num_interaction_inputs)
-                                            for _ in range(i)],
-                                           [j for i in range(self._num_interaction_inputs)
-                                            for j in range(i)]]).cuda()
+        self._tril_indices = torch.tensor(
+            [
+                [i for i in range(self._num_interaction_inputs) for _ in range(i)],
+                [j for i in range(self._num_interaction_inputs) for j in range(i)],
+            ]
+        ).cuda()
         # THIS IS NOT A REGULAR TRIANGULAR LOWER MATRIX! THE MAIN DIAGONAL IS NOT INCLUDED
 
     @property
     def _raw_num_interactions(self) -> int:
-        return (self._num_interaction_inputs * (self._num_interaction_inputs - 1)) // 2 + self._embedding_dim
+        return (
+            self._num_interaction_inputs * (self._num_interaction_inputs - 1)
+        ) // 2 + self._embedding_dim
 
     @property
     def num_interactions(self) -> int:
@@ -75,15 +76,20 @@ class DotInteraction(Interaction):
 
         # concatenate dense features and interactions
         padding_dim = padding_size(self._raw_num_interactions)
-        zeros_padding = torch.zeros(batch_size, padding_dim, dtype=bottom_output.dtype, device=bottom_output.device)
+        zeros_padding = torch.zeros(
+            batch_size,
+            padding_dim,
+            dtype=bottom_output.dtype,
+            device=bottom_output.device,
+        )
         interaction_output = torch.cat(
-            (bottom_mlp_output, interaction_flat, zeros_padding), dim=1)
+            (bottom_mlp_output, interaction_flat, zeros_padding), dim=1
+        )
 
         return interaction_output
 
 
 class CudaDotInteraction(Interaction):
-
     def __init__(self, dot_interaction: DotInteraction):
         self._dot_interaction = dot_interaction
 
@@ -102,7 +108,6 @@ class CudaDotInteraction(Interaction):
 
 
 class CatInteraction(Interaction):
-
     def __init__(self, embedding_num: int, embedding_dim: int):
         """
         Interactions are among outputs of all the embedding tables and bottom MLP, total number of

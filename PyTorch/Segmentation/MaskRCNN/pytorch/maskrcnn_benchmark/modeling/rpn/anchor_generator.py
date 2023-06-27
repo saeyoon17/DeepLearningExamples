@@ -4,9 +4,8 @@ import math
 
 import numpy as np
 import torch
-from torch import nn
-
 from maskrcnn_benchmark.structures.bounding_box import BoxList
+from torch import nn
 
 
 class BufferList(nn.Module):

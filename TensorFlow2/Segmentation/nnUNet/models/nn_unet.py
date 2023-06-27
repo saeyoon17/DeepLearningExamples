@@ -16,18 +16,20 @@ import os
 
 import numpy as np
 import tensorflow as tf
+from models.sliding_window import (get_importance_kernel,
+                                   sliding_window_inference)
+from models.unet import UNet
 from runtime.utils import get_config_file, get_tta_flips, is_main_process
 from skimage.transform import resize
-
-from models.sliding_window import get_importance_kernel, sliding_window_inference
-from models.unet import UNet
 
 
 class NNUnet(tf.keras.Model):
     def __init__(self, args, loaded_model=None):
         super(NNUnet, self).__init__()
         self.args = args
-        in_channels, n_class, kernels, strides, self.patch_size = self.get_unet_params(self.args)
+        in_channels, n_class, kernels, strides, self.patch_size = self.get_unet_params(
+            self.args
+        )
         self.n_class = n_class
         input_shape = (None, None, None, in_channels)
         if self.args.dim == 3:
@@ -54,7 +56,9 @@ class NNUnet(tf.keras.Model):
                 deep_supervision=self.args.deep_supervision,
             )
             if is_main_process():
-                print(f"Filters: {self.model.filters},\nKernels: {kernels}\nStrides: {strides}")
+                print(
+                    f"Filters: {self.model.filters},\nKernels: {kernels}\nStrides: {strides}"
+                )
         self.tta_flips = get_tta_flips(self.args.dim)
         if self.args.dim == 3:
             self.predictor = self.sw_inference
@@ -64,7 +68,9 @@ class NNUnet(tf.keras.Model):
             self.predictor = self.call_2d
 
         if args.dim == 3:
-            importance_kernel = get_importance_kernel(self.patch_size, args.blend_mode, 0.125)
+            importance_kernel = get_importance_kernel(
+                self.patch_size, args.blend_mode, 0.125
+            )
             self.importance_map = tf.tile(
                 tf.reshape(importance_kernel, shape=[1, *self.patch_size, 1]),
                 multiples=[1, 1, 1, 1, n_class],
@@ -81,7 +87,11 @@ class NNUnet(tf.keras.Model):
     @tf.function
     def compute_loss(self, loss_fn, label, preds):
         if self.args.deep_supervision:
-            upsample_layer = tf.keras.layers.UpSampling3D if self.args.dim == 3 else tf.keras.layers.UpSampling2D
+            upsample_layer = (
+                tf.keras.layers.UpSampling3D
+                if self.args.dim == 3
+                else tf.keras.layers.UpSampling2D
+            )
             loss = loss_fn(label, preds[0])
             upsample_factor = np.ones(self.args.dim, dtype=np.uint8)
             for i, pred in enumerate(preds[1:]):
@@ -120,7 +130,10 @@ class NNUnet(tf.keras.Model):
         strides, kernels, sizes = [], [], patch_size[:]
         while True:
             spacing_ratio = [spacing / min(spacings) for spacing in spacings]
-            stride = [2 if ratio <= 2 and size >= 8 else 1 for (ratio, size) in zip(spacing_ratio, sizes)]
+            stride = [
+                2 if ratio <= 2 and size >= 8 else 1
+                for (ratio, size) in zip(spacing_ratio, sizes)
+            ]
             kernel = [3 if ratio <= 2 else 1 for ratio in spacing_ratio]
             if all(s == 1 for s in stride):
                 break
@@ -175,7 +188,13 @@ class NNUnet(tf.keras.Model):
             resized_pred = np.zeros((class_, *original_shape))
             for i in range(class_):
                 resized_pred[i] = resize(
-                    final_pred[i], original_shape, order=3, mode="edge", cval=0, clip=True, anti_aliasing=False
+                    final_pred[i],
+                    original_shape,
+                    order=3,
+                    mode="edge",
+                    cval=0,
+                    clip=True,
+                    anti_aliasing=False,
                 )
             final_pred = resized_pred
 

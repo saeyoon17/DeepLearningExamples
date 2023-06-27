@@ -26,8 +26,6 @@ import pprint
 
 import fire
 import torch
-from torch.optim.lr_scheduler import LambdaLR
-
 from fastspeech import DEFAULT_DEVICE
 from fastspeech import hparam as hp
 from fastspeech.data_load import PadDataLoader
@@ -35,21 +33,21 @@ from fastspeech.dataset.ljspeech_dataset import LJSpeechDataset
 from fastspeech.model.fastspeech import Fastspeech
 from fastspeech.trainer.fastspeech_trainer import FastspeechTrainer
 from fastspeech.utils.logging import tprint
+from torch.optim.lr_scheduler import LambdaLR
 
 try:
     import apex
 except ImportError:
-    ImportError('Required to install apex.')
+    ImportError("Required to install apex.")
 
 # import multiprocessing
 # multiprocessing.set_start_method('spawn', True)
 
 pp = pprint.PrettyPrinter(indent=4, width=1000)
 
-def train(hparam="train.yaml",
-          device=DEFAULT_DEVICE,
-          **kwargs):
-    """ The FastSpeech model training script.
+
+def train(hparam="train.yaml", device=DEFAULT_DEVICE, **kwargs):
+    """The FastSpeech model training script.
 
     By default, this script assumes to load parameters in the default config file, fastspeech/hparams/train.yaml.
 
@@ -79,7 +77,7 @@ def train(hparam="train.yaml",
     hp.set_hparam(hparam, kwargs)
     tprint("Hparams:\n{}".format(pp.pformat(hp)))
     tprint("Device count: {}".format(torch.cuda.device_count()))
-    
+
     # model
     model = Fastspeech(
         max_seq_len=hp.max_seq_len,
@@ -98,70 +96,74 @@ def train(hparam="train.yaml",
         fft_conv1d_padding=hp.fft_conv1d_padding,
         dropout=hp.dropout,
         n_mels=hp.num_mels,
-        fused_layernorm=hp.fused_layernorm
+        fused_layernorm=hp.fused_layernorm,
     )
 
     # dataset
-    dataset = LJSpeechDataset(root_path=hp.dataset_path,
-                              meta_file=hp.meta_file,
-                              mels_path=hp.mels_path,
-                              aligns_path=hp.aligns_path,
-                              sr=hp.sr,
-                              n_fft=hp.n_fft,
-                              win_len=hp.win_len,
-                              hop_len=hp.hop_len,
-                              n_mels=hp.num_mels,
-                              mel_fmin=hp.mel_fmin,
-                              mel_fmax=hp.mel_fmax,
-                              )
+    dataset = LJSpeechDataset(
+        root_path=hp.dataset_path,
+        meta_file=hp.meta_file,
+        mels_path=hp.mels_path,
+        aligns_path=hp.aligns_path,
+        sr=hp.sr,
+        n_fft=hp.n_fft,
+        win_len=hp.win_len,
+        hop_len=hp.hop_len,
+        n_mels=hp.num_mels,
+        mel_fmin=hp.mel_fmin,
+        mel_fmax=hp.mel_fmax,
+    )
     tprint("Dataset size: {}".format(len(dataset)))
 
     # data loader
-    data_loader = PadDataLoader(dataset,
-                                batch_size=hp.batch_size,
-                                num_workers=hp.n_workers,
-                                drop_last=True,
-                                )
+    data_loader = PadDataLoader(
+        dataset,
+        batch_size=hp.batch_size,
+        num_workers=hp.n_workers,
+        drop_last=True,
+    )
 
     # optimizer
     def get_optimizer(model):
         optimizer = torch.optim.Adam(
-            model.parameters(),
-            lr=hp.learning_rate,
-            betas=(0.9, 0.98),
-            eps=1e-9)
+            model.parameters(), lr=hp.learning_rate, betas=(0.9, 0.98), eps=1e-9
+        )
         return optimizer
 
     def get_warmup_lr_scheduler(optimizer):
         d_model = hp.d_model
         warmup_steps = hp.warmup_steps
-        lr = lambda step: d_model ** -0.5 * min((step + 1) ** -0.5,
-                                                (step + 1) * warmup_steps ** -1.5) / hp.learning_rate
+        lr = (
+            lambda step: d_model**-0.5
+            * min((step + 1) ** -0.5, (step + 1) * warmup_steps**-1.5)
+            / hp.learning_rate
+        )
         scheduler = LambdaLR(optimizer, lr_lambda=[lr])
         return scheduler
 
     # trainer
-    trainer = FastspeechTrainer(data_loader,
-                                'fastspeech',
-                                model,
-                                optimizer_fn=get_optimizer,
-                                final_steps=hp.final_steps,
-                                log_steps=hp.log_step,
-                                ckpt_path=hp.checkpoint_path,
-                                save_steps=hp.save_step,
-                                log_path=hp.log_path,
-                                lr_scheduler_fn=get_warmup_lr_scheduler,
-                                pre_aligns=True if hp.aligns_path else False,
-                                device=device,
-                                use_amp=hp.use_amp,
-                                nvprof_iter_start=hp.nvprof_iter_start,
-                                nvprof_iter_end=hp.nvprof_iter_end,
-                                pyprof_enabled=hp.pyprof_enabled,
-                                )
+    trainer = FastspeechTrainer(
+        data_loader,
+        "fastspeech",
+        model,
+        optimizer_fn=get_optimizer,
+        final_steps=hp.final_steps,
+        log_steps=hp.log_step,
+        ckpt_path=hp.checkpoint_path,
+        save_steps=hp.save_step,
+        log_path=hp.log_path,
+        lr_scheduler_fn=get_warmup_lr_scheduler,
+        pre_aligns=True if hp.aligns_path else False,
+        device=device,
+        use_amp=hp.use_amp,
+        nvprof_iter_start=hp.nvprof_iter_start,
+        nvprof_iter_end=hp.nvprof_iter_end,
+        pyprof_enabled=hp.pyprof_enabled,
+    )
     trainer.train()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     torch.backends.cudnn.enabled = True
     torch.backends.cudnn.benchmark = False
     fire.Fire(train)

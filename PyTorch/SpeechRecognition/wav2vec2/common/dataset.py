@@ -13,16 +13,15 @@
 # limitations under the License.
 
 import copy
-import numpy as np
-from torch.utils.data import DataLoader
 
+import numpy as np
 from common.fairseq.data import data_utils
 from common.helpers import print_once
 from common.sampler import DistributedIndicesSampler
+from torch.utils.data import DataLoader
 
 
 def adjust_max_tokens(train_dataset, world_size, args):
-
     def get_steps_per_epoch(world_size, max_tokens, update_freq):
         train_loader, sampler = get_batch_iterator(
             train_dataset,
@@ -35,7 +34,8 @@ def adjust_max_tokens(train_dataset, world_size, args):
             seed=args.seed,
             num_shards=world_size,
             shard_id=0,
-            num_workers=args.num_workers)
+            num_workers=args.num_workers,
+        )
 
         steps_per_epoch = len(train_loader) // update_freq
         return steps_per_epoch
@@ -53,8 +53,10 @@ def adjust_max_tokens(train_dataset, world_size, args):
             break
         prev_max_tokens = max_tokens
         steps = get_steps_per_epoch(world_size, max_tokens, args.update_freq)
-        print_once(f"max_tokens={max_tokens} yields {steps} steps "
-                   f"(adjusting for {steps_ref}).")
+        print_once(
+            f"max_tokens={max_tokens} yields {steps} steps "
+            f"(adjusting for {steps_ref})."
+        )
         if steps == steps_ref:
             break
         elif steps > steps_ref:
@@ -103,18 +105,18 @@ def filter_indices_by_size(
 
 
 def get_batch_iterator(
-        dataset,
-        training,
-        max_tokens=None,
-        max_sentences=None,
-        max_positions=None,
-        ignore_invalid_inputs=False,
-        required_batch_size_multiple=1,
-        seed=1,
-        num_shards=1,
-        shard_id=0,
-        num_workers=0,
-        num_concat_batches=1,
+    dataset,
+    training,
+    max_tokens=None,
+    max_sentences=None,
+    max_positions=None,
+    ignore_invalid_inputs=False,
+    required_batch_size_multiple=1,
+    seed=1,
+    num_shards=1,
+    shard_id=0,
+    num_workers=0,
+    num_concat_batches=1,
 ):
     # get indices ordered by example size
     with data_utils.numpy_seed(seed):
@@ -123,7 +125,8 @@ def get_batch_iterator(
     # filter examples that are too large
     if max_positions is not None:
         indices = filter_indices_by_size(
-            indices, dataset, max_positions, ignore_invalid_inputs)
+            indices, dataset, max_positions, ignore_invalid_inputs
+        )
 
     # create mini-batches with given size constraints
     batch_inds, non_grouped_batch_inds = dataset.batch_by_size(
@@ -140,11 +143,15 @@ def get_batch_iterator(
     dataset.batch_ids = {idx: batch_idx for idx, batch_idx in inds_ids}
 
     # Batches are already specified, now we just need to shuffle them
-    batch_ind_sampler = DistributedIndicesSampler(batch_inds, shuffle=training,
-                                                  num_replicas=num_shards,
-                                                  rank=shard_id, seed=seed,
-                                                  drop_last=training,
-                                                  fillvalue=[])
+    batch_ind_sampler = DistributedIndicesSampler(
+        batch_inds,
+        shuffle=training,
+        num_replicas=num_shards,
+        rank=shard_id,
+        seed=seed,
+        drop_last=training,
+        fillvalue=[],
+    )
     loader = DataLoader(
         dataset=dataset,
         collate_fn=dataset.collater,

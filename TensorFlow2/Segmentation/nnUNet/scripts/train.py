@@ -18,17 +18,33 @@ from subprocess import call
 
 parser = ArgumentParser()
 parser.add_argument("--task", type=str, default="01", help="Task code")
-parser.add_argument("--dim", type=int, required=True, choices=[2, 3], help="Dimension of UNet")
+parser.add_argument(
+    "--dim", type=int, required=True, choices=[2, 3], help="Dimension of UNet"
+)
 parser.add_argument("--gpus", type=int, default=1, help="Number of gpus")
 parser.add_argument("--seed", type=int, default=1, help="Random seed")
 parser.add_argument("--learning_rate", type=float, default=3e-4)
-parser.add_argument("--fold", type=int, required=True, choices=[0, 1, 2, 3, 4], help="Fold number")
-parser.add_argument("--amp", action="store_true", help="Enable automatic mixed precision")
+parser.add_argument(
+    "--fold", type=int, required=True, choices=[0, 1, 2, 3, 4], help="Fold number"
+)
+parser.add_argument(
+    "--amp", action="store_true", help="Enable automatic mixed precision"
+)
 parser.add_argument("--tta", action="store_true", help="Enable test time augmentation")
-parser.add_argument("--horovod", action="store_true", help="Launch horovod within script")
-parser.add_argument("--bind", action="store_true", help="Bind CPUs for each GPU. Improves throughput for multi-GPU.")
-parser.add_argument("--results", type=Path, default=Path("/results"), help="Path to results directory")
-parser.add_argument("--logname", type=str, default="train_log.json", help="Name of the dlloger output")
+parser.add_argument(
+    "--horovod", action="store_true", help="Launch horovod within script"
+)
+parser.add_argument(
+    "--bind",
+    action="store_true",
+    help="Bind CPUs for each GPU. Improves throughput for multi-GPU.",
+)
+parser.add_argument(
+    "--results", type=Path, default=Path("/results"), help="Path to results directory"
+)
+parser.add_argument(
+    "--logname", type=str, default="train_log.json", help="Name of the dlloger output"
+)
 
 if __name__ == "__main__":
     args = parser.parse_args()

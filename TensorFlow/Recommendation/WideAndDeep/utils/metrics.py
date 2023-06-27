@@ -24,7 +24,7 @@ DISPLAY_ID_COLUMN = features.DISPLAY_ID_COLUMN
 
 def map_custom_metric(features, labels, predictions):
     display_ids = tf.reshape(features[DISPLAY_ID_COLUMN], [-1])
-    predictions = predictions['probabilities'][:, 1]
+    predictions = predictions["probabilities"][:, 1]
     labels = labels[:, 0]
 
     # Processing unique display_ids, indexes and counts
@@ -35,23 +35,21 @@ def map_custom_metric(features, labels, predictions):
     labels = tf.gather(labels, indices=sorted_ids)
 
     _, display_ids_idx, display_ids_ads_count = tf.unique_with_counts(
-        display_ids, out_idx=tf.int64)
+        display_ids, out_idx=tf.int64
+    )
     pad_length = 30 - tf.reduce_max(display_ids_ads_count)
     pad_fn = lambda x: tf.pad(x, [(0, 0), (0, pad_length)])
 
-    preds = tf.RaggedTensor.from_value_rowids(
-        predictions, display_ids_idx).to_tensor()
-    labels = tf.RaggedTensor.from_value_rowids(
-        labels, display_ids_idx).to_tensor()
+    preds = tf.RaggedTensor.from_value_rowids(predictions, display_ids_idx).to_tensor()
+    labels = tf.RaggedTensor.from_value_rowids(labels, display_ids_idx).to_tensor()
 
     labels = tf.argmax(labels, axis=1)
 
     return {
-        'map': tf.compat.v1.metrics.average_precision_at_k(
-            predictions=pad_fn(preds),
-            labels=labels,
-            k=12,
-            name="streaming_map")}
+        "map": tf.compat.v1.metrics.average_precision_at_k(
+            predictions=pad_fn(preds), labels=labels, k=12, name="streaming_map"
+        )
+    }
 
 
 IS_LEAK_COLUMN = features.IS_LEAK_COLUMN
@@ -63,7 +61,7 @@ def map_custom_metric_with_leak(features, labels, predictions):
     is_leak_tf = features[IS_LEAK_COLUMN]
     is_leak_tf = tf.reshape(is_leak_tf, [-1])
 
-    predictions = predictions['probabilities'][:, 1]
+    predictions = predictions["probabilities"][:, 1]
     predictions = predictions + tf.cast(is_leak_tf, tf.float32)
     labels = labels[:, 0]
 
@@ -75,7 +73,8 @@ def map_custom_metric_with_leak(features, labels, predictions):
     labels = tf.gather(labels, indices=sorted_ids)
 
     _, display_ids_idx, display_ids_ads_count = tf.unique_with_counts(
-        display_ids, out_idx=tf.int64)
+        display_ids, out_idx=tf.int64
+    )
     pad_length = 30 - tf.reduce_max(display_ids_ads_count)
     pad_fn = lambda x: tf.pad(x, [(0, 0), (0, pad_length)])
 
@@ -84,8 +83,10 @@ def map_custom_metric_with_leak(features, labels, predictions):
     labels = tf.argmax(labels, axis=1)
 
     return {
-        'map_with_leak': tf.compat.v1.metrics.average_precision_at_k(
+        "map_with_leak": tf.compat.v1.metrics.average_precision_at_k(
             predictions=pad_fn(preds),
             labels=labels,
             k=12,
-            name="streaming_map_with_leak")}
+            name="streaming_map_with_leak",
+        )
+    }

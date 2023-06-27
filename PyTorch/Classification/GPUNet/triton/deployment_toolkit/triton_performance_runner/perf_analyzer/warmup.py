@@ -82,11 +82,15 @@ class PerfAnalyzerWarmupRunner:
 
                 if TRITON_CLIENT_VERSION >= LooseVersion("2.11.0"):
                     params["measurement-mode"] = self._measurement_mode.value
-                    params["measurement-request-count"] = self._measurement_request_count
+                    params[
+                        "measurement-request-count"
+                    ] = self._measurement_request_count
 
                 if self._evaluation_mode == EvaluationMode.OFFLINE:
                     params["shared-memory"] = self._offline_mode.value
-                    params["output-shared-memory-size"] = self._output_shared_memory_size
+                    params[
+                        "output-shared-memory-size"
+                    ] = self._output_shared_memory_size
 
                 config = PerfAnalyzerConfig()
                 for param, value in params.items():

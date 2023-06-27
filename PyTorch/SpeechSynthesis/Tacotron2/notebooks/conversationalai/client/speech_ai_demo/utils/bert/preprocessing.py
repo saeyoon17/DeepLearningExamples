@@ -13,11 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
-import json
-import numpy as np
 import collections
-from utils.bert.tokenization import (BasicTokenizer, BertTokenizer, whitespace_tokenize)
+import json
+import math
+
+import numpy as np
+from utils.bert.tokenization import (BasicTokenizer, BertTokenizer,
+                                     whitespace_tokenize)
 
 
 class SquadExample(object):
@@ -26,14 +28,16 @@ class SquadExample(object):
     For examples without an answer, the start and end position are -1.
     """
 
-    def __init__(self,
-                 qas_id,
-                 question_text,
-                 doc_tokens,
-                 orig_answer_text=None,
-                 start_position=None,
-                 end_position=None,
-                 is_impossible=None):
+    def __init__(
+        self,
+        qas_id,
+        question_text,
+        doc_tokens,
+        orig_answer_text=None,
+        start_position=None,
+        end_position=None,
+        is_impossible=None,
+    ):
         self.qas_id = qas_id
         self.question_text = question_text
         self.doc_tokens = doc_tokens
@@ -48,8 +52,7 @@ class SquadExample(object):
     def __repr__(self):
         s = ""
         s += "qas_id: %s" % (self.qas_id)
-        s += ", question_text: %s" % (
-            self.question_text)
+        s += ", question_text: %s" % (self.question_text)
         s += ", doc_tokens: [%s]" % (" ".join(self.doc_tokens))
         if self.start_position:
             s += ", start_position: %d" % (self.start_position)
@@ -63,19 +66,21 @@ class SquadExample(object):
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self,
-                 unique_id,
-                 example_index,
-                 doc_span_index,
-                 tokens,
-                 token_to_orig_map,
-                 token_is_max_context,
-                 input_ids,
-                 input_mask,
-                 segment_ids,
-                 start_position=None,
-                 end_position=None,
-                 is_impossible=None):
+    def __init__(
+        self,
+        unique_id,
+        example_index,
+        doc_span_index,
+        tokens,
+        token_to_orig_map,
+        token_is_max_context,
+        input_ids,
+        input_mask,
+        segment_ids,
+        start_position=None,
+        end_position=None,
+        is_impossible=None,
+    ):
         self.unique_id = unique_id
         self.example_index = example_index
         self.doc_span_index = doc_span_index
@@ -91,13 +96,14 @@ class InputFeatures(object):
 
 
 def read_squad_example(question_text, context, version_2_with_negative):
-    """ reads a question and a context, and turns it into a SquadExample """
-    # 
+    """reads a question and a context, and turns it into a SquadExample"""
+    #
     def is_whitespace(c):
         if c == " " or c == "\t" or c == "\r" or c == "\n" or ord(c) == 0x202F:
             return True
         return False
-    # 
+
+    #
     doc_tokens = []
     prev_is_whitespace = True
     for c in context:
@@ -109,22 +115,23 @@ def read_squad_example(question_text, context, version_2_with_negative):
             else:
                 doc_tokens[-1] += c
             prev_is_whitespace = False
-    # 
-    example = SquadExample( 
-                            qas_id=0, 
-                            question_text=question_text, 
-                            doc_tokens=doc_tokens, 
-                            orig_answer_text=None, 
-                            start_position=None, 
-                            end_position=None, 
-                            is_impossible=False 
-                          )
+    #
+    example = SquadExample(
+        qas_id=0,
+        question_text=question_text,
+        doc_tokens=doc_tokens,
+        orig_answer_text=None,
+        start_position=None,
+        end_position=None,
+        is_impossible=False,
+    )
     return example
 
 
-def convert_example_to_feature(example, tokenizer, max_seq_length,
-                               doc_stride, max_query_length):
-    """ converts an example into a feature """
+def convert_example_to_feature(
+    example, tokenizer, max_seq_length, doc_stride, max_query_length
+):
+    """converts an example into a feature"""
 
     unique_id = 1000000000
     examples = [example]
@@ -155,7 +162,8 @@ def convert_example_to_feature(example, tokenizer, max_seq_length,
         # To deal with this we do a sliding window approach, where we take chunks
         # of the up to our max length with a stride of `doc_stride`.
         _DocSpan = collections.namedtuple(  # pylint: disable=invalid-name
-            "DocSpan", ["start", "length"])
+            "DocSpan", ["start", "length"]
+        )
         doc_spans = []
         start_offset = 0
         while start_offset < len(all_doc_tokens):
@@ -184,8 +192,9 @@ def convert_example_to_feature(example, tokenizer, max_seq_length,
                 split_token_index = doc_span.start + i
                 token_to_orig_map[len(tokens)] = tok_to_orig_index[split_token_index]
 
-                is_max_context = _check_is_max_context(doc_spans, doc_span_index,
-                                                       split_token_index)
+                is_max_context = _check_is_max_context(
+                    doc_spans, doc_span_index, split_token_index
+                )
                 token_is_max_context[len(tokens)] = is_max_context
                 tokens.append(all_doc_tokens[split_token_index])
                 segment_ids.append(1)
@@ -224,7 +233,9 @@ def convert_example_to_feature(example, tokenizer, max_seq_length,
                     segment_ids=segment_ids,
                     start_position=start_position,
                     end_position=end_position,
-                    is_impossible=example.is_impossible))
+                    is_impossible=example.is_impossible,
+                )
+            )
             unique_id += 1
     assert len(features) == 1, "too large input"
     return features[0]
@@ -249,16 +260,31 @@ def _check_is_max_context(doc_spans, cur_span_index, position):
     return cur_span_index == best_span_index
 
 
-RawResult = collections.namedtuple("RawResult", ["unique_id", "start_logits", "end_logits"])
+RawResult = collections.namedtuple(
+    "RawResult", ["unique_id", "start_logits", "end_logits"]
+)
 
-def get_predictions(example, feature, start_logits, end_logits, n_best_size,
-                      max_answer_length, do_lower_case, 
-                      version_2_with_negative, null_score_diff_threshold):
+
+def get_predictions(
+    example,
+    feature,
+    start_logits,
+    end_logits,
+    n_best_size,
+    max_answer_length,
+    do_lower_case,
+    version_2_with_negative,
+    null_score_diff_threshold,
+):
     """Write final predictions to the json file and log-odds of null if needed."""
     all_examples = [example]
     all_features = [feature]
-    all_results = [RawResult(unique_id=1000000000,start_logits=start_logits,end_logits=end_logits)]
-    
+    all_results = [
+        RawResult(
+            unique_id=1000000000, start_logits=start_logits, end_logits=end_logits
+        )
+    ]
+
     example_index_to_features = collections.defaultdict(list)
     for feature in all_features:
         example_index_to_features[feature.example_index].append(feature)
@@ -269,7 +295,8 @@ def get_predictions(example, feature, start_logits, end_logits, n_best_size,
 
     _PrelimPrediction = collections.namedtuple(  # pylint: disable=invalid-name
         "PrelimPrediction",
-        ["feature_index", "start_index", "end_index", "start_logit", "end_logit"])
+        ["feature_index", "start_index", "end_index", "start_logit", "end_logit"],
+    )
 
     all_predictions = collections.OrderedDict()
     all_nbest_json = collections.OrderedDict()
@@ -322,7 +349,9 @@ def get_predictions(example, feature, start_logits, end_logits, n_best_size,
                             start_index=start_index,
                             end_index=end_index,
                             start_logit=result.start_logits[start_index],
-                            end_logit=result.end_logits[end_index]))
+                            end_logit=result.end_logits[end_index],
+                        )
+                    )
         if version_2_with_negative:
             prelim_predictions.append(
                 _PrelimPrediction(
@@ -330,14 +359,18 @@ def get_predictions(example, feature, start_logits, end_logits, n_best_size,
                     start_index=0,
                     end_index=0,
                     start_logit=null_start_logit,
-                    end_logit=null_end_logit))
+                    end_logit=null_end_logit,
+                )
+            )
         prelim_predictions = sorted(
             prelim_predictions,
             key=lambda x: (x.start_logit + x.end_logit),
-            reverse=True)
+            reverse=True,
+        )
 
         _NbestPrediction = collections.namedtuple(  # pylint: disable=invalid-name
-            "NbestPrediction", ["text", "start_logit", "end_logit"])
+            "NbestPrediction", ["text", "start_logit", "end_logit"]
+        )
 
         seen_predictions = {}
         nbest = []
@@ -346,10 +379,10 @@ def get_predictions(example, feature, start_logits, end_logits, n_best_size,
                 break
             feature = features[pred.feature_index]
             if pred.start_index > 0:  # this is a non-null prediction
-                tok_tokens = feature.tokens[pred.start_index:(pred.end_index + 1)]
+                tok_tokens = feature.tokens[pred.start_index : (pred.end_index + 1)]
                 orig_doc_start = feature.token_to_orig_map[pred.start_index]
                 orig_doc_end = feature.token_to_orig_map[pred.end_index]
-                orig_tokens = example.doc_tokens[orig_doc_start:(orig_doc_end + 1)]
+                orig_tokens = example.doc_tokens[orig_doc_start : (orig_doc_end + 1)]
                 tok_text = " ".join(tok_tokens)
 
                 # De-tokenize WordPieces that have been split off.
@@ -374,27 +407,29 @@ def get_predictions(example, feature, start_logits, end_logits, n_best_size,
                 _NbestPrediction(
                     text=final_text,
                     start_logit=pred.start_logit,
-                    end_logit=pred.end_logit))
+                    end_logit=pred.end_logit,
+                )
+            )
         # if we didn't include the empty option in the n-best, include it
         if version_2_with_negative:
             if "" not in seen_predictions:
                 nbest.append(
                     _NbestPrediction(
-                        text="",
-                        start_logit=null_start_logit,
-                        end_logit=null_end_logit))
+                        text="", start_logit=null_start_logit, end_logit=null_end_logit
+                    )
+                )
 
             # In very rare edge cases we could only have single null prediction.
             # So we just create a nonce prediction in this case to avoid failure.
             if len(nbest) == 1:
-                nbest.insert(0,
-                             _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0))
+                nbest.insert(
+                    0, _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0)
+                )
 
         # In very rare edge cases we could have no valid predictions. So we
         # just create a nonce prediction in this case to avoid failure.
         if not nbest:
-            nbest.append(
-                _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0))
+            nbest.append(_NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0))
 
         assert len(nbest) >= 1
 
@@ -423,15 +458,18 @@ def get_predictions(example, feature, start_logits, end_logits, n_best_size,
             all_predictions[example.qas_id] = nbest_json[0]["text"]
         else:
             # predict "" iff the null score - the score of best non-null > threshold
-            score_diff = score_null - best_non_null_entry.start_logit - (
-                best_non_null_entry.end_logit)
+            score_diff = (
+                score_null
+                - best_non_null_entry.start_logit
+                - (best_non_null_entry.end_logit)
+            )
             scores_diff_json[example.qas_id] = score_diff
             if score_diff > null_score_diff_threshold:
                 all_predictions[example.qas_id] = ""
             else:
                 all_predictions[example.qas_id] = best_non_null_entry.text
             all_nbest_json[example.qas_id] = nbest_json
-    
+
     return nbest_json
 
 
@@ -518,7 +556,7 @@ def get_final_text(pred_text, orig_text, do_lower_case):
     if orig_end_position is None:
         return orig_text
 
-    output_text = orig_text[orig_start_position:(orig_end_position + 1)]
+    output_text = orig_text[orig_start_position : (orig_end_position + 1)]
     return output_text
 
 
@@ -546,9 +584,8 @@ def _compute_softmax(scores):
 
 
 def _get_indices_of_largest_logits(logits):
-    """ sort logits and return the indices of the sorted array """
+    """sort logits and return the indices of the sorted array"""
     indices_and_score = sorted(enumerate(logits), key=lambda x: x[1], reverse=True)
     indices = map(lambda x: x[0], indices_and_score)
     indices = list(indices)
     return indices
-

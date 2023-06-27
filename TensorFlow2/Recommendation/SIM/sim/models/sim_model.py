@@ -15,10 +15,10 @@
 from functools import partial
 
 import tensorflow as tf
-
 from sim.layers.ctr_classification_mlp import CTRClassificationMLP
 from sim.layers.item_item_interaction import DotItemItemInteraction
-from sim.layers.item_sequence_interaction import DIENItemSequenceInteractionBlock, DINItemSequenceInteractionBlock
+from sim.layers.item_sequence_interaction import (
+    DIENItemSequenceInteractionBlock, DINItemSequenceInteractionBlock)
 from sim.models.dien_model import compute_auxiliary_probs
 from sim.models.sequential_recommender_model import SequentialRecommenderModel
 
@@ -31,25 +31,23 @@ def masked_temporal_mean(sequence_batch, mask):
 
 
 class SIMModel(SequentialRecommenderModel):
-    def __init__(self, feature_spec, mlp_hidden_dims, embedding_dim=4, k=50, dropout_rate=-1):
-        super(SIMModel, self).__init__(
-            feature_spec, embedding_dim
-        )
+    def __init__(
+        self, feature_spec, mlp_hidden_dims, embedding_dim=4, k=50, dropout_rate=-1
+    ):
+        super(SIMModel, self).__init__(feature_spec, embedding_dim)
         self.k = k
         self.stage_one_classifier = CTRClassificationMLP(
-            layer_sizes=mlp_hidden_dims["stage_1"],
-            dropout_rate=dropout_rate
+            layer_sizes=mlp_hidden_dims["stage_1"], dropout_rate=dropout_rate
         )
         self.stage_two_classifier = CTRClassificationMLP(
-            layer_sizes=mlp_hidden_dims["stage_2"],
-            dropout_rate=dropout_rate
+            layer_sizes=mlp_hidden_dims["stage_2"], dropout_rate=dropout_rate
         )
         self.stage_two_auxiliary_net = CTRClassificationMLP(
             layer_sizes=mlp_hidden_dims["aux"],
             activation_function=partial(
                 tf.keras.layers.Activation, activation="sigmoid"
             ),
-            dropout_rate=dropout_rate
+            dropout_rate=dropout_rate,
         )
 
         self.stage_one_item_seq_interaction = DINItemSequenceInteractionBlock(
@@ -62,16 +60,18 @@ class SIMModel(SequentialRecommenderModel):
     def select_top_k_items(self, embeddings, scores):
         top_k = tf.math.top_k(scores, k=self.k)
         top_k_values, top_k_indices = top_k.values, top_k.indices
-        top_k_mask = tf.cast(tf.greater(top_k_values, tf.zeros_like(top_k_values)), embeddings.dtype)
+        top_k_mask = tf.cast(
+            tf.greater(top_k_values, tf.zeros_like(top_k_values)), embeddings.dtype
+        )
         best_k_embeddings = tf.gather(embeddings, top_k_indices, batch_dims=1)
         return best_k_embeddings, top_k_mask
 
     @tf.function
     def call(
-            self,
-            inputs,
-            compute_aux_loss=True,
-            training=False,
+        self,
+        inputs,
+        compute_aux_loss=True,
+        training=False,
     ):
         user_features = inputs["user_features"]
         target_item_features = inputs["target_item_features"]
@@ -91,7 +91,10 @@ class SIMModel(SequentialRecommenderModel):
             long_sequence_mask, axis=-1
         )
 
-        stage_one_interaction_embedding, gsu_scores = self.stage_one_item_seq_interaction(
+        (
+            stage_one_interaction_embedding,
+            gsu_scores,
+        ) = self.stage_one_item_seq_interaction(
             (target_item_embedding, long_sequence_embeddings, long_sequence_mask)
         )
         # combine all the stage 1 embeddings
@@ -161,7 +164,7 @@ class SIMModel(SequentialRecommenderModel):
                 item_his_sum_emb,
                 target_item_embedding,
                 stage_two_interaction_embedding,
-                user_embedding
+                user_embedding,
             ],
             -1,
         )

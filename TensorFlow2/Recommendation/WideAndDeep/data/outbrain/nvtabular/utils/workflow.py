@@ -58,7 +58,7 @@ class DaysSincePublished(Operator):
             timestamp = (gdf["timestamp"] + TIMESTAMP_DELTA).astype("datetime64[ms]")
             delta = (timestamp - col).dt.days
             gdf[column + "_days_since_published"] = (
-                    delta * (delta >= 0) * (delta <= 10 * 365)
+                delta * (delta >= 0) * (delta <= 10 * 365)
             )
         return gdf
 
@@ -117,8 +117,8 @@ def create_workflow(data_bucket_folder, hash_spec, devices, local_directory, das
     )
     documents_categories_grouped = (
         documents_categories_cudf.groupby("document_id")
-            .agg({"category_id": "collect", "confidence_level": "collect"})
-            .reset_index()
+        .agg({"category_id": "collect", "confidence_level": "collect"})
+        .reset_index()
     )
     documents_categories_grouped = documents_categories_grouped.rename(
         columns={
@@ -128,8 +128,8 @@ def create_workflow(data_bucket_folder, hash_spec, devices, local_directory, das
     )
     documents_entities_grouped = (
         documents_entities_cudf.groupby("document_id")
-            .agg({"entity_id": "collect", "confidence_level": "collect"})
-            .reset_index()
+        .agg({"entity_id": "collect", "confidence_level": "collect"})
+        .reset_index()
     )
     documents_entities_grouped = documents_entities_grouped.rename(
         columns={
@@ -139,8 +139,8 @@ def create_workflow(data_bucket_folder, hash_spec, devices, local_directory, das
     )
     documents_topics_grouped = (
         documents_topics_cudf.groupby("document_id")
-            .agg({"topic_id": "collect", "confidence_level": "collect"})
-            .reset_index()
+        .agg({"topic_id": "collect", "confidence_level": "collect"})
+        .reset_index()
     )
     documents_topics_grouped = documents_topics_grouped.rename(
         columns={
@@ -197,11 +197,11 @@ def create_workflow(data_bucket_folder, hash_spec, devices, local_directory, das
     dependency_features = [column + "_count" for column in ctr_inputs.names]
 
     ctr_cols = (
-            stat_cols[ctr_selected_features]
-            >> LambdaOp(
-        calculate_ctr_with_filter, dependency=stat_cols[dependency_features]
-    )
-            >> Rename(f=lambda x: x.replace("_clicked_sum", "_ctr"))
+        stat_cols[ctr_selected_features]
+        >> LambdaOp(
+            calculate_ctr_with_filter, dependency=stat_cols[dependency_features]
+        )
+        >> Rename(f=lambda x: x.replace("_clicked_sum", "_ctr"))
     )
 
     stat_cols = stat_cols >> FillMissing() >> LogOp() >> Normalize()
@@ -211,19 +211,19 @@ def create_workflow(data_bucket_folder, hash_spec, devices, local_directory, das
     cat_cols = cat_cols + geo_features >> HashBucket(dict(list(hash_spec.items())[:-3]))
 
     sim_features_categories = (
-            [["document_id", "document_id_promo"]]
-            >> ColumnSimilarity(categories, metric="tfidf", on_device=False)
-            >> Rename(postfix="_categories")
+        [["document_id", "document_id_promo"]]
+        >> ColumnSimilarity(categories, metric="tfidf", on_device=False)
+        >> Rename(postfix="_categories")
     )
     sim_features_topics = (
-            [["document_id", "document_id_promo"]]
-            >> ColumnSimilarity(topics, metric="tfidf", on_device=False)
-            >> Rename(postfix="_topics")
+        [["document_id", "document_id_promo"]]
+        >> ColumnSimilarity(topics, metric="tfidf", on_device=False)
+        >> Rename(postfix="_topics")
     )
     sim_features_entities = (
-            [["document_id", "document_id_promo"]]
-            >> ColumnSimilarity(entities, metric="tfidf", on_device=False)
-            >> Rename(postfix="_entities")
+        [["document_id", "document_id_promo"]]
+        >> ColumnSimilarity(entities, metric="tfidf", on_device=False)
+        >> Rename(postfix="_entities")
     )
 
     sim_features = sim_features_categories + sim_features_topics + sim_features_entities
@@ -255,21 +255,21 @@ def create_workflow(data_bucket_folder, hash_spec, devices, local_directory, das
     )
 
     categorified_multihots = (
-            joined[["topic_id_list", "entity_id_list", "category_id_list"]]
-            >> Categorify()
-            >> FillMissing()
-            >> ListSlice(3)
-            >> HashBucket(dict(list(hash_spec.items())[-3:]))
+        joined[["topic_id_list", "entity_id_list", "category_id_list"]]
+        >> Categorify()
+        >> FillMissing()
+        >> ListSlice(3)
+        >> HashBucket(dict(list(hash_spec.items())[-3:]))
     )
 
     features = (
-            date_features
-            + ctr_cols
-            + stat_cols
-            + cat_cols
-            + sim_features
-            + categorified_multihots
-            + ["clicked", "display_id"]
+        date_features
+        + ctr_cols
+        + stat_cols
+        + cat_cols
+        + sim_features
+        + categorified_multihots
+        + ["clicked", "display_id"]
     )
 
     client = (
@@ -300,20 +300,20 @@ def create_parquets(data_bucket_folder, train_path, valid_path):
     )
     merged = (
         cudf.read_csv(clicks_train_path, na_values=["\\N", ""])
-            .merge(
+        .merge(
             cudf.read_csv(events_path, na_values=["\\N", ""]),
             on=DISPLAY_ID_COLUMN,
             how="left",
             suffixes=("", "_event"),
         )
-            .merge(
+        .merge(
             cudf.read_csv(promoted_content_path, na_values=["\\N", ""]),
             on="ad_id",
             how="left",
             suffixes=("", "_promo"),
         )
-            .merge(documents_meta, on="document_id", how="left")
-            .merge(
+        .merge(documents_meta, on="document_id", how="left")
+        .merge(
             documents_meta,
             left_on="document_id_promo",
             right_on="document_id",
@@ -342,15 +342,15 @@ def create_parquets(data_bucket_folder, train_path, valid_path):
 
 
 def save_stats(
-        data_bucket_folder,
-        output_train_folder,
-        train_path,
-        output_valid_folder,
-        valid_path,
-        stats_file,
-        hash_spec,
-        local_directory,
-        dask,
+    data_bucket_folder,
+    output_train_folder,
+    train_path,
+    output_valid_folder,
+    valid_path,
+    stats_file,
+    hash_spec,
+    local_directory,
+    dask,
 ):
     devices = get_devices()
     shuffle = Shuffle.PER_PARTITION if len(devices) > 1 else True

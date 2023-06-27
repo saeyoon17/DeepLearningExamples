@@ -22,16 +22,15 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import argparse
 import sys
 
 import torch
-
+from fastspeech.inferencer.denoiser import Denoiser
 from fastspeech.utils.logging import tprint
 from fastspeech.utils.pytorch import to_cpu_numpy, to_device_async
-from fastspeech.inferencer.denoiser import Denoiser
-
 from waveglow.model import WaveGlow
-import argparse
+
 
 def unwrap_distributed(state_dict):
     """
@@ -42,13 +41,13 @@ def unwrap_distributed(state_dict):
     """
     new_state_dict = {}
     for key, value in state_dict.items():
-        new_key = key.replace('module.', '')
+        new_key = key.replace("module.", "")
         new_state_dict[new_key] = value
     return new_state_dict
 
-class WaveGlowInferencer(object):
 
-    def __init__(self, ckpt_file, device='cuda', use_fp16=False, use_denoiser=False):
+class WaveGlowInferencer(object):
+    def __init__(self, ckpt_file, device="cuda", use_fp16=False, use_denoiser=False):
         self.ckpt_file = ckpt_file
         self.device = device
         self.use_fp16 = use_fp16
@@ -58,8 +57,9 @@ class WaveGlowInferencer(object):
         # sys.path.append('waveglow')
 
         from waveglow.arg_parser import parse_waveglow_args
+
         parser = parser = argparse.ArgumentParser()
-        model_parser= parse_waveglow_args(parser)
+        model_parser = parse_waveglow_args(parser)
         args, _ = model_parser.parse_known_args()
         model_config = dict(
             n_mel_channels=args.n_mel_channels,
@@ -70,12 +70,12 @@ class WaveGlowInferencer(object):
             WN_config=dict(
                 n_layers=args.wn_layers,
                 kernel_size=args.wn_kernel_size,
-                n_channels=args.wn_channels
-            )
-        )        
+                n_channels=args.wn_channels,
+            ),
+        )
         self.model = WaveGlow(**model_config)
 
-        state_dict = torch.load(self.ckpt_file, map_location=self.device)['state_dict']
+        state_dict = torch.load(self.ckpt_file, map_location=self.device)["state_dict"]
         state_dict = unwrap_distributed(state_dict)
         self.model.load_state_dict(state_dict)
 
@@ -93,7 +93,7 @@ class WaveGlowInferencer(object):
             self.denoiser = Denoiser(self.model, device=device)
             self.denoiser = to_device_async(self.denoiser, self.device)
 
-            tprint('Using WaveGlow denoiser.')
+            tprint("Using WaveGlow denoiser.")
 
     def __enter__(self):
         pass

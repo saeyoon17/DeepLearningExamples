@@ -29,7 +29,8 @@ except (ImportError, Exception) as e:
 
 import tensorrt as trt  # pytype: disable=import-error
 
-from ..core import BaseLoader, BaseRunner, BaseRunnerSession, BaseSaver, Format, Model, Precision, TensorSpec
+from ..core import (BaseLoader, BaseRunner, BaseRunnerSession, BaseSaver,
+                    Format, Model, Precision, TensorSpec)
 from ..extensions import loaders, runners, savers
 
 LOGGER = logging.getLogger(__name__)
@@ -116,10 +117,14 @@ class TensorRTRunnerSession(BaseRunnerSession):
         self._context.__enter__()
 
         self._input_names = [
-            self._engine[idx] for idx in range(self._engine.num_bindings) if self._engine.binding_is_input(idx)
+            self._engine[idx]
+            for idx in range(self._engine.num_bindings)
+            if self._engine.binding_is_input(idx)
         ]
         self._output_names = [
-            self._engine[idx] for idx in range(self._engine.num_bindings) if not self._engine.binding_is_input(idx)
+            self._engine[idx]
+            for idx in range(self._engine.num_bindings)
+            if not self._engine.binding_is_input(idx)
         ]
         # all_binding_shapes_specified is True for models without dynamic shapes
         # so initially this variable is False for models with dynamic shapes
@@ -177,12 +182,17 @@ class TensorRTRunnerSession(BaseRunnerSession):
                 if _is_shape_dynamic(input_shape):
                     self._context.set_binding_shape(bindings_idx, data_shape)
 
-        assert self._context.all_binding_shapes_specified and self._context.all_shape_inputs_specified
+        assert (
+            self._context.all_binding_shapes_specified
+            and self._context.all_shape_inputs_specified
+        )
 
     def _prepare_buffers_if_needed(self, x_host: Dict[str, object]):
         # pytype: disable=attribute-error
         new_batch_size = list(x_host.values())[0].shape[0]
-        current_batch_size = list(self._buffers.y_pred_host.values())[0].shape[0] if self._buffers else 0
+        current_batch_size = (
+            list(self._buffers.y_pred_host.values())[0].shape[0] if self._buffers else 0
+        )
         # pytype: enable=attribute-error
 
         if self._has_dynamic_shapes or new_batch_size != current_batch_size:
@@ -193,9 +203,13 @@ class TensorRTRunnerSession(BaseRunnerSession):
             y_pred_host = {}
             for name in self._output_names:
                 shape = self._context.get_binding_shape(self._engine[name])
-                y_pred_host[name] = np.zeros(shape, dtype=trt.nptype(self._model.outputs[name].dtype))
+                y_pred_host[name] = np.zeros(
+                    shape, dtype=trt.nptype(self._model.outputs[name].dtype)
+                )
 
-            y_pred_dev = {name: cuda.mem_alloc(data.nbytes) for name, data in y_pred_host.items()}
+            y_pred_dev = {
+                name: cuda.mem_alloc(data.nbytes) for name, data in y_pred_host.items()
+            }
 
             x_dev = {
                 name: cuda.mem_alloc(host_input.nbytes)
@@ -213,4 +227,6 @@ if "pycuda.driver" in sys.modules:
     runners.register_extension(Format.TRT.value, TensorRTRunner)
     savers.register_extension(Format.TRT.value, TensorRTSaver)
 else:
-    LOGGER.warning("Do not register TensorRT extension due problems with importing pycuda.driver package.")
+    LOGGER.warning(
+        "Do not register TensorRT extension due problems with importing pycuda.driver package."
+    )

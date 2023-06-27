@@ -35,11 +35,11 @@
 
 
 from typing import Tuple
+
 import torch
 import torch.nn as nn
-from torch.nn.functional import logsigmoid
-
 from moflow.model.basic import GraphConv
+from torch.nn.functional import logsigmoid
 
 
 def sigmoid_inverse(x):
@@ -48,10 +48,12 @@ def sigmoid_inverse(x):
 
 
 class AffineCoupling(nn.Module):  # delete
-    def __init__(self, in_channel, hidden_channels, mask_swap=False):  # filter_size=512,  --> hidden_channels =(512, 512)
+    def __init__(
+        self, in_channel, hidden_channels, mask_swap=False
+    ):  # filter_size=512,  --> hidden_channels =(512, 512)
         super(AffineCoupling, self).__init__()
 
-        self.mask_swap=mask_swap
+        self.mask_swap = mask_swap
         # self.norms_in = nn.ModuleList()
         last_h = in_channel // 2
         vh = tuple(hidden_channels)
@@ -74,7 +76,7 @@ class AffineCoupling(nn.Module):  # delete
         s = torch.sigmoid(s_logits)
         out_b = (in_b + t) * s
         logdet = torch.sum(logsigmoid(s_logits).reshape(input.shape[0], -1), 1)
-        
+
         if self.mask_swap:
             result = torch.cat([out_b, in_a], 1)
         else:
@@ -112,7 +114,9 @@ class ConvCouplingBlock(nn.Module):
         self.bn = nn.BatchNorm2d(n_node)
         self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, graph: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, graph: Tuple[torch.Tensor, torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         adj, nodes = graph
         h = self.graph_conv(graph)
         h = h.to(memory_format=torch.channels_last)
@@ -144,8 +148,8 @@ class GraphAffineCoupling(nn.Module):
         self.hidden_dim_dict = hidden_dim_dict
         self.masked_row = masked_row
 
-        self.hidden_dim_gnn = hidden_dim_dict['gnn']
-        self.hidden_dim_linear = hidden_dim_dict['linear']
+        self.hidden_dim_gnn = hidden_dim_dict["gnn"]
+        self.hidden_dim_linear = hidden_dim_dict["linear"]
 
         conv_layers = []
         last_dim = in_dim
@@ -158,20 +162,24 @@ class GraphAffineCoupling(nn.Module):
         for out_dim in self.hidden_dim_linear:
             lin_layers.append(LinCouplingBlock(last_dim, out_dim, n_node))
             last_dim = out_dim
-        lin_layers.append(nn.Linear(last_dim, in_dim*2))
+        lin_layers.append(nn.Linear(last_dim, in_dim * 2))
         self.net_lin = nn.Sequential(*lin_layers)
 
         mask = torch.ones(n_node, in_dim)
-        mask[masked_row, :] = 0  # masked_row are kept same, and used for _s_t for updating the left rows
-        self.register_buffer('mask', mask)
+        mask[
+            masked_row, :
+        ] = 0  # masked_row are kept same, and used for _s_t for updating the left rows
+        self.register_buffer("mask", mask)
 
-    def forward(self, graph: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, graph: Tuple[torch.Tensor, torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         adj, input = graph
         masked_x = self.mask * input
         masked_x_sq = masked_x.unsqueeze(2)
         s_logits, t = self._s_t_function((adj, masked_x_sq))
         s = torch.sigmoid(s_logits)
-        out = masked_x + (1-self.mask) * (input + t) * s
+        out = masked_x + (1 - self.mask) * (input + t) * s
         logdet = torch.sum(logsigmoid(s_logits).reshape(input.shape[0], -1), 1)
         return out, logdet
 
@@ -185,7 +193,9 @@ class GraphAffineCoupling(nn.Module):
         input = masked_y + (1 - self.mask) * (output * s_inverse - t)
         return input
 
-    def _s_t_function(self, graph: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _s_t_function(
+        self, graph: Tuple[torch.Tensor, torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         for l in self.net_conv:
             graph = l(graph)
         adj, h = graph

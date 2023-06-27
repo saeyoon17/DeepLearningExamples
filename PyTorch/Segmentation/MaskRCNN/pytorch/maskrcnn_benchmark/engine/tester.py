@@ -1,13 +1,13 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 
-import torch
-
 import os
 
+import torch
 from maskrcnn_benchmark.data.build import make_data_loader
 from maskrcnn_benchmark.engine.inference import inference
-from maskrcnn_benchmark.utils.miscellaneous import mkdir
 from maskrcnn_benchmark.utils.comm import synchronize
+from maskrcnn_benchmark.utils.miscellaneous import mkdir
+
 
 def test(cfg, model, distributed, dllogger):
     if distributed:
@@ -25,7 +25,9 @@ def test(cfg, model, distributed, dllogger):
             output_folders[idx] = output_folder
     data_loaders_val = make_data_loader(cfg, is_train=False, is_distributed=distributed)
     results = []
-    for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
+    for output_folder, dataset_name, data_loader_val in zip(
+        output_folders, dataset_names, data_loaders_val
+    ):
         result = inference(
             model,
             data_loader_val,

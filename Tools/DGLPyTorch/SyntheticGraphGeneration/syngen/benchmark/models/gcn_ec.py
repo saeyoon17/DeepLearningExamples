@@ -20,14 +20,11 @@ import torch.nn.functional as F
 
 
 class GCNEC(nn.Module):
-
     @staticmethod
     def add_args(parser):
         return parser
 
-    def __init__(
-        self, in_dim, hidden_dim, out_dim, num_classes, n_layers, **kwargs
-    ):
+    def __init__(self, in_dim, hidden_dim, out_dim, num_classes, n_layers, **kwargs):
         super().__init__()
         self.gcn = StochasticLayerGCN(in_dim, hidden_dim, out_dim, n_layers)
         self.predictor = ScorePredictor(num_classes, out_dim)
@@ -37,9 +34,7 @@ class GCNEC(nn.Module):
         return self.predictor(edge_subgraph, x)
 
     def loss(self, pred, label):
-        loss = torch.nn.functional.binary_cross_entropy_with_logits(
-            pred, label
-        )
+        loss = torch.nn.functional.binary_cross_entropy_with_logits(pred, label)
         return loss
 
 

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 class PerfAnalyzerException(Exception):
     def __init__(self, message: str):
         self._message = message

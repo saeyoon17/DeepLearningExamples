@@ -14,11 +14,13 @@
 # limitations under the License.
 from collections import OrderedDict
 
-class DistillHooks():
+
+class DistillHooks:
 
     """Implements hooks that can extract any intermediate
     output/state in a model's forward pass for distillation.
     """
+
     def __init__(self, config):
 
         """
@@ -29,17 +31,19 @@ class DistillHooks():
         as listed in `self.nn_module_states` are saved in `self.nn_module_states`
         """
 
-        #list of nn_module_names to register extraction hooks on in `self.register_nn_module_hook`
+        # list of nn_module_names to register extraction hooks on in `self.register_nn_module_hook`
         self.nn_module_names = config["nn_module_names"]
-        #Dictionary to store states extracted from nn module using `self.nn_module_hook`
+        # Dictionary to store states extracted from nn module using `self.nn_module_hook`
         self.nn_module_states = {}
 
     def nn_module_hook(self, name):
         """
         Method to cache output on nn.Module(s)
         """
+
         def hook(module, input, output):
             self.nn_module_states[name] = output
+
         return hook
 
     def register_nn_module_hook(self, module, input):
@@ -65,10 +69,10 @@ class DistillHooks():
                 distill_hooks = DistillHooks(config)
                 model_pre_hook = model.register_forward_pre_hook(distill_hooks.register_nn_module_hook)
                 for idx, batch in enumerate(train_dataloader):
-                
+
                 if idx == 1:
                     model_pre_hook.remove()
-                
+
         """
 
         for name, i in module.named_modules():
@@ -82,7 +86,7 @@ class DistillHooks():
         """
         module.distill_states_dict = OrderedDict()
         for name, i in module.named_modules():
-            if hasattr(i, 'distill_state_dict'):
+            if hasattr(i, "distill_state_dict"):
                 module.distill_states_dict[name] = i.distill_state_dict
 
 

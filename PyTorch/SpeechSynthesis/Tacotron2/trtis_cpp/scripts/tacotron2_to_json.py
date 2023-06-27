@@ -23,13 +23,13 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# 
-
+#
 
 
 import json
-import torch
 import sys
+
+import torch
 
 if len(sys.argv) != 3:
     print("Must specify statedict to load and json to write")
@@ -45,7 +45,7 @@ statedict = dict(torch.load(statedict_path)["state_dict"])
 outdict = {}
 for k, v in dict(statedict).items():
     if k.startswith("module."):
-        k = k[len("module."):]
+        k = k[len("module.") :]
     print(k)
 
     outdict[k] = v.cpu().numpy().tolist()

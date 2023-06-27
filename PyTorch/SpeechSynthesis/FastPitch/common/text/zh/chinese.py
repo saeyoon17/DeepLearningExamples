@@ -27,15 +27,59 @@
 
 import re
 
-from pypinyin import lazy_pinyin, Style
+from pypinyin import Style, lazy_pinyin
 
-
-valid_symbols = ['^', 'A', 'AI', 'AN', 'ANG', 'AO', 'B', 'C', 'CH', 'D', 
-                 'E', 'EI', 'EN', 'ENG', 'ER', 'F', 'G', 'H', 'I', 'IE', 
-                 'IN', 'ING', 'IU', 'J', 'K', 'L', 'M', 'N', 'O', 'ONG', 
-                 'OU', 'P', 'Q', 'R', 'S', 'SH', 'T', 'U', 'UI', 'UN', 
-                 'V', 'VE', 'VN', 'W', 'X', 'Y', 'Z', 'ZH']
-tones = ['1', '2', '3', '4', '5']
+valid_symbols = [
+    "^",
+    "A",
+    "AI",
+    "AN",
+    "ANG",
+    "AO",
+    "B",
+    "C",
+    "CH",
+    "D",
+    "E",
+    "EI",
+    "EN",
+    "ENG",
+    "ER",
+    "F",
+    "G",
+    "H",
+    "I",
+    "IE",
+    "IN",
+    "ING",
+    "IU",
+    "J",
+    "K",
+    "L",
+    "M",
+    "N",
+    "O",
+    "ONG",
+    "OU",
+    "P",
+    "Q",
+    "R",
+    "S",
+    "SH",
+    "T",
+    "U",
+    "UI",
+    "UN",
+    "V",
+    "VE",
+    "VN",
+    "W",
+    "X",
+    "Y",
+    "Z",
+    "ZH",
+]
+tones = ["1", "2", "3", "4", "5"]
 chinese_punctuations = "，。？！；：、‘’“”（）【】「」《》"
 valid_symbols += tones
 
@@ -44,38 +88,39 @@ def load_pinyin_dict(path="common/text/zh/pinyin_dict.txt"):
     with open(path) as f:
         return {l.split()[0]: l.split()[1:] for l in f}
 
+
 pinyin_dict = load_pinyin_dict()
 
 
 def is_chinese(text):
-    return u'\u4e00' <= text[0] <= u'\u9fff' or text[0] in chinese_punctuations
+    return "\u4e00" <= text[0] <= "\u9fff" or text[0] in chinese_punctuations
 
 
 def split_text(text):
-    regex = r'([\u4e00-\u9fff' + chinese_punctuations + ']+)'
+    regex = r"([\u4e00-\u9fff" + chinese_punctuations + "]+)"
     return re.split(regex, text)
 
 
 def chinese_text_to_symbols(text):
     symbols = []
     phonemes_and_tones = ""
-    
+
     # convert text to mandarin pinyin sequence
     # ignore polyphonic words as it has little effect on training
     pinyin_seq = lazy_pinyin(text, style=Style.TONE3)
-    
+
     for item in pinyin_seq:
         if item in chinese_punctuations:
             symbols += [item]
-            phonemes_and_tones += ' ' + item
+            phonemes_and_tones += " " + item
             continue
         if not item[-1].isdigit():
-           item += '5'
+            item += "5"
         item, tone = item[:-1], item[-1]
         phonemes = pinyin_dict[item.upper()]
         symbols += phonemes
         symbols += [tone]
-        
-        phonemes_and_tones += '{' + ' '.join(phonemes + [tone]) + '}'
-    
+
+        phonemes_and_tones += "{" + " ".join(phonemes + [tone]) + "}"
+
     return symbols, phonemes_and_tones

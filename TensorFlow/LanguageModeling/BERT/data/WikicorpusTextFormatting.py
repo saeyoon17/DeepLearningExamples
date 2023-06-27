@@ -14,6 +14,7 @@
 import glob
 import os
 
+
 class WikicorpusTextFormatting:
     def __init__(self, wiki_path, output_filename, recursive = False):
         self.wiki_path = wiki_path

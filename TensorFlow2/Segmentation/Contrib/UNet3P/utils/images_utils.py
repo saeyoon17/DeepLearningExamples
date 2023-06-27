@@ -1,10 +1,10 @@
 """
 Utility functions for image processing
 """
-import numpy as np
 import cv2
-from omegaconf import DictConfig
 import matplotlib.pyplot as plt
+import numpy as np
+from omegaconf import DictConfig
 
 
 def read_image(img_path, color_mode):
@@ -44,9 +44,9 @@ def prepare_image(path: str, resize: DictConfig, normalize_type: str):
 
 def prepare_mask(path: str, resize: dict, normalize_mask: dict):
     """
-        Prepare mask for model.
-        read mask --> resize --> normalize --> return as int32
-        """
+    Prepare mask for model.
+    read mask --> resize --> normalize --> return as int32
+    """
     mask = read_image(path, cv2.IMREAD_GRAYSCALE)
 
     if resize.VALUE:
@@ -68,7 +68,7 @@ def image_to_mask_name(image_name: str):
     replace image with mask
     """
 
-    return image_name.replace('image', 'mask')
+    return image_name.replace("image", "mask")
 
 
 def postprocess_mask(mask, classes, output_type=np.int32):
@@ -77,7 +77,7 @@ def postprocess_mask(mask, classes, output_type=np.int32):
     Covert probabilities into indexes based on maximum value.
     """
     if classes == 1:
-        mask = np.where(mask > .5, 1.0, 0.0)
+        mask = np.where(mask > 0.5, 1.0, 0.0)
     else:
         mask = np.argmax(mask, axis=-1)
     return mask.astype(output_type)
@@ -99,10 +99,10 @@ def display(display_list, show_true_mask=False):
     Set show_true_mask to True if true mask is available or vice versa
     """
     if show_true_mask:
-        title_list = ('Input Image', 'True Mask', 'Predicted Mask')
+        title_list = ("Input Image", "True Mask", "Predicted Mask")
         plt.figure(figsize=(12, 4))
     else:
-        title_list = ('Input Image', 'Predicted Mask')
+        title_list = ("Input Image", "Predicted Mask")
         plt.figure(figsize=(8, 4))
 
     for i in range(len(display_list)):
@@ -110,9 +110,9 @@ def display(display_list, show_true_mask=False):
         if title_list is not None:
             plt.title(title_list[i])
         if len(np.squeeze(display_list[i]).shape) == 2:
-            plt.imshow(np.squeeze(display_list[i]), cmap='gray')
-            plt.axis('on')
+            plt.imshow(np.squeeze(display_list[i]), cmap="gray")
+            plt.axis("on")
         else:
             plt.imshow(np.squeeze(display_list[i]))
-            plt.axis('on')
+            plt.axis("on")
     plt.show()

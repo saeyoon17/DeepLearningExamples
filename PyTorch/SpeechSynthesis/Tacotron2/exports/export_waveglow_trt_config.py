@@ -26,35 +26,41 @@
 # *****************************************************************************
 
 
-import os
 import argparse
+import os
 
 
 def parse_args(parser):
     """
-        Parse commandline arguments.
+    Parse commandline arguments.
     """
-    parser.add_argument("--trtis_model_name",
-                        type=str,
-                        default='waveglow',
-                        help="exports to appropriate directory for TRTIS")
-    parser.add_argument("--trtis_model_version",
-                        type=int,
-                        default=1,
-                        help="exports to appropriate directory for TRTIS")
-    parser.add_argument('--fp16', action='store_true',
-                        help='inference with mixed precision')
+    parser.add_argument(
+        "--trtis_model_name",
+        type=str,
+        default="waveglow",
+        help="exports to appropriate directory for TRTIS",
+    )
+    parser.add_argument(
+        "--trtis_model_version",
+        type=int,
+        default=1,
+        help="exports to appropriate directory for TRTIS",
+    )
+    parser.add_argument(
+        "--fp16", action="store_true", help="inference with mixed precision"
+    )
     return parser
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='PyTorch WaveGlow TRTIS config exporter')
+        description="PyTorch WaveGlow TRTIS config exporter"
+    )
     parser = parse_args(parser)
     args = parser.parse_args()
 
     # prepare repository
-    model_folder = os.path.join('./trtis_repo', args.trtis_model_name)
+    model_folder = os.path.join("./trtis_repo", args.trtis_model_name)
     version_folder = os.path.join(model_folder, str(args.trtis_model_version))
     if not os.path.exists(version_folder):
         os.makedirs(version_folder)
@@ -87,7 +93,7 @@ output {{
 
     config_values = {
         "model_name": args.trtis_model_name,
-        "fp_type": "TYPE_FP16" if args.fp16 else "TYPE_FP32"
+        "fp_type": "TYPE_FP16" if args.fp16 else "TYPE_FP32",
     }
 
     with open(model_folder + "/config.pbtxt", "w") as file:
@@ -95,5 +101,5 @@ output {{
         file.write(final_config_str)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

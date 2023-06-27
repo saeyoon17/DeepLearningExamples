@@ -18,12 +18,10 @@ import os
 import re
 from pathlib import Path
 
+import dllogger
 import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
-
-import dllogger
-
 
 tb_loggers = {}
 
@@ -33,24 +31,25 @@ class TBLogger:
     xyz_dummies: stretch the screen with empty plots so the legend would
                  always fit for other plots
     """
+
     def __init__(self, enabled, log_dir, name, interval=1, dummies=True):
         self.enabled = enabled
         self.interval = interval
         self.cache = {}
         if self.enabled:
             self.summary_writer = SummaryWriter(
-                log_dir=os.path.join(log_dir, name),
-                flush_secs=120, max_queue=200)
+                log_dir=os.path.join(log_dir, name), flush_secs=120, max_queue=200
+            )
             atexit.register(self.summary_writer.close)
             if dummies:
-                for key in ('_', '✕'):
+                for key in ("_", "✕"):
                     self.summary_writer.add_scalar(key, 0.0, 1)
 
     def log(self, step, data):
         for k, v in data.items():
             self.log_value(step, k, v.item() if type(v) is torch.Tensor else v)
 
-    def log_value(self, step, key, val, stat='mean'):
+    def log_value(self, step, key, val, stat="mean"):
         if self.enabled:
             if key not in self.cache:
                 self.cache[key] = []
@@ -62,17 +61,24 @@ class TBLogger:
 
     def log_grads(self, step, model):
         if self.enabled:
-            norms = [p.grad.norm().item() for p in model.parameters()
-                     if p.grad is not None]
-            for stat in ('max', 'min', 'mean'):
-                self.log_value(step, f'grad_{stat}', getattr(np, stat)(norms),
-                               stat=stat)
+            norms = [
+                p.grad.norm().item() for p in model.parameters() if p.grad is not None
+            ]
+            for stat in ("max", "min", "mean"):
+                self.log_value(
+                    step, f"grad_{stat}", getattr(np, stat)(norms), stat=stat
+                )
 
 
 def unique_log_fpath(fpath):
     """Have a unique log filename for every separate run"""
-    log_num = max([0] + [int(re.search("\.(\d+)", Path(f).suffix).group(1))
-                         for f in glob.glob(f"{fpath}.*")])
+    log_num = max(
+        [0]
+        + [
+            int(re.search("\.(\d+)", Path(f).suffix).group(1))
+            for f in glob.glob(f"{fpath}.*")
+        ]
+    )
     return f"{fpath}.{log_num + 1}"
 
 
@@ -98,18 +104,18 @@ def stdout_metric_format(metric, metadata, value):
     return "| " + " ".join(fields)
 
 
-def log(when, metrics={}, scope='train', flush_log=False, tb_iter=None):
+def log(when, metrics={}, scope="train", flush_log=False, tb_iter=None):
 
-    dllogger.log(when, data=metrics.get_metrics(scope, 'dll'))
+    dllogger.log(when, data=metrics.get_metrics(scope, "dll"))
 
     if tb_iter is not None:
-        tb_loggers[scope].log(tb_iter, metrics.get_metrics(scope, 'tb'))
+        tb_loggers[scope].log(tb_iter, metrics.get_metrics(scope, "tb"))
 
     if flush_log:
         flush()
 
 
-def log_grads_tb(tb_total_steps, grads, tb_subset='train'):
+def log_grads_tb(tb_total_steps, grads, tb_subset="train"):
     tb_loggers[tb_subset].log_grads(tb_total_steps, grads)
 
 
@@ -119,8 +125,7 @@ def log_parameters(data, verbosity=0, tb_subset=None):
         dllogger.log(step="PARAMETER", data={k: v}, verbosity=verbosity)
 
     if tb_subset is not None and tb_loggers[tb_subset].enabled:
-        tb_data = {k: v for k, v in data.items()
-                   if type(v) in (str, bool, int, float)}
+        tb_data = {k: v for k, v in data.items() if type(v) in (str, bool, int, float)}
         tb_loggers[tb_subset].summary_writer.add_hparams(tb_data, {})
 
 

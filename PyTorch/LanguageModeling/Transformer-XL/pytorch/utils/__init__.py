@@ -12,6 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from . import distributed
-from . import exp_utils
-from . import gpu_affinity
+from . import distributed, exp_utils, gpu_affinity

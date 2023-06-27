@@ -23,22 +23,27 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from __future__ import print_function
-import numpy as np
-import tensorrt as trt
-import pycuda.autoinit
-import pycuda.driver as cuda
+
 import ctypes
 import os
 import sys
 import time
 
+import numpy as np
+import pycuda.autoinit
+import pycuda.driver as cuda
+import tensorrt as trt
+
 logger = trt.Logger(trt.Logger.INFO)
 
-PLUGIN_PATH = '/home/dahn/git/fastspeech/fastspeech/trt/plugins/add_pos_enc/AddPosEncPlugin.so'
+PLUGIN_PATH = (
+    "/home/dahn/git/fastspeech/fastspeech/trt/plugins/add_pos_enc/AddPosEncPlugin.so"
+)
 ctypes.cdll.LoadLibrary(PLUGIN_PATH)
 
+
 def get_plugin_creator(plugin_name):
-    trt.init_libnvinfer_plugins(logger, '')
+    trt.init_libnvinfer_plugins(logger, "")
     plugin_creator_list = trt.get_plugin_registry().plugin_creator_list
     plugin_creator = None
     for c in plugin_creator_list:
@@ -46,10 +51,11 @@ def get_plugin_creator(plugin_name):
             plugin_creator = c
     return plugin_creator
 
+
 def build_engine(shape):
-    plugin_creator = get_plugin_creator('AddPosEncPlugin')
+    plugin_creator = get_plugin_creator("AddPosEncPlugin")
     if plugin_creator == None:
-        print('Plugin not found. Exiting')
+        print("Plugin not found. Exiting")
         exit()
 
     builder = trt.Builder(logger)
@@ -57,29 +63,30 @@ def build_engine(shape):
     builder.max_workspace_size = 1 << 20
     builder.fp16_mode = use_fp16
     network = builder.create_network()
-    
-    tensor = network.add_input('data', trt.DataType.FLOAT, shape)
+
+    tensor = network.add_input("data", trt.DataType.FLOAT, shape)
     tensor = network.add_plugin_v2(
-        [tensor], 
-        plugin_creator.create_plugin('AddPosEncPlugin', trt.PluginFieldCollection())
+        [tensor],
+        plugin_creator.create_plugin("AddPosEncPlugin", trt.PluginFieldCollection()),
     ).get_output(0)
 
     network.mark_output(tensor)
     return builder.build_cuda_engine(network)
-    
+
+
 def run_trt(data):
     engine = build_engine(data.shape[1:])
 
     context = engine.create_execution_context()
-    
+
     d_data = cuda.mem_alloc(data.nbytes)
 
     output = np.zeros_like(data, dtype=np.float32)
     d_output = cuda.mem_alloc(output.nbytes)
-    
+
     cuda.memcpy_htod(d_data, data)
 
-    bindings = [int(d_data), int(d_output)]    
+    bindings = [int(d_data), int(d_output)]
 
     start = time.time()
     context.execute(data.shape[0], bindings)
@@ -88,11 +95,12 @@ def run_trt(data):
     print("time elapsed: {:06f}".format(time_elapsed))
 
     cuda.memcpy_dtoh(output, d_output)
-    
+
     return output
 
+
 use_fp16 = len(sys.argv) > 1 and sys.argv[1].isdigit() and int(sys.argv[1]) == 1
-print('Use FP16:', use_fp16)
+print("Use FP16:", use_fp16)
 
 output = run_trt(np.zeros((16, 128, 384), np.float32))
 

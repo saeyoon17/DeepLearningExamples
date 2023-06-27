@@ -2,9 +2,8 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 import torch
 import torch.nn.functional as F
-from torch import nn
-
 from maskrcnn_benchmark.layers import ROIAlign
+from torch import nn
 
 from .utils import cat
 
@@ -62,11 +61,14 @@ class Pooler(nn.Module):
         """
         super(Pooler, self).__init__()
         poolers = []
-        self.is_nhwc=is_nhwc
+        self.is_nhwc = is_nhwc
         for scale in scales:
             poolers.append(
                 ROIAlign(
-                    output_size, spatial_scale=scale, sampling_ratio=sampling_ratio, is_nhwc=is_nhwc
+                    output_size,
+                    spatial_scale=scale,
+                    sampling_ratio=sampling_ratio,
+                    is_nhwc=is_nhwc,
                 )
             )
         self.poolers = nn.ModuleList(poolers)
@@ -110,19 +112,23 @@ class Pooler(nn.Module):
         output_size = self.output_size[0]
 
         dtype, device = x[0].dtype, x[0].device
-        result = torch.zeros(
-            (num_rois, num_channels, output_size, output_size),
-            dtype=dtype,
-            device=device,
-        ) if not self.is_nhwc else torch.zeros(
-            (num_rois, num_channels, output_size, output_size),
-            dtype=dtype,
-            device=device,
-        ).to(memory_format=torch.channels_last)
+        result = (
+            torch.zeros(
+                (num_rois, num_channels, output_size, output_size),
+                dtype=dtype,
+                device=device,
+            )
+            if not self.is_nhwc
+            else torch.zeros(
+                (num_rois, num_channels, output_size, output_size),
+                dtype=dtype,
+                device=device,
+            ).to(memory_format=torch.channels_last)
+        )
 
         for level, (per_level_feature, pooler) in enumerate(zip(x, self.poolers)):
             idx_in_level = torch.nonzero(levels == level).squeeze(1)
             rois_per_level = rois[idx_in_level]
             result[idx_in_level] = pooler(per_level_feature, rois_per_level).to(dtype)
-        
+
         return result

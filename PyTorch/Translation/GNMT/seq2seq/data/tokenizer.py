@@ -23,18 +23,20 @@ import logging
 from collections import defaultdict
 from functools import partial
 
-import torch
-import subword_nmt.apply_bpe
 import sacremoses
 import seq2seq.data.config as config
+import subword_nmt.apply_bpe
+import torch
 
 
 class Tokenizer:
     """
     Tokenizer class.
     """
-    def __init__(self, vocab_fname=None, bpe_fname=None, lang=None, pad=1,
-                 separator='@@'):
+
+    def __init__(
+        self, vocab_fname=None, bpe_fname=None, lang=None, pad=1, separator="@@"
+    ):
         """
         Constructor for the Tokenizer class.
 
@@ -47,7 +49,7 @@ class Tokenizer:
         self.lang = lang
 
         if bpe_fname:
-            with open(bpe_fname, 'r') as bpe_codes:
+            with open(bpe_fname, "r") as bpe_codes:
                 self.bpe = subword_nmt.apply_bpe.BPE(bpe_codes)
 
         if vocab_fname:
@@ -57,13 +59,12 @@ class Tokenizer:
             self.init_moses(lang)
 
     def init_moses(self, lang):
-        self.moses_tokenizer = sacremoses.MosesTokenizer(lang['src'])
-        self.moses_detokenizer = sacremoses.MosesDetokenizer(lang['tgt'])
+        self.moses_tokenizer = sacremoses.MosesTokenizer(lang["src"])
+        self.moses_detokenizer = sacremoses.MosesDetokenizer(lang["tgt"])
 
     def build_vocabulary(self, vocab_fname, pad):
-        logging.info(f'Building vocabulary from {vocab_fname}')
-        vocab = [config.PAD_TOKEN, config.UNK_TOKEN,
-                 config.BOS_TOKEN, config.EOS_TOKEN]
+        logging.info(f"Building vocabulary from {vocab_fname}")
+        vocab = [config.PAD_TOKEN, config.UNK_TOKEN, config.BOS_TOKEN, config.EOS_TOKEN]
         with open(vocab_fname) as vfile:
             for line in vfile:
                 vocab.append(line.strip())
@@ -71,7 +72,7 @@ class Tokenizer:
         self.pad_vocabulary(vocab, pad)
 
         self.vocab_size = len(vocab)
-        logging.info(f'Size of vocabulary: {self.vocab_size}')
+        logging.info(f"Size of vocabulary: {self.vocab_size}")
 
         self.tok2idx = defaultdict(partial(int, config.UNK))
         for idx, token in enumerate(vocab):
@@ -91,30 +92,30 @@ class Tokenizer:
         vocab_size = len(vocab)
         padded_vocab_size = (vocab_size + pad - 1) // pad * pad
         for i in range(0, padded_vocab_size - vocab_size):
-            token = f'madeupword{i:04d}'
+            token = f"madeupword{i:04d}"
             vocab.append(token)
         assert len(vocab) % pad == 0
 
     def get_state(self):
-        logging.info(f'Saving state of the tokenizer')
+        logging.info(f"Saving state of the tokenizer")
         state = {
-            'lang': self.lang,
-            'separator': self.separator,
-            'vocab_size': self.vocab_size,
-            'bpe': self.bpe,
-            'tok2idx': self.tok2idx,
-            'idx2tok': self.idx2tok,
+            "lang": self.lang,
+            "separator": self.separator,
+            "vocab_size": self.vocab_size,
+            "bpe": self.bpe,
+            "tok2idx": self.tok2idx,
+            "idx2tok": self.idx2tok,
         }
         return state
 
     def set_state(self, state):
-        logging.info(f'Restoring state of the tokenizer')
-        self.lang = state['lang']
-        self.separator = state['separator']
-        self.vocab_size = state['vocab_size']
-        self.bpe = state['bpe']
-        self.tok2idx = state['tok2idx']
-        self.idx2tok = state['idx2tok']
+        logging.info(f"Restoring state of the tokenizer")
+        self.lang = state["lang"]
+        self.separator = state["separator"]
+        self.vocab_size = state["vocab_size"]
+        self.bpe = state["bpe"]
+        self.tok2idx = state["tok2idx"]
+        self.idx2tok = state["idx2tok"]
 
         self.init_moses(self.lang)
 
@@ -138,7 +139,7 @@ class Tokenizer:
         tensor = torch.tensor(segmented)
         return tensor
 
-    def detokenize_bpe(self, inp, delim=' '):
+    def detokenize_bpe(self, inp, delim=" "):
         """
         Detokenizes single sentence and removes token separator characters.
 
@@ -148,12 +149,12 @@ class Tokenizer:
         returns: string representing detokenized sentence
         """
         detok = delim.join([self.idx2tok[idx] for idx in inp])
-        detok = detok.replace(self.separator + ' ', '')
-        detok = detok.replace(self.separator, '')
+        detok = detok.replace(self.separator + " ", "")
+        detok = detok.replace(self.separator, "")
 
-        detok = detok.replace(config.BOS_TOKEN, '')
-        detok = detok.replace(config.EOS_TOKEN, '')
-        detok = detok.replace(config.PAD_TOKEN, '')
+        detok = detok.replace(config.BOS_TOKEN, "")
+        detok = detok.replace(config.EOS_TOKEN, "")
+        detok = detok.replace(config.PAD_TOKEN, "")
         detok = detok.strip()
         return detok
 

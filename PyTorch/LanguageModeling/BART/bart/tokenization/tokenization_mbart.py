@@ -16,12 +16,12 @@
 
 from typing import List, Optional
 
-from utils.file_utils import add_start_docstrings
 from bart.tokenization.tokenization_utils import BatchEncoding
-from bart.tokenization.tokenization_utils_base import PREPARE_SEQ2SEQ_BATCH_DOCSTRING
+from bart.tokenization.tokenization_utils_base import \
+    PREPARE_SEQ2SEQ_BATCH_DOCSTRING
 from bart.tokenization.tokenization_xlm_roberta import XLMRobertaTokenizer
 from utils import logging
-
+from utils.file_utils import add_start_docstrings
 
 logger = logging.get_logger(__name__)
 
@@ -88,19 +88,27 @@ class MBartTokenizer(XLMRobertaTokenizer):
 
         self.sp_model_size = len(self.sp_model)
         self.lang_code_to_id = {
-            code: self.sp_model_size + i + self.fairseq_offset for i, code in enumerate(FAIRSEQ_LANGUAGE_CODES)
+            code: self.sp_model_size + i + self.fairseq_offset
+            for i, code in enumerate(FAIRSEQ_LANGUAGE_CODES)
         }
         self.id_to_lang_code = {v: k for k, v in self.lang_code_to_id.items()}
         self.cur_lang_code = self.lang_code_to_id["en_XX"]
-        self.fairseq_tokens_to_ids["<mask>"] = len(self.sp_model) + len(self.lang_code_to_id) + self.fairseq_offset
+        self.fairseq_tokens_to_ids["<mask>"] = (
+            len(self.sp_model) + len(self.lang_code_to_id) + self.fairseq_offset
+        )
 
         self.fairseq_tokens_to_ids.update(self.lang_code_to_id)
-        self.fairseq_ids_to_tokens = {v: k for k, v in self.fairseq_tokens_to_ids.items()}
+        self.fairseq_ids_to_tokens = {
+            v: k for k, v in self.fairseq_tokens_to_ids.items()
+        }
         self._additional_special_tokens = list(self.lang_code_to_id.keys())
         self.set_src_lang_special_tokens(kwargs.get("src_lang", "en_XX"))
 
     def get_special_tokens_mask(
-        self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None, already_has_special_tokens: bool = False
+        self,
+        token_ids_0: List[int],
+        token_ids_1: Optional[List[int]] = None,
+        already_has_special_tokens: bool = False,
     ) -> List[int]:
         """
         Retrieves sequence ids from a token list that has no special tokens added. This method is called when adding
@@ -124,12 +132,22 @@ class MBartTokenizer(XLMRobertaTokenizer):
                     "You should not supply a second sequence if the provided sequence of "
                     "ids is already formated with special tokens for the model."
                 )
-            return list(map(lambda x: 1 if x in [self.sep_token_id, self.cls_token_id] else 0, token_ids_0))
+            return list(
+                map(
+                    lambda x: 1 if x in [self.sep_token_id, self.cls_token_id] else 0,
+                    token_ids_0,
+                )
+            )
         prefix_ones = [1] * len(self.prefix_tokens)
         suffix_ones = [1] * len(self.suffix_tokens)
         if token_ids_1 is None:
             return prefix_ones + ([0] * len(token_ids_0)) + suffix_ones
-        return prefix_ones + ([0] * len(token_ids_0)) + ([0] * len(token_ids_1)) + suffix_ones
+        return (
+            prefix_ones
+            + ([0] * len(token_ids_0))
+            + ([0] * len(token_ids_1))
+            + suffix_ones
+        )
 
     def build_inputs_with_special_tokens(
         self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None

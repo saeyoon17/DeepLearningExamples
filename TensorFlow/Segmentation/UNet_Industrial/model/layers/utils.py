@@ -20,7 +20,6 @@
 # ==============================================================================
 
 import horovod.tensorflow as hvd
-
 from utils import hvd_utils
 
 __all__ = ["_log_hparams"]

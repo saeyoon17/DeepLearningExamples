@@ -21,16 +21,27 @@ try:
 except ImportError:
     from utils.utils import LegacySeq2SeqDataset
 
-
-from torch.utils.data import DataLoader
 import distributed_utils
+from torch.utils.data import DataLoader
+
 
 class Seq2SeqDataLoader(DataLoader):
-    def __init__(self, type_path, data_dir, tokenizer, batch_size, device='cpu',
-        max_source_length=1024, max_target_length=1024, n_obs=None,
-        shuffle=False, sortish_sampler=False, num_workers=4):
+    def __init__(
+        self,
+        type_path,
+        data_dir,
+        tokenizer,
+        batch_size,
+        device="cpu",
+        max_source_length=1024,
+        max_target_length=1024,
+        n_obs=None,
+        shuffle=False,
+        sortish_sampler=False,
+        num_workers=4,
+    ):
         """
-            data -- list[LongTensor] -- there is no order among the LongTensors
+        data -- list[LongTensor] -- there is no order among the LongTensors
         """
         self.data_dir = data_dir
         self.tokenizer = tokenizer
@@ -48,7 +59,9 @@ class Seq2SeqDataLoader(DataLoader):
 
         sampler = None
         if world_size > 1 and type_path == "train":
-            sampler =self.dataset.make_sortish_sampler(batch_size, distributed=True, rank=rank, num_replicas=world_size)
+            sampler = self.dataset.make_sortish_sampler(
+                batch_size, distributed=True, rank=rank, num_replicas=world_size
+            )
             shuffle = False
 
         super().__init__(
@@ -68,6 +81,7 @@ class Seq2SeqDataLoader(DataLoader):
             n_obs=self.n_obs,
             max_source_length=self.max_source_length,
             max_target_length=self.max_target_length,
-            src_lang="", tgt_lang=""
+            src_lang="",
+            tgt_lang="",
         )
         return dataset

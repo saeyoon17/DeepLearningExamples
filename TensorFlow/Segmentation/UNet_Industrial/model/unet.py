@@ -19,20 +19,11 @@
 #
 # ==============================================================================
 
-import tensorflow as tf
 import horovod.tensorflow as hvd
-
-from model import layers
-from model import blocks
-
-from utils import hvd_utils
-
-from utils import losses
-from utils import metrics
-
-from utils import image_processing
-
+import tensorflow as tf
 from dllogger import Logger
+from model import blocks, layers
+from utils import hvd_utils, image_processing, losses, metrics
 
 __all__ = ["UNet_v1"]
 
@@ -77,12 +68,14 @@ class UNet_v1(object):
 
         else:
             raise ValueError(
-                "Unknown `UNet` variant: %s. Authorized: %s" % (unet_variant, UNet_v1.authorized_models_variants)
+                "Unknown `UNet` variant: %s. Authorized: %s"
+                % (unet_variant, UNet_v1.authorized_models_variants)
             )
 
         if activation_fn not in blocks.authorized_activation_fn:
             raise ValueError(
-                "Unknown activation function: %s - Authorised: %s" % (activation_fn, blocks.authorized_activation_fn)
+                "Unknown activation function: %s - Authorised: %s"
+                % (activation_fn, blocks.authorized_activation_fn)
             )
 
         self.model_hparams = tf.contrib.training.HParams(
@@ -97,36 +90,40 @@ class UNet_v1(object):
         )
 
         self.conv2d_hparams = tf.contrib.training.HParams(
-            kernel_initializer=None, bias_initializer=tf.initializers.constant(0.0), activation_fn=activation_fn
+            kernel_initializer=None,
+            bias_initializer=tf.initializers.constant(0.0),
+            activation_fn=activation_fn,
         )
 
         if weight_init_method == "he_normal":
             self.conv2d_hparams.kernel_initializer = tf.initializers.variance_scaling(
-                scale=2.0, distribution='truncated_normal', mode='fan_in'
+                scale=2.0, distribution="truncated_normal", mode="fan_in"
             )
 
         elif weight_init_method == "he_uniform":
             self.conv2d_hparams.kernel_initializer = tf.initializers.variance_scaling(
-                scale=2.0, distribution='uniform', mode='fan_in'
+                scale=2.0, distribution="uniform", mode="fan_in"
             )
 
         elif weight_init_method == "glorot_normal":
             self.conv2d_hparams.kernel_initializer = tf.initializers.variance_scaling(
-                scale=1.0, distribution='truncated_normal', mode='fan_avg'
+                scale=1.0, distribution="truncated_normal", mode="fan_avg"
             )
 
         elif weight_init_method == "glorot_uniform":
             self.conv2d_hparams.kernel_initializer = tf.initializers.variance_scaling(
-                scale=1.0, distribution='uniform', mode='fan_avg'
+                scale=1.0, distribution="uniform", mode="fan_avg"
             )
 
         elif weight_init_method == "orthogonal":
-            self.conv2d_hparams.kernel_initializer = tf.initializers.orthogonal(gain=1.0)
+            self.conv2d_hparams.kernel_initializer = tf.initializers.orthogonal(
+                gain=1.0
+            )
 
         else:
             raise ValueError(
-                "Unknown weight init method: %s - Authorized: %s" %
-                (weight_init_method, UNet_v1.authorized_weight_init_methods)
+                "Unknown weight init method: %s - Authorized: %s"
+                % (weight_init_method, UNet_v1.authorized_weight_init_methods)
             )
 
     def __call__(self, features, labels, mode, params):
@@ -159,10 +156,13 @@ class UNet_v1(object):
 
         if mode == tf.estimator.ModeKeys.PREDICT:
             y_pred, y_pred_logits = self.build_model(
-                features, training=False, reuse=False, debug_verbosity=params["debug_verbosity"]
+                features,
+                training=False,
+                reuse=False,
+                debug_verbosity=params["debug_verbosity"],
             )
 
-            predictions = {'logits': y_pred}
+            predictions = {"logits": y_pred}
             return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
         input_image, mask_image = features
@@ -177,11 +177,13 @@ class UNet_v1(object):
                 input_image,
                 training=mode == tf.estimator.ModeKeys.TRAIN,
                 reuse=False,
-                debug_verbosity=params["debug_verbosity"]
+                debug_verbosity=params["debug_verbosity"],
             )
 
-            all_trainable_vars = tf.reduce_sum([tf.reduce_prod(v.shape) for v in tf.trainable_variables()])
-            tf.identity(all_trainable_vars, name='trainable_parameters_count_ref')
+            all_trainable_vars = tf.reduce_sum(
+                [tf.reduce_prod(v.shape) for v in tf.trainable_variables()]
+            )
+            tf.identity(all_trainable_vars, name="trainable_parameters_count_ref")
 
             if mode == tf.estimator.ModeKeys.EVAL:
                 eval_metrics = dict()
@@ -189,14 +191,20 @@ class UNet_v1(object):
             # ==================== Samples ==================== #
 
             image_uint8 = tf.cast((input_image + 1) * 127.5, dtype=tf.uint8)
-            input_image_jpeg = tf.image.encode_jpeg(image_uint8[0], format='grayscale', quality=100)
+            input_image_jpeg = tf.image.encode_jpeg(
+                image_uint8[0], format="grayscale", quality=100
+            )
             tf.identity(input_image_jpeg, name="input_image_jpeg_ref")
 
             for threshold in [None, 0.05, 0.125, 0.25, 0.5, 0.75, 0.85, 0.95, 0.99]:
-                binarize_img, binarize_img_jpeg = image_processing.binarize_output(y_pred[0], threshold=threshold)
+                binarize_img, binarize_img_jpeg = image_processing.binarize_output(
+                    y_pred[0], threshold=threshold
+                )
 
-                tf.identity(binarize_img_jpeg, name="output_sample_ths_%s_ref" % threshold)
-                tf.summary.image('output_sample_ths_%s' % threshold, binarize_img, 10)
+                tf.identity(
+                    binarize_img_jpeg, name="output_sample_ths_%s_ref" % threshold
+                )
+                tf.summary.image("output_sample_ths_%s" % threshold, binarize_img, 10)
 
             # ==============+ Evaluation Metrics ==================== #
 
@@ -204,20 +212,24 @@ class UNet_v1(object):
 
                 for threshold in [0.05, 0.125, 0.25, 0.5, 0.75, 0.85, 0.95, 0.99]:
 
-                    iou_score = metrics.iou_score(y_pred=y_pred, y_true=mask_image, threshold=threshold)
+                    iou_score = metrics.iou_score(
+                        y_pred=y_pred, y_true=mask_image, threshold=threshold
+                    )
 
-                    tf.identity(iou_score, name='iou_score_ths_%s_ref' % threshold)
-                    tf.summary.scalar('iou_score_ths_%s' % threshold, iou_score)
+                    tf.identity(iou_score, name="iou_score_ths_%s_ref" % threshold)
+                    tf.summary.scalar("iou_score_ths_%s" % threshold, iou_score)
 
                     if mode == tf.estimator.ModeKeys.EVAL:
-                        eval_metrics["IoU_THS_%s" % threshold] = tf.metrics.mean(iou_score)
+                        eval_metrics["IoU_THS_%s" % threshold] = tf.metrics.mean(
+                            iou_score
+                        )
 
             labels = tf.cast(labels, tf.float32)
             labels_preds = tf.reduce_max(y_pred, axis=(1, 2, 3))
 
             assert (
                 abs(labels_preds - tf.clip_by_value(labels_preds, 0, 1)) < 0.00001,
-                    "Clipping labels_preds introduces non-trivial loss."
+                "Clipping labels_preds introduces non-trivial loss.",
             )
             labels_preds = tf.clip_by_value(labels_preds, 0, 1)
 
@@ -248,11 +260,17 @@ class UNet_v1(object):
                 )
 
                 if mode == tf.estimator.ModeKeys.TRAIN:
-                    local_vars = tf.get_collection(tf.GraphKeys.LOCAL_VARIABLES, scope=scope.name)
-                    confusion_matrix_reset_op = tf.initializers.variables(local_vars, name='reset_op')
+                    local_vars = tf.get_collection(
+                        tf.GraphKeys.LOCAL_VARIABLES, scope=scope.name
+                    )
+                    confusion_matrix_reset_op = tf.initializers.variables(
+                        local_vars, name="reset_op"
+                    )
 
                     with tf.control_dependencies([confusion_matrix_reset_op]):
-                        with tf.control_dependencies([update_tp, update_tn, update_fp, update_fn]):
+                        with tf.control_dependencies(
+                            [update_tp, update_tn, update_fp, update_fn]
+                        ):
                             tp = tf.identity(tp)
                             tn = tf.identity(tn)
                             fp = tf.identity(fp)
@@ -264,63 +282,81 @@ class UNet_v1(object):
                     eval_metrics["Confusion_Matrix_FP"] = fp, update_fp
                     eval_metrics["Confusion_Matrix_FN"] = fn, update_fn
 
-                tf.identity(tp, name='true_positives_ref')  # Confusion_Matrix/true_positives_ref:0
-                tf.identity(tn, name='true_negatives_ref')  # Confusion_Matrix/true_negatives_ref:0
-                tf.identity(fp, name='false_positives_ref')  # Confusion_Matrix/false_positives_ref:0
-                tf.identity(fn, name='false_negatives_ref')  # Confusion_Matrix/false_negatives_ref:0
+                tf.identity(
+                    tp, name="true_positives_ref"
+                )  # Confusion_Matrix/true_positives_ref:0
+                tf.identity(
+                    tn, name="true_negatives_ref"
+                )  # Confusion_Matrix/true_negatives_ref:0
+                tf.identity(
+                    fp, name="false_positives_ref"
+                )  # Confusion_Matrix/false_positives_ref:0
+                tf.identity(
+                    fn, name="false_negatives_ref"
+                )  # Confusion_Matrix/false_negatives_ref:0
 
-                tf.summary.scalar('true_positives', tp[3])  # For Ths = 0.5
-                tf.summary.scalar('true_negatives', tn[3])  # For Ths = 0.5
-                tf.summary.scalar('false_positives', fp[3])  # For Ths = 0.5
-                tf.summary.scalar('false_negatives', fn[3])  # For Ths = 0.5
+                tf.summary.scalar("true_positives", tp[3])  # For Ths = 0.5
+                tf.summary.scalar("true_negatives", tn[3])  # For Ths = 0.5
+                tf.summary.scalar("false_positives", fp[3])  # For Ths = 0.5
+                tf.summary.scalar("false_negatives", fn[3])  # For Ths = 0.5
 
-            binarized_mask, binarized_mask_jpeg = image_processing.binarize_output(mask_image[0], threshold=0.5)
+            binarized_mask, binarized_mask_jpeg = image_processing.binarize_output(
+                mask_image[0], threshold=0.5
+            )
             tf.identity(binarized_mask_jpeg, name="mask_sample_ref")
-            tf.summary.image('sample_mask', binarized_mask, 10)
+            tf.summary.image("sample_mask", binarized_mask, 10)
 
             ##########################
 
             mask_max_val = tf.reduce_max(mask_image)
-            tf.identity(mask_max_val, name='mask_max_val_ref')
+            tf.identity(mask_max_val, name="mask_max_val_ref")
 
             mask_min_val = tf.reduce_min(mask_image)
-            tf.identity(mask_min_val, name='mask_min_val_ref')
+            tf.identity(mask_min_val, name="mask_min_val_ref")
 
             mask_mean_val = tf.reduce_mean(mask_image)
-            tf.identity(mask_mean_val, name='mask_mean_val_ref')
+            tf.identity(mask_mean_val, name="mask_mean_val_ref")
 
             mask_std_val = tf.math.reduce_std(mask_image)
-            tf.identity(mask_std_val, name='mask_std_val_ref')
+            tf.identity(mask_std_val, name="mask_std_val_ref")
 
             ##########################
 
             output_max_val = tf.reduce_max(y_pred)
-            tf.identity(output_max_val, name='output_max_val_ref')
+            tf.identity(output_max_val, name="output_max_val_ref")
 
             output_min_val = tf.reduce_min(y_pred)
-            tf.identity(output_min_val, name='output_min_val_ref')
+            tf.identity(output_min_val, name="output_min_val_ref")
 
             output_mean_val = tf.reduce_mean(y_pred)
-            tf.identity(output_mean_val, name='output_mean_val_ref')
+            tf.identity(output_mean_val, name="output_mean_val_ref")
 
             output_std_val = tf.math.reduce_std(y_pred)
-            tf.identity(output_std_val, name='output_std_val_ref')
+            tf.identity(output_std_val, name="output_std_val_ref")
 
             with tf.variable_scope("losses"):
 
                 # ==============+ Reconstruction Loss ==================== #
 
                 if params["loss_fn_name"] == "x-entropy":
-                    reconstruction_loss = losses.reconstruction_x_entropy(y_pred=y_pred, y_true=mask_image)
+                    reconstruction_loss = losses.reconstruction_x_entropy(
+                        y_pred=y_pred, y_true=mask_image
+                    )
 
                 elif params["loss_fn_name"] == "l2_loss":
-                    reconstruction_loss = losses.reconstruction_l2loss(y_pred=y_pred, y_true=mask_image)
+                    reconstruction_loss = losses.reconstruction_l2loss(
+                        y_pred=y_pred, y_true=mask_image
+                    )
 
                 elif params["loss_fn_name"] == "dice_sorensen":
-                    reconstruction_loss = 1 - losses.dice_coe(y_pred=y_pred, y_true=mask_image, loss_type='sorensen')
+                    reconstruction_loss = 1 - losses.dice_coe(
+                        y_pred=y_pred, y_true=mask_image, loss_type="sorensen"
+                    )
 
                 elif params["loss_fn_name"] == "dice_jaccard":
-                    reconstruction_loss = 1 - losses.dice_coe(y_pred=y_pred, y_true=mask_image, loss_type='jaccard')
+                    reconstruction_loss = 1 - losses.dice_coe(
+                        y_pred=y_pred, y_true=mask_image, loss_type="jaccard"
+                    )
 
                 elif params["loss_fn_name"] == "adaptive_loss":
                     reconstruction_loss = losses.adaptive_loss(
@@ -328,31 +364,35 @@ class UNet_v1(object):
                         y_pred_logits=y_pred_logits,
                         y_true=mask_image,
                         switch_at_threshold=0.3,
-                        loss_type='sorensen'
+                        loss_type="sorensen",
                     )
 
                 else:
-                    raise ValueError("Unknown loss function received: %s" % params["loss_fn_name"])
+                    raise ValueError(
+                        "Unknown loss function received: %s" % params["loss_fn_name"]
+                    )
 
-                tf.identity(reconstruction_loss, name='reconstruction_loss_ref')
-                tf.summary.scalar('reconstruction_loss', reconstruction_loss)
+                tf.identity(reconstruction_loss, name="reconstruction_loss_ref")
+                tf.summary.scalar("reconstruction_loss", reconstruction_loss)
 
                 if mode == tf.estimator.ModeKeys.TRAIN:
 
                     # ============== Regularization Loss ==================== #
 
-                    l2_loss = losses.regularization_l2loss(weight_decay=params["weight_decay"])
+                    l2_loss = losses.regularization_l2loss(
+                        weight_decay=params["weight_decay"]
+                    )
 
-                    tf.identity(l2_loss, name='l2_loss_ref')
-                    tf.summary.scalar('l2_loss', l2_loss)
+                    tf.identity(l2_loss, name="l2_loss_ref")
+                    tf.summary.scalar("l2_loss", l2_loss)
 
                     total_loss = tf.add(reconstruction_loss, l2_loss, name="total_loss")
 
                 else:
                     total_loss = reconstruction_loss
 
-                tf.identity(total_loss, name='total_loss_ref')
-                tf.summary.scalar('total_loss', total_loss)
+                tf.identity(total_loss, name="total_loss_ref")
+                tf.summary.scalar("total_loss", total_loss)
 
             if mode == tf.estimator.ModeKeys.TRAIN:
 
@@ -367,11 +407,11 @@ class UNet_v1(object):
                         decay_steps=params["learning_rate_decay_steps"],
                         decay_rate=params["learning_rate_decay_factor"],
                         global_step=global_step,
-                        staircase=True
+                        staircase=True,
                     )
 
                     tf.identity(learning_rate, name="learning_rate_ref")
-                    tf.summary.scalar('learning_rate_ref', learning_rate)
+                    tf.summary.scalar("learning_rate_ref", learning_rate)
 
                     opt = tf.train.RMSPropOptimizer(
                         learning_rate=learning_rate,
@@ -382,7 +422,7 @@ class UNet_v1(object):
                     )
 
                     if hvd_utils.is_using_hvd():
-                        opt = hvd.DistributedOptimizer(opt, device_dense='/gpu:0')
+                        opt = hvd.DistributedOptimizer(opt, device_dense="/gpu:0")
 
                     if params["apply_manual_loss_scaling"]:
 
@@ -391,16 +431,28 @@ class UNet_v1(object):
 
                         loss_scale_manager = tf.contrib.mixed_precision.ExponentialUpdateLossScaleManager(
                             init_loss_scale=2**32,  # 4,294,967,296
-                            incr_every_n_steps=1000
+                            incr_every_n_steps=1000,
                         )
-                        opt = tf.contrib.mixed_precision.LossScaleOptimizer(opt, loss_scale_manager)
+                        opt = tf.contrib.mixed_precision.LossScaleOptimizer(
+                            opt, loss_scale_manager
+                        )
 
                     deterministic = True
-                    gate_gradients = (tf.train.Optimizer.GATE_OP if deterministic else tf.train.Optimizer.GATE_NONE)
+                    gate_gradients = (
+                        tf.train.Optimizer.GATE_OP
+                        if deterministic
+                        else tf.train.Optimizer.GATE_NONE
+                    )
 
-                    backprop_op = opt.minimize(total_loss, gate_gradients=gate_gradients, global_step=global_step)
+                    backprop_op = opt.minimize(
+                        total_loss,
+                        gate_gradients=gate_gradients,
+                        global_step=global_step,
+                    )
 
-                    train_op = tf.group(backprop_op, tf.get_collection(tf.GraphKeys.UPDATE_OPS))
+                    train_op = tf.group(
+                        backprop_op, tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+                    )
 
                     return tf.estimator.EstimatorSpec(
                         mode,
@@ -411,11 +463,14 @@ class UNet_v1(object):
             elif mode == tf.estimator.ModeKeys.EVAL:
 
                 return tf.estimator.EstimatorSpec(
-                    mode, loss=total_loss, eval_metric_ops=eval_metrics, predictions={"output": y_pred}
+                    mode,
+                    loss=total_loss,
+                    eval_metric_ops=eval_metrics,
+                    predictions={"output": y_pred},
                 )
 
             else:
-                raise NotImplementedError('Unknown mode {}'.format(mode))
+                raise NotImplementedError("Unknown mode {}".format(mode))
 
     def build_model(self, inputs, training=True, reuse=False, debug_verbosity=0):
         """
@@ -430,9 +485,14 @@ class UNet_v1(object):
             with tf.variable_scope("input_reshape"):
 
                 with tf.variable_scope("initial_zero_padding"):
-                    inputs = tf.image.resize_image_with_crop_or_pad(inputs, target_height=512, target_width=512)
+                    inputs = tf.image.resize_image_with_crop_or_pad(
+                        inputs, target_height=512, target_width=512
+                    )
 
-                if self.model_hparams.input_format == 'NHWC' and self.model_hparams.compute_format == 'NCHW':
+                if (
+                    self.model_hparams.input_format == "NHWC"
+                    and self.model_hparams.compute_format == "NCHW"
+                ):
                     # Convert the inputs from channels_last (NHWC) to channels_first (NCHW).
                     # This provides a large performance boost on GPU. See
                     # https://www.tensorflow.org/performance/performance_guide#data_formats
@@ -440,7 +500,10 @@ class UNet_v1(object):
                     # Reshape inputs: NHWC => NCHW
                     net = tf.transpose(inputs, [0, 3, 1, 2])
 
-                elif self.model_hparams.input_format == 'NCHW' and self.model_hparams.compute_format == 'NHWC':
+                elif (
+                    self.model_hparams.input_format == "NCHW"
+                    and self.model_hparams.compute_format == "NHWC"
+                ):
 
                     # Reshape inputs: NCHW => NHWC
                     net = tf.transpose(inputs, [0, 2, 3, 1])
@@ -455,7 +518,7 @@ class UNet_v1(object):
                 filters=self.model_hparams.input_filters,
                 data_format=self.model_hparams.compute_format,
                 is_training=training,
-                conv2d_hparams=self.conv2d_hparams
+                conv2d_hparams=self.conv2d_hparams,
             )
 
             skip_connections.append(out)
@@ -469,7 +532,7 @@ class UNet_v1(object):
                     data_format=self.model_hparams.compute_format,
                     is_training=training,
                     conv2d_hparams=self.conv2d_hparams,
-                    block_name="downsample_block_%d" % (idx + 1)
+                    block_name="downsample_block_%d" % (idx + 1),
                 )
 
                 skip_connections.append(skip_connect)
@@ -482,7 +545,9 @@ class UNet_v1(object):
                 conv2d_hparams=self.conv2d_hparams,
             )
 
-            for idx, filters in enumerate(reversed(self.model_hparams.unet_block_filters)):
+            for idx, filters in enumerate(
+                reversed(self.model_hparams.unet_block_filters)
+            ):
                 net = blocks.upsample_unet_block(
                     net,
                     residual_input=skip_connections.pop(),
@@ -490,7 +555,7 @@ class UNet_v1(object):
                     data_format=self.model_hparams.compute_format,
                     is_training=training,
                     conv2d_hparams=self.conv2d_hparams,
-                    block_name='upsample_block_%d' % (idx + 1)
+                    block_name="upsample_block_%d" % (idx + 1),
                 )
 
             logits = blocks.output_unet_block(
@@ -501,7 +566,7 @@ class UNet_v1(object):
                 data_format=self.model_hparams.compute_format,
                 is_training=training,
                 conv2d_hparams=self.conv2d_hparams,
-                block_name='ouputs_block'
+                block_name="ouputs_block",
             )
 
             if self.model_hparams.compute_format == "NCHW":

@@ -20,7 +20,6 @@
 # ==============================================================================
 
 import tensorflow as tf
-
 from model import layers
 
 __all__ = [
@@ -28,10 +27,18 @@ __all__ = [
     "activation_block",
 ]
 
-authorized_activation_fn = ["relu", "leaky_relu", "prelu_shared", "prelu_not_shared", "selu", "crelu", "elu"]
+authorized_activation_fn = [
+    "relu",
+    "leaky_relu",
+    "prelu_shared",
+    "prelu_not_shared",
+    "selu",
+    "crelu",
+    "elu",
+]
 
 
-def activation_block(inputs, act_fn, trainable=True, block_name='activation'):
+def activation_block(inputs, act_fn, trainable=True, block_name="activation"):
 
     with tf.variable_scope(block_name):
 
@@ -56,4 +63,7 @@ def activation_block(inputs, act_fn, trainable=True, block_name='activation'):
         if act_fn == "elu":
             return layers.elu(inputs)
 
-        raise ValueError("Unknown activation function: %s - Authorized: %s" % (act_fn, authorized_activation_fn))
+        raise ValueError(
+            "Unknown activation function: %s - Authorized: %s"
+            % (act_fn, authorized_activation_fn)
+        )

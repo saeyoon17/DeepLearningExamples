@@ -13,15 +13,16 @@
 # limitations under the License.
 
 import errno
+import logging
 import os
 import re
 import shutil
 import tempfile
-import logging
+
 import paddle
 
-_PDOPT_SUFFIX = '.pdopt'
-_PDPARAMS_SUFFIX = '.pdparams'
+_PDOPT_SUFFIX = ".pdopt"
+_PDPARAMS_SUFFIX = ".pdparams"
 
 
 def _mkdir_if_not_exist(path):
@@ -33,10 +34,9 @@ def _mkdir_if_not_exist(path):
             os.makedirs(path)
         except OSError as e:
             if e.errno == errno.EEXIST and os.path.isdir(path):
-                logging.warning(
-                    'be happy if some process has already created %s', path)
+                logging.warning("be happy if some process has already created %s", path)
             else:
-                raise OSError(f'Failed to mkdir {path}')
+                raise OSError(f"Failed to mkdir {path}")
 
 
 def _load_state(path):
@@ -80,23 +80,26 @@ def load_params(prog, path, ignore_params=None):
     for block in prog.blocks:
         for param in block.all_parameters():
             all_var_shape[param.name] = param.shape
-    ignore_set.update([
-        name for name, shape in all_var_shape.items()
-        if name in state and shape != state[name].shape
-    ])
+    ignore_set.update(
+        [
+            name
+            for name, shape in all_var_shape.items()
+            if name in state and shape != state[name].shape
+        ]
+    )
 
     if ignore_params:
         all_var_names = [var.name for var in prog.list_vars()]
         ignore_list = filter(
             lambda var: any([re.match(name, var) for name in ignore_params]),
-            all_var_names)
+            all_var_names,
+        )
         ignore_set.update(list(ignore_list))
 
     if len(ignore_set) > 0:
         for k in ignore_set:
             if k in state:
-                logging.warning(
-                    'variable %s is already excluded automatically', k)
+                logging.warning("variable %s is already excluded automatically", k)
                 del state[k]
 
     paddle.static.set_program_state(prog, state)
@@ -126,8 +129,7 @@ def init_pretrained(path_to_pretrained, program):
         pretrained_model = [path_to_pretrained]
     for pretrain in pretrained_model:
         load_params(program, pretrain)
-    logging.info("Finish initalizing pretrained parameters from %s",
-                 pretrained_model)
+    logging.info("Finish initalizing pretrained parameters from %s", pretrained_model)
 
 
 def init_program(args, program, exe):
@@ -140,8 +142,7 @@ def init_program(args, program, exe):
     """
     if args.from_checkpoint is not None:
         init_ckpt(args.from_checkpoint, program, exe)
-        logging.info("Training will start at the %d-th epoch",
-                     args.start_epoch)
+        logging.info("Training will start at the %d-th epoch", args.start_epoch)
     elif args.from_pretrained_params is not None:
         init_pretrained(args.from_pretrained_params, program)
 

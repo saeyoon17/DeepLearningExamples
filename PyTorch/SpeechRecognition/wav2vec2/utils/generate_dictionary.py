@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import Counter
 import sys
-
+from collections import Counter
 
 in_ltr = sys.argv[1]
 out_dict = sys.argv[2]

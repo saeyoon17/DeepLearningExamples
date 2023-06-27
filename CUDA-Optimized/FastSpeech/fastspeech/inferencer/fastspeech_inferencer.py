@@ -24,15 +24,35 @@
 
 from fastspeech.inferencer.inferencer import Inferencer
 from fastspeech.utils.logging import tprint
+from fastspeech.utils.pytorch import to_cpu_numpy, to_device_async
 from fastspeech.utils.tensorboard import imshow_to_buf
-from fastspeech.utils.pytorch import to_device_async, to_cpu_numpy
 from torch.nn import functional as F
 
 
 class FastSpeechInferencer(Inferencer):
-
-    def __init__(self, model_name, model, data_loader, ckpt_path=None, ckpt_file=None, log_path=None, device='cuda', use_fp16=False, seed=None):
-        super(FastSpeechInferencer, self).__init__(model_name, model, data_loader, ckpt_path, ckpt_file, log_path, device, use_fp16, seed)
+    def __init__(
+        self,
+        model_name,
+        model,
+        data_loader,
+        ckpt_path=None,
+        ckpt_file=None,
+        log_path=None,
+        device="cuda",
+        use_fp16=False,
+        seed=None,
+    ):
+        super(FastSpeechInferencer, self).__init__(
+            model_name,
+            model,
+            data_loader,
+            ckpt_path,
+            ckpt_file,
+            log_path,
+            device,
+            use_fp16,
+            seed,
+        )
 
     def infer(self, acts=None, seq_input_len=None, seq_output_len=None):
         inputs = next(self.data_loader_iter)
@@ -41,8 +61,12 @@ class FastSpeechInferencer(Inferencer):
         text_pos = inputs["text_pos"]
 
         if seq_input_len:
-            text_encoded = F.pad(text_encoded, pad=(0, seq_input_len - text_encoded.size(1)))  # (b, t)
-            text_pos = F.pad(text_pos, pad=(0, seq_input_len - text_pos.size(1)))  # (b, t)
+            text_encoded = F.pad(
+                text_encoded, pad=(0, seq_input_len - text_encoded.size(1))
+            )  # (b, t)
+            text_pos = F.pad(
+                text_pos, pad=(0, seq_input_len - text_pos.size(1))
+            )  # (b, t)
 
         text_encoded = to_device_async(text_encoded, self.device)
         text_pos = to_device_async(text_pos, self.device)
@@ -52,7 +76,7 @@ class FastSpeechInferencer(Inferencer):
             pos=text_pos,
             seq_output_len=seq_output_len,
             use_fp16=self.use_fp16,
-            acts=acts
+            acts=acts,
         )
 
         # (B,T,H) => (B,H,T)
@@ -60,18 +84,18 @@ class FastSpeechInferencer(Inferencer):
         mel_mask = mel_mask.squeeze(2)
 
         outputs = dict()
-        outputs['mel'] = mel
-        outputs['mel_mask'] = mel_mask
-        outputs['text'] = inputs["text_norm"]
+        outputs["mel"] = mel
+        outputs["mel_mask"] = mel_mask
+        outputs["text"] = inputs["text_norm"]
 
         if "mel" in inputs:
-            outputs['mel_tgt'] = inputs["mel"]
+            outputs["mel_tgt"] = inputs["mel"]
 
         if "wav" in inputs:
-            outputs['wav_tgt'] = inputs["wav"]
+            outputs["wav_tgt"] = inputs["wav"]
 
         if "sr" in inputs:
-            outputs['sr'] = inputs["sr"]
+            outputs["sr"] = inputs["sr"]
 
         return outputs
 
@@ -79,12 +103,27 @@ class FastSpeechInferencer(Inferencer):
         # console logging
         msg = ""
         for key, value in sorted(output.items()):
-            msg += ',\t{}: {}'.format(key, value)
+            msg += ",\t{}: {}".format(key, value)
         tprint(msg)
 
     # TODO generalize
     def tensorboard_log(self, tag, output_tensor):
-        self.tbwriter.add_image('{}/{}'.format(tag, "mel"), imshow_to_buf(output_tensor['mel']), global_step=self.step)
-        self.tbwriter.add_image('{}/{}'.format(tag, "mel_tgt"), imshow_to_buf(output_tensor['mel_tgt']), global_step=self.step)
-        self.tbwriter.add_audio('{}/{}'.format(tag, "wav_tgt"), output_tensor['wav_tgt'], global_step=self.step, sample_rate=int(output_tensor['sr']))
-        self.tbwriter.add_text('{}/{}'.format(tag, "text"), output_tensor['text'], global_step=self.step)
+        self.tbwriter.add_image(
+            "{}/{}".format(tag, "mel"),
+            imshow_to_buf(output_tensor["mel"]),
+            global_step=self.step,
+        )
+        self.tbwriter.add_image(
+            "{}/{}".format(tag, "mel_tgt"),
+            imshow_to_buf(output_tensor["mel_tgt"]),
+            global_step=self.step,
+        )
+        self.tbwriter.add_audio(
+            "{}/{}".format(tag, "wav_tgt"),
+            output_tensor["wav_tgt"],
+            global_step=self.step,
+            sample_rate=int(output_tensor["sr"]),
+        )
+        self.tbwriter.add_text(
+            "{}/{}".format(tag, "text"), output_tensor["text"], global_step=self.step
+        )

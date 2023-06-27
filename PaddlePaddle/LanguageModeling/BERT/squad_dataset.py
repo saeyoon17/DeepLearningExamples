@@ -14,21 +14,21 @@
 
 import collections
 import json
+
 import paddle
 from tokenizer import _is_whitespace
 
 
 def create_squad_data_holder():
-    input_ids = paddle.static.data(
-        name="input_ids", shape=[-1, -1], dtype="int64")
-    segment_ids = paddle.static.data(
-        name="segment_ids", shape=[-1, -1], dtype="int64")
+    input_ids = paddle.static.data(name="input_ids", shape=[-1, -1], dtype="int64")
+    segment_ids = paddle.static.data(name="segment_ids", shape=[-1, -1], dtype="int64")
     start_positions = paddle.static.data(
-        name="start_positions", shape=[-1, 1], dtype="int64")
+        name="start_positions", shape=[-1, 1], dtype="int64"
+    )
     end_positions = paddle.static.data(
-        name="end_positions", shape=[-1, 1], dtype="int64")
-    unique_id = paddle.static.data(
-        name="unique_id", shape=[-1, 1], dtype="int64")
+        name="end_positions", shape=[-1, 1], dtype="int64"
+    )
+    unique_id = paddle.static.data(name="unique_id", shape=[-1, 1], dtype="int64")
     return input_ids, segment_ids, start_positions, end_positions, unique_id
 
 
@@ -38,14 +38,16 @@ class SquadExample:
     For examples without an answer, the start and end position are -1.
     """
 
-    def __init__(self,
-                 qas_id,
-                 question_text,
-                 doc_tokens,
-                 orig_answer_text=None,
-                 start_position=None,
-                 end_position=None,
-                 is_impossible=False):
+    def __init__(
+        self,
+        qas_id,
+        question_text,
+        doc_tokens,
+        orig_answer_text=None,
+        start_position=None,
+        end_position=None,
+        is_impossible=False,
+    ):
         self.qas_id = qas_id
         self.question_text = question_text
         self.doc_tokens = doc_tokens
@@ -58,19 +60,21 @@ class SquadExample:
 class InputFeatures:
     """A single set of features of data."""
 
-    def __init__(self,
-                 unique_id,
-                 example_index,
-                 doc_span_index,
-                 tokens,
-                 token_to_orig_map,
-                 token_is_max_context,
-                 input_ids,
-                 input_mask,
-                 segment_ids,
-                 start_position=None,
-                 end_position=None,
-                 is_impossible=None):
+    def __init__(
+        self,
+        unique_id,
+        example_index,
+        doc_span_index,
+        tokens,
+        token_to_orig_map,
+        token_is_max_context,
+        input_ids,
+        input_mask,
+        segment_ids,
+        start_position=None,
+        end_position=None,
+        is_impossible=None,
+    ):
         self.unique_id = unique_id
         self.example_index = example_index
         self.doc_span_index = doc_span_index
@@ -86,14 +90,16 @@ class InputFeatures:
 
 
 class SQuAD(paddle.io.Dataset):
-    def __init__(self,
-                 tokenizer,
-                 mode='train',
-                 version_2_with_negative=False,
-                 path=None,
-                 doc_stride=128,
-                 max_query_length=64,
-                 max_seq_length=512):
+    def __init__(
+        self,
+        tokenizer,
+        mode="train",
+        version_2_with_negative=False,
+        path=None,
+        doc_stride=128,
+        max_query_length=64,
+        max_seq_length=512,
+    ):
 
         self.version_2_with_negative = version_2_with_negative
         self.path = path
@@ -104,7 +110,7 @@ class SQuAD(paddle.io.Dataset):
 
         self._transform_func = None
 
-        if mode == 'train':
+        if mode == "train":
             self.is_training = True
         else:
             self.is_training = False
@@ -116,10 +122,12 @@ class SQuAD(paddle.io.Dataset):
             tokenizer=self.tokenizer,
             doc_stride=self.doc_stride,
             max_query_length=self.max_query_length,
-            max_seq_length=self.max_seq_length)
+            max_seq_length=self.max_seq_length,
+        )
 
-    def convert_examples_to_features(self, examples, tokenizer, max_seq_length,
-                                     doc_stride, max_query_length):
+    def convert_examples_to_features(
+        self, examples, tokenizer, max_seq_length, doc_stride, max_query_length
+    ):
         """Loads a data file into a list of `InputBatch`s."""
         unique_id = 1000000000
         features = []
@@ -146,14 +154,16 @@ class SQuAD(paddle.io.Dataset):
             if self.is_training and not example.is_impossible:
                 tok_start_position = orig_to_tok_index[example.start_position]
                 if example.end_position < len(example.doc_tokens) - 1:
-                    tok_end_position = orig_to_tok_index[example.end_position +
-                                                         1] - 1
+                    tok_end_position = orig_to_tok_index[example.end_position + 1] - 1
                 else:
                     tok_end_position = len(all_doc_tokens) - 1
-                (tok_start_position,
-                 tok_end_position) = self._improve_answer_span(
-                     all_doc_tokens, tok_start_position, tok_end_position,
-                     tokenizer, example.orig_answer_text)
+                (tok_start_position, tok_end_position) = self._improve_answer_span(
+                    all_doc_tokens,
+                    tok_start_position,
+                    tok_end_position,
+                    tokenizer,
+                    example.orig_answer_text,
+                )
 
             # The -3 accounts for [CLS], [SEP] and [SEP]
             max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
@@ -162,7 +172,8 @@ class SQuAD(paddle.io.Dataset):
             # To deal with this we do a sliding window approach, where we take chunks
             # of the up to our max length with a stride of `doc_stride`.
             _DocSpan = collections.namedtuple(  # pylint: disable=invalid-name
-                "DocSpan", ["start", "length"])
+                "DocSpan", ["start", "length"]
+            )
             doc_spans = []
             start_offset = 0
             while start_offset < len(all_doc_tokens):
@@ -190,10 +201,12 @@ class SQuAD(paddle.io.Dataset):
                 for i in range(doc_span.length):
                     split_token_index = doc_span.start + i
                     token_to_orig_map[len(tokens)] = tok_to_orig_index[
-                        split_token_index]
+                        split_token_index
+                    ]
 
                     is_max_context = self._check_is_max_context(
-                        doc_spans, doc_span_index, split_token_index)
+                        doc_spans, doc_span_index, split_token_index
+                    )
                     token_is_max_context[len(tokens)] = is_max_context
                     tokens.append(all_doc_tokens[split_token_index])
                     segment_ids.append(1)
@@ -219,8 +232,9 @@ class SQuAD(paddle.io.Dataset):
                     doc_start = doc_span.start
                     doc_end = doc_span.start + doc_span.length - 1
                     out_of_span = False
-                    if not (tok_start_position >= doc_start and
-                            tok_end_position <= doc_end):
+                    if not (
+                        tok_start_position >= doc_start and tok_end_position <= doc_end
+                    ):
                         out_of_span = True
                     if out_of_span:
                         start_position = 0
@@ -247,12 +261,15 @@ class SQuAD(paddle.io.Dataset):
                         segment_ids=segment_ids,
                         start_position=start_position,
                         end_position=end_position,
-                        is_impossible=example.is_impossible))
+                        is_impossible=example.is_impossible,
+                    )
+                )
                 unique_id += 1
         return features
 
-    def _improve_answer_span(self, doc_tokens, input_start, input_end,
-                             tokenizer, orig_answer_text):
+    def _improve_answer_span(
+        self, doc_tokens, input_start, input_end, tokenizer, orig_answer_text
+    ):
         """Returns tokenized answer spans that better match the annotated answer."""
 
         # The SQuAD annotations are character based. We first project them to
@@ -281,7 +298,7 @@ class SQuAD(paddle.io.Dataset):
 
         for new_start in range(input_start, input_end + 1):
             for new_end in range(input_end, new_start - 1, -1):
-                text_span = " ".join(doc_tokens[new_start:(new_end + 1)])
+                text_span = " ".join(doc_tokens[new_start : (new_end + 1)])
                 if text_span == tok_answer_text:
                     return (new_start, new_end)
 
@@ -316,8 +333,7 @@ class SQuAD(paddle.io.Dataset):
                 continue
             num_left_context = position - doc_span.start
             num_right_context = end - position
-            score = min(num_left_context,
-                        num_right_context) + 0.01 * doc_span.length
+            score = min(num_left_context, num_right_context) + 0.01 * doc_span.length
             if best_score is None or score > best_score:
                 best_score = score
                 best_span_index = span_index
@@ -369,7 +385,8 @@ class SQuAD(paddle.io.Dataset):
                             start_position = char_to_word_offset[answer_offset]
                             try:
                                 end_position = char_to_word_offset[
-                                    answer_offset + answer_length - 1]
+                                    answer_offset + answer_length - 1
+                                ]
                             except:
                                 continue
 
@@ -381,7 +398,7 @@ class SQuAD(paddle.io.Dataset):
                         if self.version_2_with_negative:
                             is_impossible = qa["is_impossible"]
                         orig_answer_text = []
-                        if not is_impossible and 'answers' in qa.keys():
+                        if not is_impossible and "answers" in qa.keys():
                             answers = qa["answers"]
                             for answer in answers:
                                 orig_answer_text.append(answer["text"])
@@ -395,7 +412,8 @@ class SQuAD(paddle.io.Dataset):
                         orig_answer_text=orig_answer_text,
                         start_position=start_position,
                         end_position=end_position,
-                        is_impossible=is_impossible)
+                        is_impossible=is_impossible,
+                    )
                     examples.append(example)
 
         self.examples = examples
@@ -407,6 +425,12 @@ class SQuAD(paddle.io.Dataset):
         feature = self.features[idx]
 
         if self.is_training:
-            return feature.input_ids, feature.segment_ids, feature.unique_id, feature.start_position, feature.end_position
+            return (
+                feature.input_ids,
+                feature.segment_ids,
+                feature.unique_id,
+                feature.start_position,
+                feature.end_position,
+            )
         else:
             return feature.input_ids, feature.segment_ids, feature.unique_id

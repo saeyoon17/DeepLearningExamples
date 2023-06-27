@@ -27,26 +27,18 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.utils
-
 from common.fairseq.data import data_utils
-from common.fairseq.data.audio.audio_utils import (
-    parse_path,
-    read_from_stored_zip,
-    is_sf_audio_data,
-)
-from common.fairseq.data.data_utils import (
-    compute_mask_indices,
-    get_bucketed_sizes,
-    get_buckets,
-)
+from common.fairseq.data.audio.audio_utils import (is_sf_audio_data,
+                                                   parse_path,
+                                                   read_from_stored_zip)
+from common.fairseq.data.data_utils import (compute_mask_indices,
+                                            get_bucketed_sizes, get_buckets)
 from common.utils import print_once
-
 
 logger = logging.getLogger(__name__)
 
 
 class RawAudioDataset(torch.utils.data.Dataset):
-
     def __init__(
         self,
         sample_rate,
@@ -163,12 +155,14 @@ class RawAudioDataset(torch.utils.data.Dataset):
             # Yet, we split them back to calculate masking, sample negatives,
             # and calculate loss, as these ops are dependent on batch size.
             # In order to split, we need to remember original (sub)batch ids.
-            batch_inds = [s['batch_id'] for s in samples]
+            batch_inds = [s["batch_id"] for s in samples]
             sub_batch_lens = [len(list(b)) for _, b in groupby(batch_inds)]
             starts_ends = np.cumsum([0] + sub_batch_lens)
             target_sizes = np.array(
-                [min(max(sizes[s:e]), self.max_sample_size)
-                 for s, e in zip(starts_ends[:-1], starts_ends[1:])]
+                [
+                    min(max(sizes[s:e]), self.max_sample_size)
+                    for s, e in zip(starts_ends[:-1], starts_ends[1:])
+                ]
             )
             out["sub_batch_sizes"] = torch.LongTensor(sub_batch_lens)
             out["sub_batch_lens"] = torch.LongTensor(target_sizes)
@@ -391,10 +385,13 @@ class FileAudioDataset(RawAudioDataset):
 
         try:
             import pyarrow
+
             self.fnames = pyarrow.array(self.fnames)
         except:
-            logger.debug("Could not create a pyarrow array. "
-                         "Please install pyarrow for better performance")
+            logger.debug(
+                "Could not create a pyarrow array. "
+                "Please install pyarrow for better performance"
+            )
             pass
 
         self.set_bucket_info(num_buckets)
@@ -420,6 +417,6 @@ class FileAudioDataset(RawAudioDataset):
         feats = torch.from_numpy(wav).float()
         feats = self.postprocess(feats, curr_sample_rate)
         ret = {"id": index, "source": feats}
-        if hasattr(self, 'batch_ids'):
-            ret['batch_id'] = self.batch_ids[index]
+        if hasattr(self, "batch_ids"):
+            ret["batch_id"] = self.batch_ids[index]
         return ret

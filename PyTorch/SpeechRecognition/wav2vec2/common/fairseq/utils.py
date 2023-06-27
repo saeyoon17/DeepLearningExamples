@@ -24,7 +24,6 @@ from typing import Callable, List
 import torch
 import torch.nn.functional as F
 
-
 MANIFOLD_PATH_SEP = "|"
 
 
@@ -43,9 +42,7 @@ def get_activation_fn(activation: str) -> Callable:
     elif activation == "gelu":
         return gelu
     elif activation == "gelu_fast":
-        warnings.warn(
-            "--activation-fn=gelu_fast has been renamed to gelu_accurate"
-        )
+        warnings.warn("--activation-fn=gelu_fast has been renamed to gelu_accurate")
         return gelu_accurate
     elif activation == "gelu_accurate":
         return gelu_accurate

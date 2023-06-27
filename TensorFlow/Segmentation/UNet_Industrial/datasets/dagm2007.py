@@ -27,19 +27,16 @@
 #
 # ==============================================================================
 
-import os
 import glob
+import os
 
-import tensorflow as tf
 import horovod.tensorflow as hvd
-
+import tensorflow as tf
 from datasets.core import BaseDataset
-
+from dllogger import Logger
 from utils import hvd_utils
 
-from dllogger import Logger
-
-__all__ = ['DAGM2007_Dataset']
+__all__ = ["DAGM2007_Dataset"]
 
 
 class DAGM2007_Dataset(BaseDataset):
@@ -67,7 +64,9 @@ class DAGM2007_Dataset(BaseDataset):
 
         return image_dir, csv_file
 
-    def get_dataset_runtime_specs(self, training, iter_unit, num_iter, global_batch_size):
+    def get_dataset_runtime_specs(
+        self, training, iter_unit, num_iter, global_batch_size
+    ):
 
         image_dir, _ = self._get_data_dirs(training=training)
 
@@ -75,7 +74,10 @@ class DAGM2007_Dataset(BaseDataset):
         num_samples = len(filenames)
 
         num_steps, num_epochs = DAGM2007_Dataset._count_steps(
-            iter_unit=iter_unit, num_samples=num_samples, num_iter=num_iter, global_batch_size=global_batch_size
+            iter_unit=iter_unit,
+            num_samples=num_samples,
+            num_iter=num_iter,
+            global_batch_size=global_batch_size,
         )
 
         return filenames, num_samples, num_steps, num_epochs
@@ -91,7 +93,7 @@ class DAGM2007_Dataset(BaseDataset):
         normalize_data_method,
         only_defective_images,
         augment_data,
-        seed=None
+        seed=None,
     ):
 
         super(DAGM2007_Dataset, self).dataset_fn(
@@ -104,7 +106,7 @@ class DAGM2007_Dataset(BaseDataset):
             normalize_data_method=normalize_data_method,  # [None, "zero_centered", "zero_one"]
             only_defective_images=only_defective_images,
             augment_data=augment_data,
-            seed=seed
+            seed=seed,
         )
 
         shuffle_buffer_size = 10000
@@ -118,7 +120,9 @@ class DAGM2007_Dataset(BaseDataset):
         dataset = dataset.skip(1)  # Skip CSV Header
 
         if only_defective_images:
-            dataset = dataset.filter(lambda line: tf.not_equal(tf.strings.substr(line, -1, 1), "0"))
+            dataset = dataset.filter(
+                lambda line: tf.not_equal(tf.strings.substr(line, -1, 1), "0")
+            )
 
         if hvd_utils.is_using_hvd() and training:
             dataset = dataset.shard(hvd.size(), hvd.rank())
@@ -126,21 +130,23 @@ class DAGM2007_Dataset(BaseDataset):
         def _load_dagm_data(line):
 
             input_image_name, image_mask_name, label = tf.decode_csv(
-                line, record_defaults=[[""], [""], [0]], field_delim=','
+                line, record_defaults=[[""], [""], [0]], field_delim=","
             )
 
             def decode_image(filepath, resize_shape, normalize_data_method):
                 image_content = tf.read_file(filepath)
 
                 # image = tf.image.decode_image(image_content, channels=resize_shape[-1])
-                image = tf.image.decode_png(contents=image_content, channels=resize_shape[-1], dtype=tf.uint8)
+                image = tf.image.decode_png(
+                    contents=image_content, channels=resize_shape[-1], dtype=tf.uint8
+                )
 
                 image = tf.image.resize_images(
                     image,
                     size=resize_shape[:2],
                     method=tf.image.ResizeMethod.BILINEAR,  # [BILINEAR, NEAREST_NEIGHBOR, BICUBIC, AREA]
                     align_corners=False,
-                    preserve_aspect_ratio=True
+                    preserve_aspect_ratio=True,
                 )
 
                 image.set_shape(resize_shape)
@@ -155,7 +161,7 @@ class DAGM2007_Dataset(BaseDataset):
                 return image
 
             input_image = decode_image(
-                filepath=tf.strings.join([image_dir, input_image_name], separator='/'),
+                filepath=tf.strings.join([image_dir, input_image_name], separator="/"),
                 resize_shape=input_shape,
                 normalize_data_method=normalize_data_method,
             )
@@ -164,7 +170,9 @@ class DAGM2007_Dataset(BaseDataset):
                 tf.equal(image_mask_name, ""),
                 true_fn=lambda: tf.zeros(mask_shape, dtype=tf.float32),
                 false_fn=lambda: decode_image(
-                    filepath=tf.strings.join([mask_image_dir, image_mask_name], separator='/'),
+                    filepath=tf.strings.join(
+                        [mask_image_dir, image_mask_name], separator="/"
+                    ),
                     resize_shape=mask_shape,
                     normalize_data_method="zero_one",
                 ),
@@ -172,21 +180,27 @@ class DAGM2007_Dataset(BaseDataset):
 
             label = tf.cast(label, tf.int32)
 
-            return tf.data.Dataset.from_tensor_slices(([input_image], [mask_image], [label]))
+            return tf.data.Dataset.from_tensor_slices(
+                ([input_image], [mask_image], [label])
+            )
 
         dataset = dataset.apply(
             tf.data.experimental.parallel_interleave(
                 _load_dagm_data,
-                cycle_length=batch_size*8,
+                cycle_length=batch_size * 8,
                 block_length=4,
-                buffer_output_elements=batch_size*8
+                buffer_output_elements=batch_size * 8,
             )
         )
 
         dataset = dataset.cache()
 
         if training:
-            dataset = dataset.apply(tf.data.experimental.shuffle_and_repeat(buffer_size=shuffle_buffer_size, seed=seed))
+            dataset = dataset.apply(
+                tf.data.experimental.shuffle_and_repeat(
+                    buffer_size=shuffle_buffer_size, seed=seed
+                )
+            )
 
         else:
             dataset = dataset.repeat()
@@ -198,15 +212,23 @@ class DAGM2007_Dataset(BaseDataset):
                 if not hvd_utils.is_using_hvd() or hvd.rank() == 0:
                     print("Using data augmentation ...")
 
-                #input_image = tf.image.per_image_standardization(input_image)
+                # input_image = tf.image.per_image_standardization(input_image)
 
                 horizontal_flip = tf.random_uniform(shape=(), seed=seed) > 0.5
                 input_image = tf.cond(
-                    horizontal_flip, lambda: tf.image.flip_left_right(input_image), lambda: input_image
+                    horizontal_flip,
+                    lambda: tf.image.flip_left_right(input_image),
+                    lambda: input_image,
                 )
-                mask_image = tf.cond(horizontal_flip, lambda: tf.image.flip_left_right(mask_image), lambda: mask_image)
+                mask_image = tf.cond(
+                    horizontal_flip,
+                    lambda: tf.image.flip_left_right(mask_image),
+                    lambda: mask_image,
+                )
 
-                n_rots = tf.random_uniform(shape=(), dtype=tf.int32, minval=0, maxval=3, seed=seed)
+                n_rots = tf.random_uniform(
+                    shape=(), dtype=tf.int32, minval=0, maxval=3, seed=seed
+                )
                 input_image = tf.image.rot90(input_image, k=n_rots)
                 mask_image = tf.image.rot90(mask_image, k=n_rots)
 
@@ -224,13 +246,15 @@ class DAGM2007_Dataset(BaseDataset):
         dataset = dataset.prefetch(buffer_size=tf.contrib.data.AUTOTUNE)
 
         if use_gpu_prefetch:
-            dataset.apply(tf.data.experimental.prefetch_to_device(device="/gpu:0", buffer_size=4))
+            dataset.apply(
+                tf.data.experimental.prefetch_to_device(device="/gpu:0", buffer_size=4)
+            )
 
         return dataset
 
 
 if __name__ == "__main__":
-    '''
+    """
     Data Loading Benchmark Usage:
 
     # Real Data - Training
@@ -272,56 +296,73 @@ if __name__ == "__main__":
         --use_synthetic_data
 
     # --------------- #
-    '''
+    """
 
-    import time
     import argparse
+    import time
 
     import numpy as np
 
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
     tf.logging.set_verbosity(tf.logging.INFO)
 
     parser = argparse.ArgumentParser(description="DAGM2007_data_loader_benchmark")
 
     parser.add_argument(
-        '--data_dir', required=True, type=str, help="Directory path which contains the preprocessed DAGM 2007 dataset"
+        "--data_dir",
+        required=True,
+        type=str,
+        help="Directory path which contains the preprocessed DAGM 2007 dataset",
     )
 
     parser.add_argument(
-        '--batch_size', default=64, type=int, required=True, help="""Batch size used to measure performance."""
+        "--batch_size",
+        default=64,
+        type=int,
+        required=True,
+        help="""Batch size used to measure performance.""",
     )
 
     parser.add_argument(
-        '--warmup_steps',
+        "--warmup_steps",
         default=200,
         type=int,
         required=True,
-        help="""Number of steps considered as warmup and not taken into account for performance measurements."""
+        help="""Number of steps considered as warmup and not taken into account for performance measurements.""",
     )
 
     parser.add_argument(
-        '--benchmark_steps',
+        "--benchmark_steps",
         default=200,
         type=int,
         required=True,
-        help="""Number of steps considered as warmup and not taken into account for performance measurements."""
+        help="""Number of steps considered as warmup and not taken into account for performance measurements.""",
     )
 
     parser.add_argument(
-        '--class_id',
+        "--class_id",
         default=1,
         choices=range(1, 11),  # between 1 and 10
         type=int,
         required=True,
-        help="""Class ID used for benchmark."""
+        help="""Class ID used for benchmark.""",
     )
 
-    parser.add_argument("--training", default=False, action="store_true", help="Benchmark in training mode")
+    parser.add_argument(
+        "--training",
+        default=False,
+        action="store_true",
+        help="Benchmark in training mode",
+    )
 
-    parser.add_argument("--use_synthetic_data", default=False, action="store_true", help="Use synthetic dataset")
+    parser.add_argument(
+        "--use_synthetic_data",
+        default=False,
+        action="store_true",
+        help="Use synthetic dataset",
+    )
 
     FLAGS, unknown_args = parser.parse_known_args()
 
@@ -337,12 +378,26 @@ if __name__ == "__main__":
 
     dataset = DAGM2007_Dataset(data_dir=FLAGS.data_dir, class_id=FLAGS.class_id)
 
-    _filenames, _num_samples, _num_steps, _num_epochs = dataset.get_dataset_runtime_specs(
-        training=FLAGS.training, iter_unit="batch", num_iter=TOTAL_STEPS, global_batch_size=FLAGS.batch_size
+    (
+        _filenames,
+        _num_samples,
+        _num_steps,
+        _num_epochs,
+    ) = dataset.get_dataset_runtime_specs(
+        training=FLAGS.training,
+        iter_unit="batch",
+        num_iter=TOTAL_STEPS,
+        global_batch_size=FLAGS.batch_size,
     )
 
-    tf.logging.info("[*] Executing Benchmark in %s mode" % ("training" if FLAGS.training else "inference"))
-    tf.logging.info("[*] Benchmark using %s data" % ("synthetic" if FLAGS.use_synthetic_data else "real"))
+    tf.logging.info(
+        "[*] Executing Benchmark in %s mode"
+        % ("training" if FLAGS.training else "inference")
+    )
+    tf.logging.info(
+        "[*] Benchmark using %s data"
+        % ("synthetic" if FLAGS.use_synthetic_data else "real")
+    )
 
     print()
     tf.logging.info("[*] num_samples: %d" % _num_samples)
@@ -360,7 +415,7 @@ if __name__ == "__main__":
             mask_shape=(512, 512, 1),
             num_threads=64,
             use_gpu_prefetch=True,
-            seed=None
+            seed=None,
         )
 
     else:
@@ -372,7 +427,7 @@ if __name__ == "__main__":
             mask_shape=(512, 512, 1),
             num_threads=64,
             use_gpu_prefetch=True,
-            seed=None
+            seed=None,
         )
 
     dataset_iterator = dataset.make_initializable_iterator()
@@ -383,7 +438,9 @@ if __name__ == "__main__":
     print("Mask Image Shape: %s" % (mask_images.get_shape()))
     print("Label Shape: %s" % (labels.get_shape()))
 
-    input_images = tf.image.resize_image_with_crop_or_pad(input_images, target_height=512, target_width=512)
+    input_images = tf.image.resize_image_with_crop_or_pad(
+        input_images, target_height=512, target_width=512
+    )
 
     with tf.device("/gpu:0"):
 
@@ -413,7 +470,9 @@ if __name__ == "__main__":
 
             start_time = time.time()
 
-            img_batch, mask_batch, lbl_batch = sess.run([input_images, mask_images, labels])
+            img_batch, mask_batch, lbl_batch = sess.run(
+                [input_images, mask_images, labels]
+            )
 
             batch_size = img_batch.shape[0]
             total_files_processed += batch_size
@@ -428,8 +487,8 @@ if __name__ == "__main__":
             if (step + 1) % 20 == 0 or (step + 1) == TOTAL_STEPS:
 
                 print(
-                    "[STEP %04d] # Files: %03d - Time: %03d msecs - Speed: %6d img/s" %
-                    (step + 1, batch_size, elapsed_time, imgs_per_sec)
+                    "[STEP %04d] # Files: %03d - Time: %03d msecs - Speed: %6d img/s"
+                    % (step + 1, batch_size, elapsed_time, imgs_per_sec)
                 )
 
         processing_time = time.time() - processing_start_time
@@ -443,23 +502,36 @@ if __name__ == "__main__":
         print("\t=> Files Processed: %d" % total_files_processed)
         print("\t=> Total Execution Time: %d secs" % processing_time)
         print("\t=> Median Time per step: %3d msecs" % np.median(processing_time_arr))
-        print("\t=> Median Processing Speed: %d images/secs" % np.median(img_per_sec_arr))
-        print("\t=> Median Processing Time: %.2f msecs/image" % (1 / float(np.median(img_per_sec_arr)) * 1000))
+        print(
+            "\t=> Median Processing Speed: %d images/secs" % np.median(img_per_sec_arr)
+        )
+        print(
+            "\t=> Median Processing Time: %.2f msecs/image"
+            % (1 / float(np.median(img_per_sec_arr)) * 1000)
+        )
 
         print("\n*** Debug Shape Information:")
         print(
-            "\t[*] Batch Shape: %s - Max Val: %.2f - Min Val: %.2f - Mean: %.2f - Stddev: %.2f" % (
-                str(img_batch.shape), np.max(img_batch), np.min(img_batch), float(np.mean(img_batch)),
-                float(np.std(img_batch))
+            "\t[*] Batch Shape: %s - Max Val: %.2f - Min Val: %.2f - Mean: %.2f - Stddev: %.2f"
+            % (
+                str(img_batch.shape),
+                np.max(img_batch),
+                np.min(img_batch),
+                float(np.mean(img_batch)),
+                float(np.std(img_batch)),
             )
         )
         print(
-            "\t[*] Mask Shape: %s - Max Val: %.2f - Min Val: %.2f - Mean: %.2f - Stddev: %.2f" % (
-                str(mask_batch.shape), np.max(mask_batch), np.min(mask_batch), float(np.mean(mask_batch)),
-                float(np.std(mask_batch))
+            "\t[*] Mask Shape: %s - Max Val: %.2f - Min Val: %.2f - Mean: %.2f - Stddev: %.2f"
+            % (
+                str(mask_batch.shape),
+                np.max(mask_batch),
+                np.min(mask_batch),
+                float(np.mean(mask_batch)),
+                float(np.std(mask_batch)),
             )
         )
         print(
-            "\t[*] Label Shape: %s - Max Val: %.2f - Min Val: %.2f" %
-            (str(lbl_batch.shape), np.max(lbl_batch), np.min(lbl_batch))
+            "\t[*] Label Shape: %s - Max Val: %.2f - Min Val: %.2f"
+            % (str(lbl_batch.shape), np.max(lbl_batch), np.min(lbl_batch))
         )

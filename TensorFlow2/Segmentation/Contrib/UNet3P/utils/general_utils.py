@@ -2,8 +2,10 @@
 General Utility functions
 """
 import os
+
 import tensorflow as tf
 from omegaconf import DictConfig
+
 from .images_utils import image_to_mask_name
 
 
@@ -30,7 +32,7 @@ def set_gpus(gpu_ids):
     otherwise if positive number, then use given number of gpus.
     In case list of Integer: each integer will be considered as gpu id
     """
-    all_gpus = tf.config.experimental.list_physical_devices('GPU')
+    all_gpus = tf.config.experimental.list_physical_devices("GPU")
     all_gpus_length = len(all_gpus)
     if isinstance(gpu_ids, int):
         if gpu_ids == -1:
@@ -42,7 +44,7 @@ def set_gpus(gpu_ids):
     selected_gpus = [all_gpus[gpu_id] for gpu_id in gpu_ids if gpu_id < all_gpus_length]
 
     try:
-        tf.config.experimental.set_visible_devices(selected_gpus, 'GPU')
+        tf.config.experimental.set_visible_devices(selected_gpus, "GPU")
     except RuntimeError as e:
         # Visible devices must be set at program startup
         print(e)
@@ -52,7 +54,7 @@ def get_gpus_count():
     """
     Return length of available gpus.
     """
-    return len(tf.config.experimental.list_logical_devices('GPU'))
+    return len(tf.config.experimental.list_logical_devices("GPU"))
 
 
 def get_data_paths(cfg: DictConfig, mode: str, mask_available: bool):
@@ -71,32 +73,21 @@ def get_data_paths(cfg: DictConfig, mode: str, mask_available: bool):
     if isinstance(cfg.DATASET[mode].IMAGES_PATH, str):
         # has only images name not full path
         images_paths = os.listdir(
-            join_paths(
-                cfg.WORK_DIR,
-                cfg.DATASET[mode].IMAGES_PATH
-            )
+            join_paths(cfg.WORK_DIR, cfg.DATASET[mode].IMAGES_PATH)
         )
 
         if mask_available:
-            mask_paths = [
-                image_to_mask_name(image_name) for image_name in images_paths
-            ]
+            mask_paths = [image_to_mask_name(image_name) for image_name in images_paths]
             # create full mask paths from folder
             mask_paths = [
-                join_paths(
-                    cfg.WORK_DIR,
-                    cfg.DATASET[mode].MASK_PATH,
-                    mask_name
-                ) for mask_name in mask_paths
+                join_paths(cfg.WORK_DIR, cfg.DATASET[mode].MASK_PATH, mask_name)
+                for mask_name in mask_paths
             ]
 
         # create full images paths from folder
         images_paths = [
-            join_paths(
-                cfg.WORK_DIR,
-                cfg.DATASET[mode].IMAGES_PATH,
-                image_name
-            ) for image_name in images_paths
+            join_paths(cfg.WORK_DIR, cfg.DATASET[mode].IMAGES_PATH, image_name)
+            for image_name in images_paths
         ]
     else:
         # read images and mask from absolute paths given in list
@@ -107,7 +98,7 @@ def get_data_paths(cfg: DictConfig, mode: str, mask_available: bool):
     if mask_available:
         return images_paths, mask_paths
     else:
-        return images_paths,
+        return (images_paths,)
 
 
 def suppress_warnings():
@@ -115,9 +106,11 @@ def suppress_warnings():
     Suppress TensorFlow warnings.
     """
     import logging
-    logging.getLogger('tensorflow').setLevel(logging.ERROR)
-    logging.getLogger('dali').setLevel(logging.ERROR)
+
+    logging.getLogger("tensorflow").setLevel(logging.ERROR)
+    logging.getLogger("dali").setLevel(logging.ERROR)
     os.environ["KMP_AFFINITY"] = "noverbose"
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
     import tensorflow as tf
+
     tf.autograph.set_verbosity(3)

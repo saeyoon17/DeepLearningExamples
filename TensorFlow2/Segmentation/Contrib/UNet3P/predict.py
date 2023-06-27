@@ -2,14 +2,13 @@
 Prediction script used to visualize model output
 """
 import os
-import hydra
-from omegaconf import DictConfig
 
+import hydra
 from data_generators import tf_data_generator
-from utils.general_utils import join_paths, suppress_warnings
-from utils.images_utils import display
-from utils.images_utils import postprocess_mask, denormalize_mask
 from models.model import prepare_model
+from omegaconf import DictConfig
+from utils.general_utils import join_paths, suppress_warnings
+from utils.images_utils import denormalize_mask, display, postprocess_mask
 
 
 def predict(cfg: DictConfig):
@@ -33,11 +32,12 @@ def predict(cfg: DictConfig):
     checkpoint_path = join_paths(
         cfg.WORK_DIR,
         cfg.CALLBACKS.MODEL_CHECKPOINT.PATH,
-        f"{cfg.MODEL.WEIGHTS_FILE_NAME}.hdf5"
+        f"{cfg.MODEL.WEIGHTS_FILE_NAME}.hdf5",
     )
 
-    assert os.path.exists(checkpoint_path), \
-        f"Model weight's file does not exist at \n{checkpoint_path}"
+    assert os.path.exists(
+        checkpoint_path
+    ), f"Model weight's file does not exist at \n{checkpoint_path}"
 
     # load model weights
     model.load_weights(checkpoint_path, by_name=True, skip_mismatch=True)
@@ -45,8 +45,10 @@ def predict(cfg: DictConfig):
 
     # check mask are available or not
     mask_available = True
-    if cfg.DATASET.VAL.MASK_PATH is None or \
-            str(cfg.DATASET.VAL.MASK_PATH).lower() == "none":
+    if (
+        cfg.DATASET.VAL.MASK_PATH is None
+        or str(cfg.DATASET.VAL.MASK_PATH).lower() == "none"
+    ):
         mask_available = False
 
     showed_images = 0

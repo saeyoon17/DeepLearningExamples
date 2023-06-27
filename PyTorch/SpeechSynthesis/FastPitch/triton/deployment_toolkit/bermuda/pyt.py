@@ -21,21 +21,12 @@ from typing import Dict, Iterable, NamedTuple, Optional, Union
 import torch  # pytype: disable=import-error
 import yaml
 
-from ..core import (
-    GET_MODEL_FN_NAME,
-    BaseConverter,
-    BaseLoader,
-    BaseRunner,
-    BaseRunnerSession,
-    BaseSaver,
-    Format,
-    Model,
-    Precision,
-    TensorSpec,
-    load_from_file,
-)
+from ..core import (GET_MODEL_FN_NAME, BaseConverter, BaseLoader, BaseRunner,
+                    BaseRunnerSession, BaseSaver, Format, Model, Precision,
+                    TensorSpec, load_from_file)
 from ..extensions import converters, loaders, runners, savers
-from .utils import get_dynamic_axes, get_input_shapes, get_shapes_with_dynamic_axes
+from .utils import (get_dynamic_axes, get_input_shapes,
+                    get_shapes_with_dynamic_axes)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -54,7 +45,9 @@ def get_sample_input(dataloader, device):
     elif isinstance(x, list):
         sample_input = x
     else:
-        raise TypeError("The first element (x) of batch returned by dataloader must be a list or a dict")
+        raise TypeError(
+            "The first element (x) of batch returned by dataloader must be a list or a dict"
+        )
 
     for idx, s in enumerate(sample_input):
         sample_input[idx] = torch.from_numpy(s).to(device)
@@ -113,10 +106,15 @@ def _get_io_spec(model, dataloader_fn):
     input_shapes, output_shapes = get_shapes_with_dynamic_axes(dataloader)
 
     inputs = {
-        name: TensorSpec(name=name, dtype=input_dtypes[name], shape=tuple(input_shapes[name])) for name in model.inputs
+        name: TensorSpec(
+            name=name, dtype=input_dtypes[name], shape=tuple(input_shapes[name])
+        )
+        for name in model.inputs
     }
     outputs = {
-        name: TensorSpec(name=name, dtype=output_dtypes[name], shape=tuple(output_shapes[name]))
+        name: TensorSpec(
+            name=name, dtype=output_dtypes[name], shape=tuple(output_shapes[name])
+        )
         for name in model.outputs
     }
 
@@ -136,7 +134,12 @@ class PyTorchModelLoader(BaseLoader):
         model, tensor_infos = get_model(**self._model_args)
         io_spec = InputOutputSpec(tensor_infos["inputs"], tensor_infos["outputs"])
         precision = infer_model_precision(model)
-        return Model(handle=model, precision=precision, inputs=io_spec.inputs, outputs=io_spec.outputs)
+        return Model(
+            handle=model,
+            precision=precision,
+            inputs=io_spec.inputs,
+            outputs=io_spec.outputs,
+        )
 
 
 class TorchScriptLoader(BaseLoader):
@@ -146,7 +149,9 @@ class TorchScriptLoader(BaseLoader):
         if tensor_names_path is not None:
             with Path(tensor_names_path).open("r") as fh:
                 tensor_infos = yaml.load(fh, Loader=yaml.SafeLoader)
-                self._io_spec = InputOutputSpec(tensor_infos["inputs"], tensor_infos["outputs"])
+                self._io_spec = InputOutputSpec(
+                    tensor_infos["inputs"], tensor_infos["outputs"]
+                )
 
     def load(self, model_path: Union[str, Path], **_) -> Model:
         if not isinstance(model_path, Path):
@@ -166,7 +171,12 @@ class TorchScriptLoader(BaseLoader):
                 tensor_info = yaml.load(fh, Loader=yaml.SafeLoader)
                 io_spec = InputOutputSpec(tensor_info["inputs"], tensor_info["outputs"])
 
-        return Model(handle=model, precision=precision, inputs=io_spec.inputs, outputs=io_spec.outputs)
+        return Model(
+            handle=model,
+            precision=precision,
+            inputs=io_spec.inputs,
+            outputs=io_spec.outputs,
+        )
 
 
 class TorchScriptTraceConverter(BaseConverter):
@@ -178,7 +188,12 @@ class TorchScriptTraceConverter(BaseConverter):
         dummy_input = get_sample_input(dataloader_fn(), device)
         converted_model = torch.jit.trace_module(model.handle, {"forward": dummy_input})
         io_spec = _get_io_spec(model, dataloader_fn)
-        return Model(converted_model, precision=model.precision, inputs=io_spec.inputs, outputs=io_spec.outputs)
+        return Model(
+            converted_model,
+            precision=model.precision,
+            inputs=io_spec.inputs,
+            outputs=io_spec.outputs,
+        )
 
 
 class TorchScriptScriptConverter(BaseConverter):
@@ -188,7 +203,12 @@ class TorchScriptScriptConverter(BaseConverter):
     def convert(self, model: Model, dataloader_fn) -> Model:
         converted_model = torch.jit.script(model.handle)
         io_spec = _get_io_spec(model, dataloader_fn)
-        return Model(converted_model, precision=model.precision, inputs=io_spec.inputs, outputs=io_spec.outputs)
+        return Model(
+            converted_model,
+            precision=model.precision,
+            inputs=io_spec.inputs,
+            outputs=io_spec.outputs,
+        )
 
 
 class PYT2ONNXConverter(BaseConverter):
@@ -238,7 +258,13 @@ class PYT2ONNXConverter(BaseConverter):
 
 
 class PYT2TensorRTConverter(BaseConverter):
-    def __init__(self, max_batch_size: int, max_workspace_size: int, onnx_opset: int, precision: str):
+    def __init__(
+        self,
+        max_batch_size: int,
+        max_workspace_size: int,
+        onnx_opset: int,
+        precision: str,
+    ):
         self._max_batch_size = max_batch_size
         self._max_workspace_size = max_workspace_size
         self._onnx_opset = onnx_opset
@@ -270,7 +296,9 @@ class PYT2TensorRTConverter(BaseConverter):
         )
 
     @staticmethod
-    def required_source_model_precision(requested_model_precision: Precision) -> Precision:
+    def required_source_model_precision(
+        requested_model_precision: Precision,
+    ) -> Precision:
         # TensorRT requires source models to be in FP32 precision
         return Precision.FP32
 
@@ -345,10 +373,18 @@ loaders.register_extension(Format.PYT.value, PyTorchModelLoader)
 loaders.register_extension(Format.TS_TRACE.value, TorchScriptLoader)
 loaders.register_extension(Format.TS_SCRIPT.value, TorchScriptLoader)
 
-converters.register_extension(f"{Format.PYT.value}--{Format.TS_SCRIPT.value}", TorchScriptScriptConverter)
-converters.register_extension(f"{Format.PYT.value}--{Format.TS_TRACE.value}", TorchScriptTraceConverter)
-converters.register_extension(f"{Format.PYT.value}--{Format.ONNX.value}", PYT2ONNXConverter)
-converters.register_extension(f"{Format.PYT.value}--{Format.TRT.value}", PYT2TensorRTConverter)
+converters.register_extension(
+    f"{Format.PYT.value}--{Format.TS_SCRIPT.value}", TorchScriptScriptConverter
+)
+converters.register_extension(
+    f"{Format.PYT.value}--{Format.TS_TRACE.value}", TorchScriptTraceConverter
+)
+converters.register_extension(
+    f"{Format.PYT.value}--{Format.ONNX.value}", PYT2ONNXConverter
+)
+converters.register_extension(
+    f"{Format.PYT.value}--{Format.TRT.value}", PYT2TensorRTConverter
+)
 
 savers.register_extension(Format.TS_SCRIPT.value, TorchScriptSaver)
 savers.register_extension(Format.TS_TRACE.value, TorchScriptSaver)

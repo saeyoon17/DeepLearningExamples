@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+
 LOG = logging.getLogger("VAE")
 
 _log_format = logging.Formatter("[%(name)s| %(levelname)s]: %(message)s")

@@ -41,15 +41,21 @@ def get_config_file(args):
 
 
 def set_cuda_devices(args):
-    assert args.gpus <= torch.cuda.device_count(), f"Requested {args.gpus} gpus, available {torch.cuda.device_count()}."
+    assert (
+        args.gpus <= torch.cuda.device_count()
+    ), f"Requested {args.gpus} gpus, available {torch.cuda.device_count()}."
     device_list = ",".join([str(i) for i in range(args.gpus)])
-    os.environ["CUDA_VISIBLE_DEVICES"] = os.environ.get("CUDA_VISIBLE_DEVICES", device_list)
+    os.environ["CUDA_VISIBLE_DEVICES"] = os.environ.get(
+        "CUDA_VISIBLE_DEVICES", device_list
+    )
 
 
 def verify_ckpt_path(args):
     if args.resume_training:
         resume_path_ckpt = os.path.join(
-            args.ckpt_path if args.ckpt_path is not None else "", "checkpoints", "last.ckpt"
+            args.ckpt_path if args.ckpt_path is not None else "",
+            "checkpoints",
+            "last.ckpt",
         )
         resume_path_results = os.path.join(args.results, "checkpoints", "last.ckpt")
         if os.path.exists(resume_path_ckpt):
@@ -59,7 +65,9 @@ def verify_ckpt_path(args):
         print("[Warning] Checkpoint not found. Starting training from scratch.")
         return None
     if args.ckpt_path is None or not os.path.isfile(args.ckpt_path):
-        print(f"Provided checkpoint {args.ckpt_path} is not a file. Starting training from scratch.")
+        print(
+            f"Provided checkpoint {args.ckpt_path} is not a file. Starting training from scratch."
+        )
         return None
     return args.ckpt_path
 

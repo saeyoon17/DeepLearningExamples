@@ -54,9 +54,7 @@ def get_reversed_part(part):
 
 # Postprocessing
 def recreate_graph(lower, upper, offset: int):
-    assert (
-        lower is not None and upper is not None
-    ), "Upper and lower cannot be None"
+    assert lower is not None and upper is not None, "Upper and lower cannot be None"
 
     lower[:, 0] = lower[:, 0] + offset
     upper[:, 1] = upper[:, 1] + offset
@@ -98,7 +96,7 @@ def effective_nonsquare_rmat_approximate(
     custom_samplers=None,
     generate_back_edges=False,
 ):
-    """ This function generates list of edges using modified RMat approach
+    """This function generates list of edges using modified RMat approach
     Args:
         theta (np.array): seeding matrix, needs to be shape 2x2
         E (int): number of edges to be generated
@@ -135,16 +133,10 @@ def effective_nonsquare_rmat_approximate(
         row_n = np.prod(thetas_r)  # theta_r**quadrant_sequence.shape[1]
         col_n = np.prod(thetas_c)  # theta_c**quadrant_sequence.shape[1]
         row_adders = np.array(
-            [
-                int(row_n / thetas_r[i] ** (i + 1)) % row_n
-                for i in range(len(thetas_n))
-            ]
+            [int(row_n / thetas_r[i] ** (i + 1)) % row_n for i in range(len(thetas_n))]
         )  # there has to be % as we can have thetas_r[i]==1
         col_adders = np.array(
-            [
-                int(col_n / thetas_c[i] ** (i + 1)) % col_n
-                for i in range(len(thetas_n))
-            ]
+            [int(col_n / thetas_c[i] ** (i + 1)) % col_n for i in range(len(thetas_n))]
         )
         return row_adders, col_adders, thetas_r, thetas_c, row_n, col_n
 
@@ -181,9 +173,7 @@ def effective_nonsquare_rmat_approximate(
         assert (
             batch_size % 2 == 0 and batch_size >= 2
         ), "batch size has to be odd and >1"
-    assert (
-        np.abs((np.sum(theta) - 1.0)) < 1e-6
-    ), "Theta probabilities has to sum to 1.0"
+    assert np.abs((np.sum(theta) - 1.0)) < 1e-6, "Theta probabilities has to sum to 1.0"
     assert (theta.shape[0] == 2) and (
         theta.shape[1] == 2
     ), "Only 2x2 seeding matrixes are acceptable"
@@ -209,9 +199,7 @@ def effective_nonsquare_rmat_approximate(
                 i
             ]  # each of n+m+l steps have their own theta_n which can be theta/theta_p or theta_q +
             # noise
-            noise = noise_scaling * np.random.uniform(
-                -1, 1, size=theta_n.shape
-            )
+            noise = noise_scaling * np.random.uniform(-1, 1, size=theta_n.shape)
             noise_to_add = np.multiply(theta_n, noise)
             theta_n = theta_n + noise_to_add
             theta_n = theta_n / np.sum(theta_n)
@@ -250,9 +238,7 @@ def effective_nonsquare_rmat_approximate(
     ) = get_row_col_addres(thetas_n)
     # generate sequences of quadrants from previously prepared samplers
     for e in tqdm.tqdm(range(batch_count)):
-        for i in range(
-            n + m + l
-        ):  # each steps in generation has its own sampler
+        for i in range(n + m + l):  # each steps in generation has its own sampler
             smpl = custom_samplers[i].rvs(size=num_sequences)
             quadrant_sequence[:, i] = smpl
             # produce new edges
@@ -272,9 +258,7 @@ def effective_nonsquare_rmat_approximate(
             A[
                 e * batch_size : (e + 1) * batch_size : 2, :
             ] = new_edges  # we need interleave so that back edges are "right after" normal edges
-            A[
-                e * batch_size + 1 : (e + 1) * batch_size : 2, :
-            ] = new_back_edges
+            A[e * batch_size + 1 : (e + 1) * batch_size : 2, :] = new_back_edges
         else:
             A[e * batch_size : (e + 1) * batch_size, :] = new_edges
 
@@ -313,8 +297,7 @@ def effective_nonsquare_rmat_approximate(
             ] = new_back_edges[:last_num_sequences, :]
         else:
             A[
-                batch_count * batch_size : batch_count * batch_size
-                + last_batch_size,
+                batch_count * batch_size : batch_count * batch_size + last_batch_size,
                 :,
             ] = new_edges
     mtx_shape = (
@@ -335,7 +318,7 @@ def effective_nonsquare_rmat_exact(
     remove_selfloops=False,
     generate_back_edges=False,
 ):
-    """ This function generates list of edges using modified RMat approach based on effective_nonsuqare_rmat_approximate
+    """This function generates list of edges using modified RMat approach based on effective_nonsuqare_rmat_approximate
     Args:
         theta (np.array): seeding matrix, needs to be shape 2x2
         E (int): number of edges to be generated
@@ -450,9 +433,7 @@ def generate_gpu_rmat(
     if noise > 0:
         full_theta = []
         for i in range(theta_len):
-            noise_uniform = noise * np.random.uniform(
-                -1, 1, size=len(base_theta)
-            )
+            noise_uniform = noise * np.random.uniform(-1, 1, size=len(base_theta))
             noise_to_add = np.multiply(base_theta, noise_uniform)
             theta_n = base_theta + noise_to_add
             theta_n = theta_n / np.sum(theta_n)
@@ -491,8 +472,6 @@ def generate_gpu_rmat(
         gen_graph_backward[:, 1] = gen_graph[:, 0]
         gen_graph = cp.concatenate((gen_graph, gen_graph_backward), axis=0)
         if has_self_loop:
-            gen_graph = cupy_unique_axis0(
-                gen_graph
-            )  # Remove duplicated self_loops
+            gen_graph = cupy_unique_axis0(gen_graph)  # Remove duplicated self_loops
 
     return cp.asnumpy(gen_graph)

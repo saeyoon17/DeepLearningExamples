@@ -13,24 +13,33 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import six
-import glob
-import h5py
-import torch
-import random
 import collections
-import numpy as np
+import glob
+import random
 from concurrent.futures import ProcessPoolExecutor
 
+import h5py
+import numpy as np
+import six
+import torch
 import utils
 from torch.nn import functional as F
-from torch.utils.data import DataLoader, Sampler, RandomSampler, SequentialSampler, Dataset
+from torch.utils.data import (DataLoader, Dataset, RandomSampler, Sampler,
+                              SequentialSampler)
 
 # model inputs - it's a bit nicer to use a namedtuple rather than keep the
 # features as a dict
 Inputs = collections.namedtuple(
-    "Inputs", ["input_ids", "input_mask", "segment_ids", "masked_lm_positions",
-               "masked_lm_ids", "masked_lm_weights"])
+    "Inputs",
+    [
+        "input_ids",
+        "input_mask",
+        "segment_ids",
+        "masked_lm_positions",
+        "masked_lm_ids",
+        "masked_lm_weights",
+    ],
+)
 
 
 # Workaround because python functions are not picklable
@@ -42,26 +51,42 @@ class WorkerInitObj(object):
         np.random.seed(seed=self.seed + id)
         random.seed(self.seed + id)
 
-class PretrainDataset(Dataset):
 
+class PretrainDataset(Dataset):
     def __init__(self, input_file, max_pred_length):
         self.input_file = input_file
         self.max_pred_length = max_pred_length
         f = h5py.File(input_file, "r")
-        keys = ['input_ids', 'input_mask', 'segment_ids', 'masked_lm_positions', 'masked_lm_ids',
-                'next_sentence_labels']
+        keys = [
+            "input_ids",
+            "input_mask",
+            "segment_ids",
+            "masked_lm_positions",
+            "masked_lm_ids",
+            "next_sentence_labels",
+        ]
         self.inputs = [np.asarray(f[key][:]) for key in keys]
         f.close()
 
     def __len__(self):
-        'Denotes the total number of samples'
+        "Denotes the total number of samples"
         return len(self.inputs[0])
 
     def __getitem__(self, index):
 
-        [input_ids, input_mask, segment_ids, masked_lm_positions, masked_lm_ids, next_sentence_labels] = [
-            torch.from_numpy(input[index].astype(np.int64)) if indice < 5 else torch.from_numpy(
-                np.asarray(input[index].astype(np.int64))) for indice, input in enumerate(self.inputs)]
+        [
+            input_ids,
+            input_mask,
+            segment_ids,
+            masked_lm_positions,
+            masked_lm_ids,
+            next_sentence_labels,
+        ] = [
+            torch.from_numpy(input[index].astype(np.int64))
+            if indice < 5
+            else torch.from_numpy(np.asarray(input[index].astype(np.int64)))
+            for indice, input in enumerate(self.inputs)
+        ]
 
         masked_lm_labels = torch.ones(input_ids.shape, dtype=torch.long) * -1
         index = self.max_pred_length
@@ -71,8 +96,13 @@ class PretrainDataset(Dataset):
             index = padded_mask_indices[0].item()
         masked_lm_labels[masked_lm_positions[:index]] = masked_lm_ids[:index]
 
-        return [input_ids, segment_ids, input_mask,
-                masked_lm_labels, next_sentence_labels]
+        return [
+            input_ids,
+            segment_ids,
+            input_mask,
+            masked_lm_labels,
+            next_sentence_labels,
+        ]
 
 
 class DatasetIterator:
@@ -90,7 +120,9 @@ class DatasetIterator:
 
         # Bootstrap files if few than processes
         if self.num_files < world_size:
-            lcm = (len(input_files) * world_size) // math.gcd(len(input_files), world_size)
+            lcm = (len(input_files) * world_size) // math.gcd(
+                len(input_files), world_size
+            )
             factor = lcm // self.num_files
             temp_input_files = []
             for i in range(factor):
@@ -121,21 +153,24 @@ class DatasetIterator:
             self.input_files[self.index],
             self.config.max_seq_length,
             self.batch_size,
-            self.worker_init
+            self.worker_init,
         )
 
     def load_state_dict(self, state_dict):
-        self.index = state_dict['file_index']
+        self.index = state_dict["file_index"]
 
     def state_dict(self):
         return {
-            'file_index': self.index - 1, # We want to point to the current dataloader, not a future one
+            "file_index": self.index
+            - 1,  # We want to point to the current dataloader, not a future one
         }
 
-def create_dataset(input_file, max_seq_length, batch_size, worker_init, num_cpu_threads=4):
+
+def create_dataset(
+    input_file, max_seq_length, batch_size, worker_init, num_cpu_threads=4
+):
     print("using file", input_file)
-    dataset = PretrainDataset(
-        input_file=input_file, max_pred_length=max_seq_length)
+    dataset = PretrainDataset(input_file=input_file, max_pred_length=max_seq_length)
     sampler = RandomSampler(dataset)
     dataloader = DataLoader(
         dataset,
@@ -144,5 +179,6 @@ def create_dataset(input_file, max_seq_length, batch_size, worker_init, num_cpu_
         num_workers=num_cpu_threads,
         worker_init_fn=worker_init,
         drop_last=True,
-        pin_memory=True)
+        pin_memory=True,
+    )
     return dataloader

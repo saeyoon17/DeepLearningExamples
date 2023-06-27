@@ -16,5 +16,5 @@ from enum import Enum
 
 
 class Task(Enum):
-    pretrain = 'Pretrain'
-    squad = 'SQuAD'
+    pretrain = "Pretrain"
+    squad = "SQuAD"

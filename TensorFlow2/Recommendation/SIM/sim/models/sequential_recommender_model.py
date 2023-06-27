@@ -15,9 +15,10 @@
 from abc import ABC, abstractmethod
 
 import tensorflow as tf
-
-from sim.data.defaults import (CARDINALITY_SELECTOR, NEGATIVE_HISTORY_CHANNEL, POSITIVE_HISTORY_CHANNEL,
-                               TARGET_ITEM_FEATURES_CHANNEL, USER_FEATURES_CHANNEL)
+from sim.data.defaults import (CARDINALITY_SELECTOR, NEGATIVE_HISTORY_CHANNEL,
+                               POSITIVE_HISTORY_CHANNEL,
+                               TARGET_ITEM_FEATURES_CHANNEL,
+                               USER_FEATURES_CHANNEL)
 from sim.layers.ctr_classification_mlp import CTRClassificationMLP
 from sim.layers.embedding import Embedding
 
@@ -51,12 +52,19 @@ class SequentialRecommenderModel(tf.keras.Model, ABC):
             embedding_group_counter += 1
 
         # Group corresponding item features from different item channels together
-        zipped_item_features = zip(channel_spec[TARGET_ITEM_FEATURES_CHANNEL],
-                                   channel_spec[POSITIVE_HISTORY_CHANNEL], channel_spec[NEGATIVE_HISTORY_CHANNEL])
+        zipped_item_features = zip(
+            channel_spec[TARGET_ITEM_FEATURES_CHANNEL],
+            channel_spec[POSITIVE_HISTORY_CHANNEL],
+            channel_spec[NEGATIVE_HISTORY_CHANNEL],
+        )
 
-        for i, (feature_target, feature_pos, feature_neg) in enumerate(zipped_item_features):
+        for i, (feature_target, feature_pos, feature_neg) in enumerate(
+            zipped_item_features
+        ):
 
-            self.feature_name_to_embedding_group[feature_target] = embedding_group_counter
+            self.feature_name_to_embedding_group[
+                feature_target
+            ] = embedding_group_counter
             self.feature_name_to_embedding_group[feature_pos] = embedding_group_counter
             self.feature_name_to_embedding_group[feature_neg] = embedding_group_counter
 
@@ -68,12 +76,15 @@ class SequentialRecommenderModel(tf.keras.Model, ABC):
             embedding_group_counter += 1
 
         self.variable_embeddings_groups = []
-        for embedding_name, cardinality in zip(embedding_names, feature_groups_cardinalities):
+        for embedding_name, cardinality in zip(
+            embedding_names, feature_groups_cardinalities
+        ):
             self.variable_embeddings_groups.append(
                 Embedding(
                     embedding_name=embedding_name,
-                    input_dim=cardinality + 1,  # ids in range <1, cardinality> (boundries included)
-                    output_dim=embedding_dim
+                    input_dim=cardinality
+                    + 1,  # ids in range <1, cardinality> (boundries included)
+                    output_dim=embedding_dim,
                 )
             )
 

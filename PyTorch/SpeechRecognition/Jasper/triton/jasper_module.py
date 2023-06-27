@@ -25,18 +25,20 @@
 #
 # *****************************************************************************
 
-import torch
 import sys
+
+import torch
+
 sys.path.append("./")
 
-class FeatureCollate:
 
+class FeatureCollate:
     def __init__(self, feature_proc):
         self.feature_proc = feature_proc
 
     def __call__(self, batch):
         bs = len(batch)
-        max_len = lambda l,idx: max(el[idx].size(0) for el in l)
+        max_len = lambda l, idx: max(el[idx].size(0) for el in l)
         audio = torch.zeros(bs, max_len(batch, 0))
         audio_lens = torch.zeros(bs, dtype=torch.int32)
 
@@ -54,21 +56,24 @@ class FeatureCollate:
 
 
 def get_dataloader(model_args_list):
-    ''' return dataloader for inference '''
+    """return dataloader for inference"""
 
-    from inference import get_parser
-    from common.helpers import add_ctc_blank
-    from jasper import config
-    from common.dataset import (AudioDataset, FilelistDataset, get_data_loader,
-                                SingleAudioDataset)
+    from common.dataset import (AudioDataset, FilelistDataset,
+                                SingleAudioDataset, get_data_loader)
     from common.features import FilterbankFeatures
+    from common.helpers import add_ctc_blank
+    from inference import get_parser
+    from jasper import config
 
     parser = get_parser()
-    parser.add_argument('--component', type=str, default="model",
-                        choices=["feature-extractor", "model", "decoder"],
-                        help='Component to convert')
+    parser.add_argument(
+        "--component",
+        type=str,
+        default="model",
+        choices=["feature-extractor", "model", "decoder"],
+        help="Component to convert",
+    )
     args = parser.parse_args(model_args_list)
-
 
     if args.component == "decoder":
         return None
@@ -76,15 +81,20 @@ def get_dataloader(model_args_list):
     cfg = config.load(args.model_config)
     config.apply_config_overrides(cfg, args)
 
-    symbols = add_ctc_blank(cfg['labels'])
+    symbols = add_ctc_blank(cfg["labels"])
 
-    dataset_kw, features_kw = config.input(cfg, 'val')
+    dataset_kw, features_kw = config.input(cfg, "val")
 
-    dataset = AudioDataset(args.dataset_dir, args.val_manifests,
-                           symbols, **dataset_kw)
+    dataset = AudioDataset(args.dataset_dir, args.val_manifests, symbols, **dataset_kw)
 
-    data_loader = get_data_loader(dataset, args.batch_size, multi_gpu=False,
-                                  shuffle=False, num_workers=4, drop_last=False)
+    data_loader = get_data_loader(
+        dataset,
+        args.batch_size,
+        multi_gpu=False,
+        shuffle=False,
+        num_workers=4,
+        drop_last=False,
+    )
     feature_proc = None
 
     if args.component == "model":
@@ -97,12 +107,12 @@ def get_dataloader(model_args_list):
 
 def init_feature_extractor(args):
 
-    from jasper import config
     from common.features import FilterbankFeatures
+    from jasper import config
 
     cfg = config.load(args.model_config)
     config.apply_config_overrides(cfg, args)
-    _, features_kw = config.input(cfg, 'val')
+    _, features_kw = config.input(cfg, "val")
 
     feature_proc = FilterbankFeatures(**features_kw)
 
@@ -112,24 +122,28 @@ def init_feature_extractor(args):
 def init_acoustic_model(args):
 
     from common.helpers import add_ctc_blank
-    from jasper.model import Jasper
     from jasper import config
+    from jasper.model import Jasper
 
     cfg = config.load(args.model_config)
     config.apply_config_overrides(cfg, args)
 
-    if cfg['jasper']['encoder']['use_conv_masks'] == True:
-        print("[Jasper module]: Warning: setting 'use_conv_masks' \
-to False; masked convolutions are not supported.")
-        cfg['jasper']['encoder']['use_conv_masks'] = False
+    if cfg["jasper"]["encoder"]["use_conv_masks"] == True:
+        print(
+            "[Jasper module]: Warning: setting 'use_conv_masks' \
+to False; masked convolutions are not supported."
+        )
+        cfg["jasper"]["encoder"]["use_conv_masks"] = False
 
-    symbols = add_ctc_blank(cfg['labels'])
-    model = Jasper(encoder_kw=config.encoder(cfg),
-                   decoder_kw=config.decoder(cfg, n_classes=len(symbols)))
+    symbols = add_ctc_blank(cfg["labels"])
+    model = Jasper(
+        encoder_kw=config.encoder(cfg),
+        decoder_kw=config.decoder(cfg, n_classes=len(symbols)),
+    )
 
     if args.ckpt is not None:
         checkpoint = torch.load(args.ckpt, map_location="cpu")
-        key = 'ema_state_dict' if args.ema else 'state_dict'
+        key = "ema_state_dict" if args.ema else "state_dict"
         state_dict = checkpoint[key]
         model.load_state_dict(state_dict, strict=True)
 
@@ -137,28 +151,35 @@ to False; masked convolutions are not supported.")
 
 
 def init_decoder(args):
-
     class GreedyCTCDecoderSimple(torch.nn.Module):
         @torch.no_grad()
         def forward(self, log_probs):
             return log_probs.argmax(dim=-1, keepdim=False).int()
+
     return GreedyCTCDecoderSimple()
 
 
 def init_model(model_args_list, precision, device):
-    ''' Return either of the components: feature-extractor, model, or decoder.
-The returned compoenent is ready to convert '''
+    """Return either of the components: feature-extractor, model, or decoder.
+    The returned compoenent is ready to convert"""
 
     from inference import get_parser
+
     parser = get_parser()
-    parser.add_argument('--component', type=str, default="model",
-                        choices=["feature-extractor", "model", "decoder"],
-                        help='Component to convert')
+    parser.add_argument(
+        "--component",
+        type=str,
+        default="model",
+        choices=["feature-extractor", "model", "decoder"],
+        help="Component to convert",
+    )
     args = parser.parse_args(model_args_list)
 
-    init_comp = {"feature-extractor": init_feature_extractor,
-                 "model": init_acoustic_model,
-                 "decoder": init_decoder}
+    init_comp = {
+        "feature-extractor": init_feature_extractor,
+        "model": init_acoustic_model,
+        "decoder": init_decoder,
+    }
     comp = init_comp[args.component](args)
 
     torch_device = torch.device(device)

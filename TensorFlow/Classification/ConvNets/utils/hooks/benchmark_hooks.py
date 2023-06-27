@@ -16,17 +16,16 @@
 # limitations under the License.
 
 import time
-import tensorflow as tf
 
 import dllogger
+import tensorflow as tf
 
 from .training_hooks import MeanAccumulator
 
-__all__ = ['BenchmarkLoggingHook']
+__all__ = ["BenchmarkLoggingHook"]
 
 
 class BenchmarkLoggingHook(tf.estimator.SessionRunHook):
-
     def __init__(self, global_batch_size, warmup_steps=20, logging_steps=1):
         self.latencies = []
         self.warmup_steps = warmup_steps

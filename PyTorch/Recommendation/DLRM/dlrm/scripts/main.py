@@ -13,59 +13,52 @@
 # limitations under the License.
 
 
-import itertools
-import os
-import sys
-from absl import app, flags, logging
-from apex import optimizers as apex_optim
-
-from dlrm.data.feature_spec import FeatureSpec
-from dlrm.model.distributed import DistributedDlrm
-from dlrm.utils import distributed as dist
-from dlrm.utils.checkpointing.distributed import make_distributed_checkpoint_writer, make_distributed_checkpoint_loader
-from dlrm.utils.distributed import get_gpu_batch_sizes, get_device_mapping, is_main_process, is_distributed
-
-import datetime
-from time import time
-
-import dllogger
-import numpy as np
-import torch
-from absl import app, flags
-
-import dlrm.scripts.utils as utils
-from dlrm.data.data_loader import get_data_loaders
-from dlrm.data.utils import prefetcher, get_embedding_sizes
-
+import argparse
 import concurrent
+import datetime
+import itertools
+import json
 import math
+import os
 import queue
-
-from typing import Sequence, Optional, Sequence, Tuple, List
-import math
+import sys
 import warnings
 from collections import deque
 from functools import reduce
 from itertools import combinations_with_replacement
+from time import time
+from typing import List, Optional, Sequence, Tuple
 
-import torch
-from torch.utils.data import Dataset
-import torch.distributed as dist
-import argparse
-import json
-import sys
-
+import dllogger
+import dlrm.scripts.utils as utils
 import numpy as np
 import torch
+import torch.distributed as dist
 import tritonclient.http as http_client
+from absl import app, flags, logging
+from apex import optimizers as apex_optim
+from dlrm.data.data_loader import get_data_loaders
+from dlrm.data.feature_spec import FeatureSpec
+from dlrm.data.utils import get_embedding_sizes, prefetcher
+from dlrm.model.distributed import DistributedDlrm
+from dlrm.utils import distributed as dist
+from dlrm.utils.checkpointing.distributed import (
+    make_distributed_checkpoint_loader, make_distributed_checkpoint_writer)
+from dlrm.utils.distributed import (get_device_mapping, get_gpu_batch_sizes,
+                                    is_distributed, is_main_process)
 from sklearn.metrics import roc_auc_score
+from torch.utils.data import Dataset
 from tqdm import tqdm
 
 FLAGS = flags.FLAGS
 
 # Basic run settings
-flags.DEFINE_enum("mode", default='train', enum_values=['train', 'test', 'inference_benchmark'],
-                  help="Select task to be performed")
+flags.DEFINE_enum(
+    "mode",
+    default="train",
+    enum_values=["train", "test", "inference_benchmark"],
+    help="Select task to be performed",
+)
 flags.DEFINE_integer("seed", 12345, "Random seed")
 
 # Training flags
@@ -73,132 +66,244 @@ flags.DEFINE_integer("batch_size", 65536, "Batch size used for training")
 flags.DEFINE_integer("test_batch_size", 65536, "Batch size used for testing/validation")
 flags.DEFINE_float("lr", 24, "Base learning rate")
 flags.DEFINE_integer("epochs", 1, "Number of epochs to train for")
-flags.DEFINE_integer("max_steps", None, "Stop training after doing this many optimization steps")
+flags.DEFINE_integer(
+    "max_steps", None, "Stop training after doing this many optimization steps"
+)
 
 # Learning rate schedule flags
-flags.DEFINE_integer("warmup_factor", 0, "Learning rate warmup factor. Must be a non-negative integer")
+flags.DEFINE_integer(
+    "warmup_factor", 0, "Learning rate warmup factor. Must be a non-negative integer"
+)
 flags.DEFINE_integer("warmup_steps", 8000, "Number of warmup optimization steps")
-flags.DEFINE_integer("decay_steps", 24000,
-                     "Polynomial learning rate decay steps. If equal to 0 will not do any decaying")
-flags.DEFINE_integer("decay_start_step", 48000,
-                     "Optimization step after which to start decaying the learning rate, "
-                     "if None will start decaying right after the warmup phase is completed")
+flags.DEFINE_integer(
+    "decay_steps",
+    24000,
+    "Polynomial learning rate decay steps. If equal to 0 will not do any decaying",
+)
+flags.DEFINE_integer(
+    "decay_start_step",
+    48000,
+    "Optimization step after which to start decaying the learning rate, "
+    "if None will start decaying right after the warmup phase is completed",
+)
 flags.DEFINE_integer("decay_power", 2, "Polynomial learning rate decay power")
 flags.DEFINE_float("decay_end_lr", 0, "LR after the decay ends")
 
 # Model configuration
-flags.DEFINE_enum("embedding_type", "custom_cuda",
-                  ["joint", "custom_cuda", "multi_table", "joint_sparse", "joint_fused"],
-                  help="The type of the embedding operation to use")
-flags.DEFINE_integer("embedding_dim", 128, "Dimensionality of embedding space for categorical features")
-flags.DEFINE_list("top_mlp_sizes", [1024, 1024, 512, 256, 1], "Linear layer sizes for the top MLP")
-flags.DEFINE_list("bottom_mlp_sizes", [512, 256, 128], "Linear layer sizes for the bottom MLP")
-flags.DEFINE_enum("interaction_op", default="cuda_dot", enum_values=["cuda_dot", "dot", "cat"],
-                  help="Type of interaction operation to perform.")
+flags.DEFINE_enum(
+    "embedding_type",
+    "custom_cuda",
+    ["joint", "custom_cuda", "multi_table", "joint_sparse", "joint_fused"],
+    help="The type of the embedding operation to use",
+)
+flags.DEFINE_integer(
+    "embedding_dim", 128, "Dimensionality of embedding space for categorical features"
+)
+flags.DEFINE_list(
+    "top_mlp_sizes", [1024, 1024, 512, 256, 1], "Linear layer sizes for the top MLP"
+)
+flags.DEFINE_list(
+    "bottom_mlp_sizes", [512, 256, 128], "Linear layer sizes for the bottom MLP"
+)
+flags.DEFINE_enum(
+    "interaction_op",
+    default="cuda_dot",
+    enum_values=["cuda_dot", "dot", "cat"],
+    help="Type of interaction operation to perform.",
+)
 
 # Data configuration
 flags.DEFINE_string("dataset", None, "Path to dataset directory")
-flags.DEFINE_string("feature_spec", default="feature_spec.yaml",
-                    help="Name of the feature spec file in the dataset directory")
-flags.DEFINE_enum("dataset_type", default="parametric", enum_values=['synthetic_gpu', 'parametric'],
-                  help='The type of the dataset to use')
-flags.DEFINE_boolean("shuffle_batch_order", False, "Read batch in train dataset by random order", short_name="shuffle")
+flags.DEFINE_string(
+    "feature_spec",
+    default="feature_spec.yaml",
+    help="Name of the feature spec file in the dataset directory",
+)
+flags.DEFINE_enum(
+    "dataset_type",
+    default="parametric",
+    enum_values=["synthetic_gpu", "parametric"],
+    help="The type of the dataset to use",
+)
+flags.DEFINE_boolean(
+    "shuffle_batch_order",
+    False,
+    "Read batch in train dataset by random order",
+    short_name="shuffle",
+)
 
-flags.DEFINE_integer("max_table_size", None,
-                     "Maximum number of rows per embedding table, "
-                     "by default equal to the number of unique values for each categorical variable")
-flags.DEFINE_boolean("hash_indices", False,
-                     "If True the model will compute `index := index % table size` "
-                     "to ensure that the indices match table sizes")
+flags.DEFINE_integer(
+    "max_table_size",
+    None,
+    "Maximum number of rows per embedding table, "
+    "by default equal to the number of unique values for each categorical variable",
+)
+flags.DEFINE_boolean(
+    "hash_indices",
+    False,
+    "If True the model will compute `index := index % table size` "
+    "to ensure that the indices match table sizes",
+)
 
 # Synthetic data configuration
-flags.DEFINE_integer("synthetic_dataset_num_entries", default=int(2 ** 15 * 1024),
-                     help="Number of samples per epoch for the synthetic dataset")
-flags.DEFINE_list("synthetic_dataset_table_sizes", default=','.join(26 * [str(10 ** 5)]),
-                  help="Cardinalities of variables to use with the synthetic dataset.")
-flags.DEFINE_integer("synthetic_dataset_numerical_features", default='13',
-                     help="Number of numerical features to use with the synthetic dataset")
-flags.DEFINE_boolean("synthetic_dataset_use_feature_spec", default=False,
-                     help="Create a temporary synthetic dataset based on a real one. "
-                          "Uses --dataset and --feature_spec"
-                          "Overrides synthetic_dataset_table_sizes and synthetic_dataset_numerical_features."
-                          "--synthetic_dataset_num_entries is still required")
+flags.DEFINE_integer(
+    "synthetic_dataset_num_entries",
+    default=int(2**15 * 1024),
+    help="Number of samples per epoch for the synthetic dataset",
+)
+flags.DEFINE_list(
+    "synthetic_dataset_table_sizes",
+    default=",".join(26 * [str(10**5)]),
+    help="Cardinalities of variables to use with the synthetic dataset.",
+)
+flags.DEFINE_integer(
+    "synthetic_dataset_numerical_features",
+    default="13",
+    help="Number of numerical features to use with the synthetic dataset",
+)
+flags.DEFINE_boolean(
+    "synthetic_dataset_use_feature_spec",
+    default=False,
+    help="Create a temporary synthetic dataset based on a real one. "
+    "Uses --dataset and --feature_spec"
+    "Overrides synthetic_dataset_table_sizes and synthetic_dataset_numerical_features."
+    "--synthetic_dataset_num_entries is still required",
+)
 
 # Checkpointing
-flags.DEFINE_string("load_checkpoint_path", None, "Path from which to load a checkpoint")
-flags.DEFINE_string("save_checkpoint_path", None, "Path to which to save the training checkpoints")
+flags.DEFINE_string(
+    "load_checkpoint_path", None, "Path from which to load a checkpoint"
+)
+flags.DEFINE_string(
+    "save_checkpoint_path", None, "Path to which to save the training checkpoints"
+)
 
 # Saving and logging flags
-flags.DEFINE_string("log_path", "./log.json", "Destination for the log file with various results and statistics")
-flags.DEFINE_integer("test_freq", None,
-                     "Number of optimization steps between validations. If None will test after each epoch")
-flags.DEFINE_float("test_after", 0, "Don't test the model unless this many epochs has been completed")
-flags.DEFINE_integer("print_freq", 200, "Number of optimizations steps between printing training status to stdout")
-flags.DEFINE_integer("benchmark_warmup_steps", 0,
-                     "Number of initial iterations to exclude from throughput measurements")
+flags.DEFINE_string(
+    "log_path",
+    "./log.json",
+    "Destination for the log file with various results and statistics",
+)
+flags.DEFINE_integer(
+    "test_freq",
+    None,
+    "Number of optimization steps between validations. If None will test after each epoch",
+)
+flags.DEFINE_float(
+    "test_after", 0, "Don't test the model unless this many epochs has been completed"
+)
+flags.DEFINE_integer(
+    "print_freq",
+    200,
+    "Number of optimizations steps between printing training status to stdout",
+)
+flags.DEFINE_integer(
+    "benchmark_warmup_steps",
+    0,
+    "Number of initial iterations to exclude from throughput measurements",
+)
 
 # Machine setting flags
-flags.DEFINE_string("base_device", "cuda", "Device to run the majority of the model operations")
-flags.DEFINE_boolean("amp", False, "If True the script will use Automatic Mixed Precision")
+flags.DEFINE_string(
+    "base_device", "cuda", "Device to run the majority of the model operations"
+)
+flags.DEFINE_boolean(
+    "amp", False, "If True the script will use Automatic Mixed Precision"
+)
 
 flags.DEFINE_boolean("cuda_graphs", False, "Use CUDA Graphs")
 
 # inference benchmark
-flags.DEFINE_list("inference_benchmark_batch_sizes", default=[1, 64, 4096],
-                  help="Batch sizes for inference throughput and latency measurements")
-flags.DEFINE_integer("inference_benchmark_steps", 200,
-                     "Number of steps for measuring inference latency and throughput")
+flags.DEFINE_list(
+    "inference_benchmark_batch_sizes",
+    default=[1, 64, 4096],
+    help="Batch sizes for inference throughput and latency measurements",
+)
+flags.DEFINE_integer(
+    "inference_benchmark_steps",
+    200,
+    "Number of steps for measuring inference latency and throughput",
+)
 
 # Miscellaneous
 flags.DEFINE_float("auc_threshold", None, "Stop the training after achieving this AUC")
-flags.DEFINE_boolean("optimized_mlp", True, "Use an optimized implementation of MLP from apex")
-flags.DEFINE_enum("auc_device", default="GPU", enum_values=['GPU', 'CPU'],
-                  help="Specifies where ROC AUC metric is calculated")
+flags.DEFINE_boolean(
+    "optimized_mlp", True, "Use an optimized implementation of MLP from apex"
+)
+flags.DEFINE_enum(
+    "auc_device",
+    default="GPU",
+    enum_values=["GPU", "CPU"],
+    help="Specifies where ROC AUC metric is calculated",
+)
 
-flags.DEFINE_string("backend", "nccl", "Backend to use for distributed training. Default nccl")
-flags.DEFINE_boolean("bottom_features_ordered", False,
-                     "Sort features from the bottom model, useful when using saved "
-                     "checkpoint in different device configurations")
-flags.DEFINE_boolean("freeze_mlps", False,
-                     "For debug and benchmarking. Don't perform the weight update for MLPs.")
-flags.DEFINE_boolean("freeze_embeddings", False,
-                     "For debug and benchmarking. Don't perform the weight update for the embeddings.")
-flags.DEFINE_boolean("Adam_embedding_optimizer", False, "Swaps embedding optimizer to Adam")
+flags.DEFINE_string(
+    "backend", "nccl", "Backend to use for distributed training. Default nccl"
+)
+flags.DEFINE_boolean(
+    "bottom_features_ordered",
+    False,
+    "Sort features from the bottom model, useful when using saved "
+    "checkpoint in different device configurations",
+)
+flags.DEFINE_boolean(
+    "freeze_mlps",
+    False,
+    "For debug and benchmarking. Don't perform the weight update for MLPs.",
+)
+flags.DEFINE_boolean(
+    "freeze_embeddings",
+    False,
+    "For debug and benchmarking. Don't perform the weight update for the embeddings.",
+)
+flags.DEFINE_boolean(
+    "Adam_embedding_optimizer", False, "Swaps embedding optimizer to Adam"
+)
 flags.DEFINE_boolean("Adam_MLP_optimizer", False, "Swaps MLP optimizer to Adam")
 
 
 def validate_flags(cat_feature_count):
     if FLAGS.max_table_size is not None and not FLAGS.hash_indices:
-        raise ValueError('Hash indices must be True when setting a max_table_size')
+        raise ValueError("Hash indices must be True when setting a max_table_size")
 
-    if FLAGS.base_device == 'cpu':
-        if FLAGS.embedding_type in ('joint_fused', 'joint_sparse'):
-            print('WARNING: CUDA joint embeddings are not supported on CPU')
-            FLAGS.embedding_type = 'joint'
+    if FLAGS.base_device == "cpu":
+        if FLAGS.embedding_type in ("joint_fused", "joint_sparse"):
+            print("WARNING: CUDA joint embeddings are not supported on CPU")
+            FLAGS.embedding_type = "joint"
 
         if FLAGS.amp:
-            print('WARNING: Automatic mixed precision not supported on CPU')
+            print("WARNING: Automatic mixed precision not supported on CPU")
             FLAGS.amp = False
 
         if FLAGS.optimized_mlp:
-            print('WARNING: Optimized MLP is not supported on CPU')
+            print("WARNING: Optimized MLP is not supported on CPU")
             FLAGS.optimized_mlp = False
 
-    if FLAGS.embedding_type == 'custom_cuda':
-        if (not is_distributed()) and FLAGS.embedding_dim == 128 and cat_feature_count == 26:
-            FLAGS.embedding_type = 'joint_fused'
+    if FLAGS.embedding_type == "custom_cuda":
+        if (
+            (not is_distributed())
+            and FLAGS.embedding_dim == 128
+            and cat_feature_count == 26
+        ):
+            FLAGS.embedding_type = "joint_fused"
         else:
-            FLAGS.embedding_type = 'joint_sparse'
+            FLAGS.embedding_type = "joint_sparse"
 
-    if FLAGS.embedding_type == 'joint_fused' and FLAGS.embedding_dim != 128:
-        print('WARNING: Joint fused can be used only with embedding_dim=128. Changed embedding type to joint_sparse.')
-        FLAGS.embedding_type = 'joint_sparse'
+    if FLAGS.embedding_type == "joint_fused" and FLAGS.embedding_dim != 128:
+        print(
+            "WARNING: Joint fused can be used only with embedding_dim=128. Changed embedding type to joint_sparse."
+        )
+        FLAGS.embedding_type = "joint_sparse"
 
-    if FLAGS.dataset is None and (FLAGS.dataset_type != 'synthetic_gpu' or
-                                  FLAGS.synthetic_dataset_use_feature_spec):
-        raise ValueError('Dataset argument has to specify a path to the dataset')
+    if FLAGS.dataset is None and (
+        FLAGS.dataset_type != "synthetic_gpu"
+        or FLAGS.synthetic_dataset_use_feature_spec
+    ):
+        raise ValueError("Dataset argument has to specify a path to the dataset")
 
-    FLAGS.inference_benchmark_batch_sizes = [int(x) for x in FLAGS.inference_benchmark_batch_sizes]
+    FLAGS.inference_benchmark_batch_sizes = [
+        int(x) for x in FLAGS.inference_benchmark_batch_sizes
+    ]
     FLAGS.top_mlp_sizes = [int(x) for x in FLAGS.top_mlp_sizes]
     FLAGS.bottom_mlp_sizes = [int(x) for x in FLAGS.bottom_mlp_sizes]
 
@@ -206,18 +311,30 @@ def validate_flags(cat_feature_count):
 
 
 def load_feature_spec(flags):
-    if flags.dataset_type == 'synthetic_gpu' and not flags.synthetic_dataset_use_feature_spec:
+    if (
+        flags.dataset_type == "synthetic_gpu"
+        and not flags.synthetic_dataset_use_feature_spec
+    ):
         num_numerical = flags.synthetic_dataset_numerical_features
         categorical_sizes = [int(s) for s in FLAGS.synthetic_dataset_table_sizes]
-        return FeatureSpec.get_default_feature_spec(number_of_numerical_features=num_numerical,
-                                                    categorical_feature_cardinalities=categorical_sizes)
+        return FeatureSpec.get_default_feature_spec(
+            number_of_numerical_features=num_numerical,
+            categorical_feature_cardinalities=categorical_sizes,
+        )
     fspec_path = os.path.join(flags.dataset, flags.feature_spec)
     return FeatureSpec.from_yaml(fspec_path)
 
 
 class CudaGraphWrapper:
-    def __init__(self, model, train_step, parallelize,
-                 zero_grad, cuda_graphs=False, warmup_steps=20):
+    def __init__(
+        self,
+        model,
+        train_step,
+        parallelize,
+        zero_grad,
+        cuda_graphs=False,
+        warmup_steps=20,
+    ):
 
         self.cuda_graphs = cuda_graphs
         self.warmup_iters = warmup_steps
@@ -244,8 +361,10 @@ class CudaGraphWrapper:
 
     def _copy_input_data(self, *train_step_args):
         if len(train_step_args) != len(self.static_args):
-            raise ValueError(f'Expected {len(self.static_args)} arguments to train step'
-                             f'Got: {len(train_step_args)}')
+            raise ValueError(
+                f"Expected {len(self.static_args)} arguments to train step"
+                f"Got: {len(train_step_args)}"
+            )
 
         for data, placeholder in zip(train_step_args, self.static_args):
             if placeholder is None:
@@ -314,7 +433,9 @@ def inference_benchmark_nongraphed(model, data_loader, num_batches=100):
     y_score = []
 
     with torch.no_grad():
-        for step, (numerical_features, categorical_features, click) in enumerate(data_loader):
+        for step, (numerical_features, categorical_features, click) in enumerate(
+            data_loader
+        ):
             if step > num_batches:
                 break
 
@@ -324,7 +445,9 @@ def inference_benchmark_nongraphed(model, data_loader, num_batches=100):
             if FLAGS.amp:
                 numerical_features = numerical_features.half()
 
-            categorical_features = categorical_features.to(device=base_device, dtype=torch.int64)
+            categorical_features = categorical_features.to(
+                device=base_device, dtype=torch.int64
+            )
 
             inference_result = model(numerical_features, categorical_features).squeeze()
             torch.cuda.synchronize()
@@ -339,7 +462,7 @@ def inference_benchmark_nongraphed(model, data_loader, num_batches=100):
     y_true = torch.cat(y_true)
     y_score = torch.sigmoid(torch.cat(y_score)).float()
     auc = utils.roc_auc_score(y_true, y_score)
-    print('auc: ', auc)
+    print("auc: ", auc)
 
     return latencies
 
@@ -382,14 +505,18 @@ def inference_benchmark_graphed(model, data_loader, num_batches=100):
     y_score = []
 
     with torch.no_grad():
-        for step, (numerical_features, categorical_features, click) in enumerate(data_loader):
+        for step, (numerical_features, categorical_features, click) in enumerate(
+            data_loader
+        ):
             if step > num_batches:
                 break
             torch.cuda.synchronize()
             step_start_time = time()
 
             numerical_features = numerical_features.to(base_device)
-            categorical_features = categorical_features.to(device=base_device, dtype=torch.int64)
+            categorical_features = categorical_features.to(
+                device=base_device, dtype=torch.int64
+            )
 
             static_categorical.copy_(categorical_features)
             static_numerical.copy_(numerical_features)
@@ -404,7 +531,7 @@ def inference_benchmark_graphed(model, data_loader, num_batches=100):
     y_true = torch.cat(y_true)
     y_score = torch.sigmoid(torch.cat(y_score)).float()
     auc = utils.roc_auc_score(y_true, y_score)
-    print('auc: ', auc)
+    print("auc: ", auc)
     return latencies
 
 
@@ -412,7 +539,9 @@ def main(argv):
     torch.manual_seed(FLAGS.seed)
 
     use_gpu = "cpu" not in FLAGS.base_device.lower()
-    rank, world_size, gpu = dist.init_distributed_mode(backend=FLAGS.backend, use_gpu=use_gpu)
+    rank, world_size, gpu = dist.init_distributed_mode(
+        backend=FLAGS.backend, use_gpu=use_gpu
+    )
     device = FLAGS.base_device
 
     feature_spec = load_feature_spec(FLAGS)
@@ -422,30 +551,41 @@ def main(argv):
 
     if is_main_process():
         utils.init_logging(log_path=FLAGS.log_path)
-        dllogger.log(data=FLAGS.flag_values_dict(), step='PARAMETER')
+        dllogger.log(data=FLAGS.flag_values_dict(), step="PARAMETER")
 
-    FLAGS.set_default("test_batch_size", FLAGS.test_batch_size // world_size * world_size)
+    FLAGS.set_default(
+        "test_batch_size", FLAGS.test_batch_size // world_size * world_size
+    )
 
     feature_spec = load_feature_spec(FLAGS)
-    world_embedding_sizes = get_embedding_sizes(feature_spec, max_table_size=FLAGS.max_table_size)
+    world_embedding_sizes = get_embedding_sizes(
+        feature_spec, max_table_size=FLAGS.max_table_size
+    )
     world_categorical_feature_sizes = np.asarray(world_embedding_sizes)
     device_mapping = get_device_mapping(world_embedding_sizes, num_gpus=world_size)
 
     batch_sizes_per_gpu = get_gpu_batch_sizes(FLAGS.batch_size, num_gpus=world_size)
-    batch_indices = tuple(np.cumsum([0] + list(batch_sizes_per_gpu)))  # todo what does this do
+    batch_indices = tuple(
+        np.cumsum([0] + list(batch_sizes_per_gpu))
+    )  # todo what does this do
 
     # Embedding sizes for each GPU
-    categorical_feature_sizes = world_categorical_feature_sizes[device_mapping['embedding'][rank]].tolist()
+    categorical_feature_sizes = world_categorical_feature_sizes[
+        device_mapping["embedding"][rank]
+    ].tolist()
     num_numerical_features = feature_spec.get_number_of_numerical_features()
 
-    bottom_mlp_sizes = FLAGS.bottom_mlp_sizes if rank == device_mapping['bottom_mlp'] else None
+    bottom_mlp_sizes = (
+        FLAGS.bottom_mlp_sizes if rank == device_mapping["bottom_mlp"] else None
+    )
 
-    data_loader_train, data_loader_test = get_data_loaders(FLAGS, device_mapping=device_mapping,
-                                                           feature_spec=feature_spec)
+    data_loader_train, data_loader_test = get_data_loaders(
+        FLAGS, device_mapping=device_mapping, feature_spec=feature_spec
+    )
 
     model = DistributedDlrm(
-        vectors_per_gpu=device_mapping['vectors_per_gpu'],
-        embedding_device_mapping=device_mapping['embedding'],
+        vectors_per_gpu=device_mapping["vectors_per_gpu"],
+        embedding_device_mapping=device_mapping["embedding"],
         embedding_type=FLAGS.embedding_type,
         embedding_dim=FLAGS.embedding_dim,
         world_num_categorical_features=len(world_categorical_feature_sizes),
@@ -458,7 +598,7 @@ def main(argv):
         fp16=FLAGS.amp,
         use_cpp_mlp=FLAGS.optimized_mlp,
         bottom_features_ordered=FLAGS.bottom_features_ordered,
-        device=device
+        device=device,
     )
 
     dist.setup_distributed_print(is_main_process())
@@ -479,13 +619,16 @@ def main(argv):
 
     if is_main_process():
         mlp_params = [
-            {'params': list(model.top_model.parameters()), 'lr': data_parallel_lr},
-            {'params': list(model.bottom_model.mlp.parameters()), 'lr': MLP_model_parallel_lr}
+            {"params": list(model.top_model.parameters()), "lr": data_parallel_lr},
+            {
+                "params": list(model.bottom_model.mlp.parameters()),
+                "lr": MLP_model_parallel_lr,
+            },
         ]
         mlp_lrs = [data_parallel_lr, MLP_model_parallel_lr]
     else:
         mlp_params = [
-            {'params': list(model.top_model.parameters()), 'lr': data_parallel_lr}
+            {"params": list(model.top_model.parameters()), "lr": data_parallel_lr}
         ]
         mlp_lrs = [data_parallel_lr]
 
@@ -494,10 +637,12 @@ def main(argv):
     else:
         mlp_optimizer = apex_optim.FusedSGD(mlp_params)
 
-    embedding_params = [{
-        'params': list(model.bottom_model.embeddings.parameters()),
-        'lr': embedding_model_parallel_lr
-    }]
+    embedding_params = [
+        {
+            "params": list(model.bottom_model.embeddings.parameters()),
+            "lr": embedding_model_parallel_lr,
+        }
+    ]
     embedding_lrs = [embedding_model_parallel_lr]
 
     if FLAGS.Adam_embedding_optimizer:
@@ -509,10 +654,12 @@ def main(argv):
         device_mapping=device_mapping,
         rank=rank,
         is_main_process=is_main_process(),
-        config=FLAGS.flag_values_dict()
+        config=FLAGS.flag_values_dict(),
     )
 
-    checkpoint_loader = make_distributed_checkpoint_loader(device_mapping=device_mapping, rank=rank)
+    checkpoint_loader = make_distributed_checkpoint_loader(
+        device_mapping=device_mapping, rank=rank
+    )
 
     if FLAGS.load_checkpoint_path:
         checkpoint_loader.load_checkpoint(model, FLAGS.load_checkpoint_path)
@@ -527,17 +674,17 @@ def main(argv):
         model.top_model = torch.nn.parallel.DistributedDataParallel(model.top_model)
         return model
 
-    if FLAGS.mode == 'test':
+    if FLAGS.mode == "test":
         model = parallelize(model)
         auc, valid_loss = dist_evaluate(model, data_loader_test)
 
-        results = {'best_auc': auc, 'best_validation_loss': valid_loss}
+        results = {"best_auc": auc, "best_validation_loss": valid_loss}
         if is_main_process():
             dllogger.log(data=results, step=tuple())
         return
-    elif FLAGS.mode == 'inference_benchmark':
+    elif FLAGS.mode == "inference_benchmark":
         if world_size > 1:
-            raise ValueError('Inference benchmark only supports singleGPU mode.')
+            raise ValueError("Inference benchmark only supports singleGPU mode.")
 
         results = {}
 
@@ -547,28 +694,41 @@ def main(argv):
 
         for batch_size in FLAGS.inference_benchmark_batch_sizes:
             FLAGS.test_batch_size = batch_size
-            _, data_loader_test = get_data_loaders(FLAGS, device_mapping=device_mapping, feature_spec=feature_spec)
+            _, data_loader_test = get_data_loaders(
+                FLAGS, device_mapping=device_mapping, feature_spec=feature_spec
+            )
 
-            latencies = inference_benchmark(model=model, data_loader=data_loader_test,
-                                            num_batches=FLAGS.inference_benchmark_steps,
-                                            cuda_graphs=FLAGS.cuda_graphs)
+            latencies = inference_benchmark(
+                model=model,
+                data_loader=data_loader_test,
+                num_batches=FLAGS.inference_benchmark_steps,
+                cuda_graphs=FLAGS.cuda_graphs,
+            )
 
             # drop the first 10 as a warmup
             latencies = latencies[10:]
 
             mean_latency = np.mean(latencies)
             mean_inference_throughput = batch_size / mean_latency
-            subresult = {f'mean_inference_latency_batch_{batch_size}': mean_latency,
-                         f'mean_inference_throughput_batch_{batch_size}': mean_inference_throughput}
+            subresult = {
+                f"mean_inference_latency_batch_{batch_size}": mean_latency,
+                f"mean_inference_throughput_batch_{batch_size}": mean_inference_throughput,
+            }
             results.update(subresult)
         if is_main_process():
             dllogger.log(data=results, step=tuple())
         return
 
-    if FLAGS.save_checkpoint_path and not FLAGS.bottom_features_ordered and is_main_process():
-        logging.warning("Saving checkpoint without --bottom_features_ordered flag will result in "
-                        "a device-order dependent model. Consider using --bottom_features_ordered "
-                        "if you plan to load the checkpoint in different device configurations.")
+    if (
+        FLAGS.save_checkpoint_path
+        and not FLAGS.bottom_features_ordered
+        and is_main_process()
+    ):
+        logging.warning(
+            "Saving checkpoint without --bottom_features_ordered flag will result in "
+            "a device-order dependent model. Consider using --bottom_features_ordered "
+            "if you plan to load the checkpoint in different device configurations."
+        )
 
     loss_fn = torch.nn.BCEWithLogitsLoss(reduction="mean")
 
@@ -581,37 +741,45 @@ def main(argv):
     test_freq = FLAGS.test_freq if FLAGS.test_freq is not None else steps_per_epoch - 2
 
     metric_logger = utils.MetricLogger(delimiter="  ")
-    metric_logger.add_meter('loss', utils.SmoothedValue(window_size=1, fmt='{avg:.8f}'))
-    metric_logger.add_meter('step_time', utils.SmoothedValue(window_size=1, fmt='{avg:.6f}'))
-    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.4f}'))
+    metric_logger.add_meter("loss", utils.SmoothedValue(window_size=1, fmt="{avg:.8f}"))
+    metric_logger.add_meter(
+        "step_time", utils.SmoothedValue(window_size=1, fmt="{avg:.6f}")
+    )
+    metric_logger.add_meter("lr", utils.SmoothedValue(window_size=1, fmt="{value:.4f}"))
 
     # Accumulating loss on GPU to avoid memcpyD2H every step
     moving_loss = torch.zeros(1, device=device)
 
-    lr_scheduler = utils.LearningRateScheduler(optimizers=[mlp_optimizer, embedding_optimizer],
-                                               base_lrs=[mlp_lrs, embedding_lrs],
-                                               warmup_steps=FLAGS.warmup_steps,
-                                               warmup_factor=FLAGS.warmup_factor,
-                                               decay_start_step=FLAGS.decay_start_step,
-                                               decay_steps=FLAGS.decay_steps,
-                                               decay_power=FLAGS.decay_power,
-                                               end_lr_factor=FLAGS.decay_end_lr / FLAGS.lr)
+    lr_scheduler = utils.LearningRateScheduler(
+        optimizers=[mlp_optimizer, embedding_optimizer],
+        base_lrs=[mlp_lrs, embedding_lrs],
+        warmup_steps=FLAGS.warmup_steps,
+        warmup_factor=FLAGS.warmup_factor,
+        decay_start_step=FLAGS.decay_start_step,
+        decay_steps=FLAGS.decay_steps,
+        decay_power=FLAGS.decay_power,
+        end_lr_factor=FLAGS.decay_end_lr / FLAGS.lr,
+    )
 
     def zero_grad(model):
         if FLAGS.Adam_embedding_optimizer or FLAGS.Adam_MLP_optimizer:
             model.zero_grad()
         else:
             # We don't need to accumulate gradient. Set grad to None is faster than optimizer.zero_grad()
-            for param_group in itertools.chain(embedding_optimizer.param_groups, mlp_optimizer.param_groups):
-                for param in param_group['params']:
+            for param_group in itertools.chain(
+                embedding_optimizer.param_groups, mlp_optimizer.param_groups
+            ):
+                for param in param_group["params"]:
                     param.grad = None
 
     def forward_backward(model, *args):
 
         numerical_features, categorical_features, click = args
         with torch.cuda.amp.autocast(enabled=FLAGS.amp):
-            output = model(numerical_features, categorical_features, batch_sizes_per_gpu).squeeze()
-            loss = loss_fn(output, click[batch_indices[rank]: batch_indices[rank + 1]])
+            output = model(
+                numerical_features, categorical_features, batch_sizes_per_gpu
+            ).squeeze()
+            loss = loss_fn(output, click[batch_indices[rank] : batch_indices[rank + 1]])
 
         scaler.scale(loss).backward()
 
@@ -631,8 +799,9 @@ def main(argv):
 
         scaler.update()
 
-    trainer = CudaGraphWrapper(model, forward_backward, parallelize, zero_grad,
-                               cuda_graphs=FLAGS.cuda_graphs)
+    trainer = CudaGraphWrapper(
+        model, forward_backward, parallelize, zero_grad, cuda_graphs=FLAGS.cuda_graphs
+    )
 
     data_stream = torch.cuda.Stream()
     timer = utils.StepTimer()
@@ -649,7 +818,7 @@ def main(argv):
 
         for step in range(len(data_loader_train)):
             numerical_features, categorical_features, click = next(batch_iter)
-            timer.click(synchronize=(device == 'cuda'))
+            timer.click(synchronize=(device == "cuda"))
 
             global_step = steps_per_epoch * epoch + step
 
@@ -682,25 +851,37 @@ def main(argv):
 
                 # only check for nan every print_freq steps
                 if torch.any(torch.isnan(loss)):
-                    print('NaN loss encountered.')
+                    print("NaN loss encountered.")
                     break
 
                 if global_step < FLAGS.benchmark_warmup_steps:
                     metric_logger.update(
                         loss=moving_loss.item() / print_freq,
-                        lr=mlp_optimizer.param_groups[0]["lr"])
+                        lr=mlp_optimizer.param_groups[0]["lr"],
+                    )
                 else:
                     metric_logger.update(
                         step_time=timer.measured,
                         loss=moving_loss.item() / print_freq,
-                        lr=mlp_optimizer.param_groups[0]["lr"])
+                        lr=mlp_optimizer.param_groups[0]["lr"],
+                    )
 
-                eta_str = datetime.timedelta(seconds=int(metric_logger.step_time.global_avg * (steps_per_epoch - step)))
-                metric_logger.print(header=f"Epoch:[{epoch}/{FLAGS.epochs}] [{step}/{steps_per_epoch}]  eta: {eta_str}")
+                eta_str = datetime.timedelta(
+                    seconds=int(
+                        metric_logger.step_time.global_avg * (steps_per_epoch - step)
+                    )
+                )
+                metric_logger.print(
+                    header=f"Epoch:[{epoch}/{FLAGS.epochs}] [{step}/{steps_per_epoch}]  eta: {eta_str}"
+                )
 
-                moving_loss = 0.
+                moving_loss = 0.0
 
-            if global_step % test_freq == 0 and global_step > 0 and global_step / steps_per_epoch >= FLAGS.test_after:
+            if (
+                global_step % test_freq == 0
+                and global_step > 0
+                and global_step / steps_per_epoch >= FLAGS.test_after
+            ):
                 auc, validation_loss = dist_evaluate(trainer.model, data_loader_test)
 
                 if auc is None:
@@ -718,24 +899,32 @@ def main(argv):
 
                 if FLAGS.auc_threshold and auc >= FLAGS.auc_threshold:
                     run_time_s = int(stop_time - start_time)
-                    print(f"Hit target accuracy AUC {FLAGS.auc_threshold} at epoch "
-                          f"{global_step / steps_per_epoch:.2f} in {run_time_s}s. ")
+                    print(
+                        f"Hit target accuracy AUC {FLAGS.auc_threshold} at epoch "
+                        f"{global_step / steps_per_epoch:.2f} in {run_time_s}s. "
+                    )
                     sys.exit()
 
         epoch_stop_time = time()
         epoch_time_s = epoch_stop_time - epoch_start_time
-        print(f"Finished epoch {epoch} in {datetime.timedelta(seconds=int(epoch_time_s))}. ")
+        print(
+            f"Finished epoch {epoch} in {datetime.timedelta(seconds=int(epoch_time_s))}. "
+        )
 
     avg_throughput = FLAGS.batch_size / metric_logger.step_time.avg
 
     if FLAGS.save_checkpoint_path:
-        checkpoint_writer.save_checkpoint(model, FLAGS.save_checkpoint_path, epoch, step)
+        checkpoint_writer.save_checkpoint(
+            model, FLAGS.save_checkpoint_path, epoch, step
+        )
 
-    results = {'best_auc': best_auc,
-               'best_validation_loss': best_validation_loss,
-               'training_loss' : metric_logger.meters['loss'].avg,
-               'best_epoch': best_epoch,
-               'average_train_throughput': avg_throughput}
+    results = {
+        "best_auc": best_auc,
+        "best_validation_loss": best_validation_loss,
+        "training_loss": metric_logger.meters["loss"].avg,
+        "best_epoch": best_epoch,
+        "average_train_throughput": avg_throughput,
+    }
 
     if is_main_process():
         dllogger.log(data=results, step=tuple())
@@ -743,13 +932,15 @@ def main(argv):
 
 def scale_MLP_gradients(mlp_optimizer: torch.optim.Optimizer, world_size: int):
     for param_group in mlp_optimizer.param_groups[1:]:  # Omitting top MLP
-        for param in param_group['params']:
+        for param in param_group["params"]:
             param.grad.div_(world_size)
 
 
-def scale_embeddings_gradients(embedding_optimizer: torch.optim.Optimizer, world_size: int):
+def scale_embeddings_gradients(
+    embedding_optimizer: torch.optim.Optimizer, world_size: int
+):
     for param_group in embedding_optimizer.param_groups:
-        for param in param_group['params']:
+        for param in param_group["params"]:
             if param.grad != None:
                 param.grad.div_(world_size)
 
@@ -762,35 +953,50 @@ def dist_evaluate(model, data_loader):
         data_loader (torch.utils.data.DataLoader):
     """
 
-    def run_infer(model_name, model_version, numerical_features, categorical_features, headers=None):
+    def run_infer(
+        model_name,
+        model_version,
+        numerical_features,
+        categorical_features,
+        headers=None,
+    ):
         inputs = []
         outputs = []
         num_type = "FP16" if numerical_features.dtype == np.float16 else "FP32"
-        inputs.append(http_client.InferInput('input__0', numerical_features.shape, num_type))
-        inputs.append(http_client.InferInput('input__1', categorical_features.shape, "INT64"))
+        inputs.append(
+            http_client.InferInput("input__0", numerical_features.shape, num_type)
+        )
+        inputs.append(
+            http_client.InferInput("input__1", categorical_features.shape, "INT64")
+        )
 
         # Initialize the data
         inputs[0].set_data_from_numpy(numerical_features, binary_data=True)
         inputs[1].set_data_from_numpy(categorical_features, binary_data=False)
 
-        outputs.append(http_client.InferRequestedOutput('output__0', binary_data=True))
-        results = triton_client.infer(model_name,
-                                      inputs,
-                                      model_version=str(model_version) if model_version != -1 else '',
-                                      outputs=outputs,
-                                      headers=headers)
+        outputs.append(http_client.InferRequestedOutput("output__0", binary_data=True))
+        results = triton_client.infer(
+            model_name,
+            inputs,
+            model_version=str(model_version) if model_version != -1 else "",
+            outputs=outputs,
+            headers=headers,
+        )
         return results
 
     with torch.no_grad():
         data_stream = torch.cuda.Stream()
         batch_iter = prefetcher(iter(data_loader), data_stream)
 
-        triton_server_url = 'https://model-service-gateway-0t7o4mrjj8wy.uw2-dev-cluster.savvihub.com'
-        triton_model_name = 'dlrm-ts-trace'
-        dataset_config = '/data/model_size.json'
-        inference_data = '/data/data/test'
-  
+        triton_server_url = (
+            "https://model-service-gateway-0t7o4mrjj8wy.uw2-dev-cluster.savvihub.com"
+        )
+        triton_model_name = "dlrm-ts-trace"
+        dataset_config = "/data/model_size.json"
+        inference_data = "/data/data/test"
+
         from tqdm import tqdm
+
         results = []
         tgt_list = []
         for step in tqdm(range(len(data_loader))):
@@ -801,10 +1007,12 @@ def dist_evaluate(model, data_loader):
             try:
                 url = triton_server_url
                 ssl = False
-                if url.startswith('https://'):
-                    url = url[len('https://'):]
+                if url.startswith("https://"):
+                    url = url[len("https://") :]
                     ssl = True
-                triton_client = http_client.InferenceServerClient(url=url, verbose=False, ssl=ssl)
+                triton_client = http_client.InferenceServerClient(
+                    url=url, verbose=False, ssl=ssl
+                )
             except Exception as e:
                 print("channel creation failed: " + str(e))
                 sys.exit(1)
@@ -818,26 +1026,33 @@ def dist_evaluate(model, data_loader):
             numerical_features = numerical_features.astype(np.float32)
             categorical_features = categorical_features.long().cpu().numpy()
 
-            output = run_infer(triton_model_name, -1,
-                                   numerical_features, categorical_features, headers_dict)
+            output = run_infer(
+                triton_model_name,
+                -1,
+                numerical_features,
+                categorical_features,
+                headers_dict,
+            )
 
-            results.append(output.as_numpy('output__0'))
+            results.append(output.as_numpy("output__0"))
             tgt_list.append(click.cpu().numpy())
 
         results = np.concatenate(results).squeeze()
         tgt_list = np.concatenate(tgt_list)
 
-        #score = roc_auc_score(tgt_list, results)
-        #print(f"Model score: {score}")
+        # score = roc_auc_score(tgt_list, results)
+        # print(f"Model score: {score}")
 
-        statistics = triton_client.get_inference_statistics(model_name=triton_model_name, headers=headers_dict)
+        statistics = triton_client.get_inference_statistics(
+            model_name=triton_model_name, headers=headers_dict
+        )
         print(statistics)
-        if len(statistics['model_stats']) != 1:
+        if len(statistics["model_stats"]) != 1:
             print("FAILED: Inference Statistics")
             sys.exit(1)
 
-    return 
+    return
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(main)

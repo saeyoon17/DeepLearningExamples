@@ -31,7 +31,9 @@ class DLLogger:
     @rank_zero_only
     def _initialize_dllogger(self, log_dir, filename, append):
         backends = [
-            JSONStreamBackend(Verbosity.VERBOSE, os.path.join(log_dir, filename), append=append),
+            JSONStreamBackend(
+                Verbosity.VERBOSE, os.path.join(log_dir, filename), append=append
+            ),
             StdOutBackend(Verbosity.VERBOSE),
         ]
         logger.init(backends=backends)
@@ -78,7 +80,9 @@ class LoggingCallback(Callback):
         if trainer.current_epoch == 1:
             self.do_step()
 
-    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx):
+    def on_test_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx
+    ):
         if pl_module.start_benchmark == 1:
             self.do_step()
 
@@ -94,7 +98,13 @@ class LoggingCallback(Callback):
             f"latency_{self.mode}_mean": _round3(np.mean(timestamps_ms)),
         }
         for level in [90, 95, 99]:
-            stats.update({f"latency_{self.mode}_{level}": _round3(np.percentile(timestamps_ms, level))})
+            stats.update(
+                {
+                    f"latency_{self.mode}_{level}": _round3(
+                        np.percentile(timestamps_ms, level)
+                    )
+                }
+            )
 
         return stats
 

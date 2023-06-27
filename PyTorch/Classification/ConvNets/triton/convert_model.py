@@ -52,35 +52,59 @@ if __name__ == "__main__" and __package__ is None:
     __package__ = Path(__file__).parent.name
 
 from .deployment_toolkit.args import ArgParserGenerator
-from .deployment_toolkit.core import (
-    DATALOADER_FN_NAME,
-    BaseConverter,
-    BaseLoader,
-    BaseSaver,
-    Format,
-    Precision,
-    load_from_file,
-)
+from .deployment_toolkit.core import (DATALOADER_FN_NAME, BaseConverter,
+                                      BaseLoader, BaseSaver, Format, Precision,
+                                      load_from_file)
 from .deployment_toolkit.extensions import converters, loaders, savers
 
 LOGGER = logging.getLogger("convert_model")
 
-INPUT_MODEL_TYPES = [Format.TF_ESTIMATOR, Format.TF_KERAS, Format.TF_SAVEDMODEL, Format.PYT]
-OUTPUT_MODEL_TYPES = [Format.TF_SAVEDMODEL, Format.TF_TRT, Format.ONNX, Format.TRT, Format.TS_TRACE, Format.TS_SCRIPT]
+INPUT_MODEL_TYPES = [
+    Format.TF_ESTIMATOR,
+    Format.TF_KERAS,
+    Format.TF_SAVEDMODEL,
+    Format.PYT,
+]
+OUTPUT_MODEL_TYPES = [
+    Format.TF_SAVEDMODEL,
+    Format.TF_TRT,
+    Format.ONNX,
+    Format.TRT,
+    Format.TS_TRACE,
+    Format.TS_SCRIPT,
+]
 
 
 def _get_args():
-    parser = argparse.ArgumentParser(description="Script for conversion between model formats.", allow_abbrev=False)
-    parser.add_argument("--input-path", help="Path to input model file (python module or binary file)", required=True)
-    parser.add_argument(
-        "--input-type", help="Input model type", choices=[f.value for f in INPUT_MODEL_TYPES], required=True
+    parser = argparse.ArgumentParser(
+        description="Script for conversion between model formats.", allow_abbrev=False
     )
-    parser.add_argument("--output-path", help="Path to output model file", required=True)
     parser.add_argument(
-        "--output-type", help="Output model type", choices=[f.value for f in OUTPUT_MODEL_TYPES], required=True
+        "--input-path",
+        help="Path to input model file (python module or binary file)",
+        required=True,
     )
-    parser.add_argument("--dataloader", help="Path to python module containing data loader")
-    parser.add_argument("-v", "--verbose", help="Verbose logs", action="store_true", default=False)
+    parser.add_argument(
+        "--input-type",
+        help="Input model type",
+        choices=[f.value for f in INPUT_MODEL_TYPES],
+        required=True,
+    )
+    parser.add_argument(
+        "--output-path", help="Path to output model file", required=True
+    )
+    parser.add_argument(
+        "--output-type",
+        help="Output model type",
+        choices=[f.value for f in OUTPUT_MODEL_TYPES],
+        required=True,
+    )
+    parser.add_argument(
+        "--dataloader", help="Path to python module containing data loader"
+    )
+    parser.add_argument(
+        "-v", "--verbose", help="Verbose logs", action="store_true", default=False
+    )
     parser.add_argument(
         "--ignore-unknown-parameters",
         help="Ignore unknown parameters (argument often used in CI where set of arguments is constant)",
@@ -102,7 +126,9 @@ def _get_args():
     ArgParserGenerator(Saver).update_argparser(parser)
 
     if args.dataloader is not None:
-        get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+        get_dataloader_fn = load_from_file(
+            args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+        )
         ArgParserGenerator(get_dataloader_fn).update_argparser(parser)
 
     if args.ignore_unknown_parameters:
@@ -132,12 +158,13 @@ def main():
     converter_name = f"{args.input_type}--{args.output_type}"
     Converter: BaseConverter = converters.get(converter_name)
     if Converter:
-        args.precision = Converter.required_source_model_precision(requested_model_precision).value
+        args.precision = Converter.required_source_model_precision(
+            requested_model_precision
+        ).value
 
     Loader: BaseLoader = loaders.get(args.input_type)
     loader = ArgParserGenerator(Loader, module_path=args.input_path).from_args(args)
     model = loader.load(args.input_path)
-
 
     LOGGER.info("inputs: %s", model.inputs)
     LOGGER.info("outputs: %s", model.outputs)
@@ -145,7 +172,9 @@ def main():
     if Converter:  # if conversion is needed
         # dataloader must much source model precision - so not recovering it yet
         if args.dataloader is not None:
-            get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+            get_dataloader_fn = load_from_file(
+                args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+            )
             dataloader_fn = ArgParserGenerator(get_dataloader_fn).from_args(args)
 
     # recover precision to that requested by user

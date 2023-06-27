@@ -18,24 +18,25 @@
 
 
 import tensorflow as tf
+from model import blocks, layers
 
-from model import layers
-from model import blocks
+__all__ = ["squeeze_excitation_layer"]
 
-__all__ = ['squeeze_excitation_layer']
 
 def squeeze_excitation_layer(
     inputs,
     ratio,
     training=True,
-    data_format='NCHW',
+    data_format="NCHW",
     kernel_initializer=tf.compat.v1.variance_scaling_initializer(),
     bias_initializer=tf.zeros_initializer(),
-    name="squeeze_excitation_layer"
+    name="squeeze_excitation_layer",
 ):
 
-    if data_format not in ['NHWC', 'NCHW']:
-        raise ValueError("Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format)
+    if data_format not in ["NHWC", "NCHW"]:
+        raise ValueError(
+            "Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format
+        )
 
     in_shape = inputs.get_shape()
 
@@ -44,41 +45,42 @@ def squeeze_excitation_layer(
     with tf.variable_scope(name):
 
         net = inputs
-        
+
         # squeeze
         squeeze = layers.reduce_mean(
-                    net, 
-                    keepdims=False, 
-                    data_format=data_format,
-                    name='squeeze_spatial_mean'
-                )
+            net, keepdims=False, data_format=data_format, name="squeeze_spatial_mean"
+        )
 
         # fc + relu
         excitation = layers.dense(
-                    inputs=squeeze,
-                    units=num_channels // ratio,
-                    use_bias=True,
-                    trainable=training,
-                    kernel_initializer=kernel_initializer,
-                    bias_initializer=bias_initializer
-                )
+            inputs=squeeze,
+            units=num_channels // ratio,
+            use_bias=True,
+            trainable=training,
+            kernel_initializer=kernel_initializer,
+            bias_initializer=bias_initializer,
+        )
         excitation = layers.relu(excitation)
-        
+
         # fc + sigmoid
         excitation = layers.dense(
-                    inputs=excitation,
-                    units=num_channels,
-                    use_bias=True,
-                    trainable=training,
-                    kernel_initializer=kernel_initializer,
-                    bias_initializer=bias_initializer
-                )
+            inputs=excitation,
+            units=num_channels,
+            use_bias=True,
+            trainable=training,
+            kernel_initializer=kernel_initializer,
+            bias_initializer=bias_initializer,
+        )
         excitation = layers.sigmoid(excitation)
-        
-        out_shape = [-1, num_channels, 1, 1] if data_format == "NCHW" else [-1, 1, 1, num_channels] 
-        
+
+        out_shape = (
+            [-1, num_channels, 1, 1]
+            if data_format == "NCHW"
+            else [-1, 1, 1, num_channels]
+        )
+
         excitation = tf.reshape(excitation, out_shape)
-        
+
         net = net * excitation
-        
+
         return net

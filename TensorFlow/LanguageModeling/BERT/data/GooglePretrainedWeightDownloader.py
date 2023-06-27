@@ -16,6 +16,7 @@ import os
 import urllib.request
 import zipfile
 
+
 class GooglePretrainedWeightDownloader:
     def __init__(self, save_path):
         self.save_path = save_path + '/google_pretrained_weights'

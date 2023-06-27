@@ -37,37 +37,26 @@ import argparse
 import random
 from copy import deepcopy
 
+import dllogger
+import image_classification.logger as log
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 import torch.nn.parallel
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
-
-import image_classification.logger as log
-
-from image_classification.smoothing import LabelSmoothing
-from image_classification.mixup import NLLMultiLabelSmooth, MixUpWrapper
 from image_classification.dataloaders import *
+from image_classification.gpu_affinity import AffinityMode, set_affinity
+from image_classification.mixup import MixUpWrapper, NLLMultiLabelSmooth
+from image_classification.models import (efficientnet_b0, efficientnet_b4,
+                                         efficientnet_widese_b0,
+                                         efficientnet_widese_b4, resnet50,
+                                         resnext101_32x4d, se_resnext101_32x4d)
+from image_classification.optimizers import (get_optimizer, lr_cosine_policy,
+                                             lr_linear_policy, lr_step_policy)
+from image_classification.smoothing import LabelSmoothing
 from image_classification.training import *
 from image_classification.utils import *
-from image_classification.models import (
-    resnet50,
-    resnext101_32x4d,
-    se_resnext101_32x4d,
-    efficientnet_b0,
-    efficientnet_b4,
-    efficientnet_widese_b0,
-    efficientnet_widese_b4,
-)
-from image_classification.optimizers import (
-    get_optimizer,
-    lr_cosine_policy,
-    lr_linear_policy,
-    lr_step_policy,
-)
-from image_classification.gpu_affinity import set_affinity, AffinityMode
-import dllogger
 
 
 def available_models():

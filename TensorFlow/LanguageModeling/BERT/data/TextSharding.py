@@ -11,12 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import defaultdict
-from itertools import islice
-
 import multiprocessing
 import os
 import statistics
+from collections import defaultdict
+from itertools import islice
+
 
 class Sharding:
     def __init__(self, input_files, output_name_prefix, n_training_shards, n_test_shards, fraction_test_set):

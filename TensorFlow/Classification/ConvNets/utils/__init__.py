@@ -16,15 +16,5 @@
 # limitations under the License.
 # ==============================================================================
 
-from utils import hooks
-
-from utils import var_storage
-
-from utils import cmdline_helper
-
-from utils import data_utils
-from utils import image_processing
-
-from utils import learning_rate
-
-from utils import dali_utils
+from utils import (cmdline_helper, dali_utils, data_utils, hooks,
+                   image_processing, learning_rate, var_storage)

@@ -1,11 +1,9 @@
 import tensorflow as tf
-
 from mrcnn_tf2.model.models.resnet50 import BottleneckGroup, Conv2DBlock
 
 
 class ResNet50(tf.keras.Model):
-
-    def __init__(self, name='resnet50', *args, **kwargs):
+    def __init__(self, name="resnet50", *args, **kwargs):
         super().__init__(name=name, *args, **kwargs)
 
         self.conv2d = Conv2DBlock(
@@ -14,34 +12,15 @@ class ResNet50(tf.keras.Model):
             strides=2,
             use_batch_norm=True,
             use_relu=True,
-            trainable=False
+            trainable=False,
         )
         self.maxpool2d = tf.keras.layers.MaxPool2D(
-            pool_size=3,
-            strides=2,
-            padding='SAME'
+            pool_size=3, strides=2, padding="SAME"
         )
-        self.group_1 = BottleneckGroup(
-            blocks=3,
-            filters=64,
-            strides=1,
-            trainable=False
-        )
-        self.group_2 = BottleneckGroup(
-            blocks=4,
-            filters=128,
-            strides=2
-        )
-        self.group_3 = BottleneckGroup(
-            blocks=6,
-            filters=256,
-            strides=2
-        )
-        self.group_4 = BottleneckGroup(
-            blocks=3,
-            filters=512,
-            strides=2
-        )
+        self.group_1 = BottleneckGroup(blocks=3, filters=64, strides=1, trainable=False)
+        self.group_2 = BottleneckGroup(blocks=4, filters=128, strides=2)
+        self.group_3 = BottleneckGroup(blocks=6, filters=256, strides=2)
+        self.group_4 = BottleneckGroup(blocks=3, filters=512, strides=2)
 
     def call(self, inputs, training=None, mask=None):
 

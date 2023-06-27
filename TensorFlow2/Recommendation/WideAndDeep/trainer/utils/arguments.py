@@ -30,21 +30,21 @@ def parse_args():
         "--dataset_path",
         type=str,
         default=f"{DEFAULT_DIR}/data",
-        help="Dataset base directory, relative to which path to feature_spec and paths in feature_spec are resolved"
+        help="Dataset base directory, relative to which path to feature_spec and paths in feature_spec are resolved",
     )
 
     locations.add_argument(
         "--fspec_file",
         type=str,
         default="feature_spec.yaml",
-        help="Path to the feature spec file, relative to dataset_path"
+        help="Path to the feature spec file, relative to dataset_path",
     )
 
     locations.add_argument(
         "--embedding_sizes_file",
         type=str,
         default="data/outbrain/embedding_sizes.json",
-        help="Path to the file containing a dictionary of embedding sizes for categorical features"
+        help="Path to the file containing a dictionary of embedding sizes for categorical features",
     )
 
     locations.add_argument(
@@ -173,7 +173,7 @@ def parse_args():
         dest="map_calculation_enabled",
         action="store_false",
         default=True,
-        help="Disable calculation of MAP metric. See ReadMe for additional dataset requirements keeping it enabled introduces."
+        help="Disable calculation of MAP metric. See ReadMe for additional dataset requirements keeping it enabled introduces.",
     )
 
     run_params.add_argument(

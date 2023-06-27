@@ -13,41 +13,50 @@
 # limitations under the License.
 
 import collections
-import math
 import logging
+import math
+
 from tokenizer import BasicTokenizer
 
 
 def get_answers(args, examples, features, results):
     predictions = collections.defaultdict(
-        list)  #it is possible that one example corresponds to multiple features
-    Prediction = collections.namedtuple('Prediction',
-                                        ['text', 'start_logit', 'end_logit'])
+        list
+    )  # it is possible that one example corresponds to multiple features
+    Prediction = collections.namedtuple(
+        "Prediction", ["text", "start_logit", "end_logit"]
+    )
 
     if args.version_2_with_negative:
         null_vals = collections.defaultdict(lambda: (float("inf"), 0, 0))
     for ex, feat, result in match_results(examples, features, results):
-        start_indices = _get_best_indices(result.start_logits,
-                                          args.n_best_size)
+        start_indices = _get_best_indices(result.start_logits, args.n_best_size)
         end_indices = _get_best_indices(result.end_logits, args.n_best_size)
         prelim_predictions = get_valid_prelim_predictions(
-            args, start_indices, end_indices, feat, result)
+            args, start_indices, end_indices, feat, result
+        )
         prelim_predictions = sorted(
             prelim_predictions,
             key=lambda x: (x.start_logit + x.end_logit),
-            reverse=True)
+            reverse=True,
+        )
         if args.version_2_with_negative:
             score = result.start_logits[0] + result.end_logits[0]
             if score < null_vals[ex.qas_id][0]:
-                null_vals[ex.qas_id] = (score, result.start_logits[0],
-                                        result.end_logits[0])
+                null_vals[ex.qas_id] = (
+                    score,
+                    result.start_logits[0],
+                    result.end_logits[0],
+                )
 
         curr_predictions = []
         seen_predictions = []
         for pred in prelim_predictions:
             if len(curr_predictions) == args.n_best_size:
                 break
-            if pred.start_index > 0:  # this is a non-null prediction TODO: this probably is irrelevant
+            if (
+                pred.start_index > 0
+            ):  # this is a non-null prediction TODO: this probably is irrelevant
                 final_text = get_answer_text(args, ex, feat, pred)
                 if final_text in seen_predictions:
                     continue
@@ -56,29 +65,28 @@ def get_answers(args, examples, features, results):
 
             seen_predictions.append(final_text)
             curr_predictions.append(
-                Prediction(final_text, pred.start_logit, pred.end_logit))
+                Prediction(final_text, pred.start_logit, pred.end_logit)
+            )
         predictions[ex.qas_id] += curr_predictions
 
-    #Add empty prediction
+    # Add empty prediction
     if args.version_2_with_negative:
         for qas_id in predictions.keys():
             predictions[qas_id].append(
-                Prediction('', null_vals[ex.qas_id][1], null_vals[ex.qas_id][
-                    2]))
+                Prediction("", null_vals[ex.qas_id][1], null_vals[ex.qas_id][2])
+            )
 
     nbest_answers = collections.defaultdict(list)
     answers = {}
     for qas_id, preds in predictions.items():
         nbest = sorted(
-            preds, key=lambda x: (x.start_logit + x.end_logit),
-            reverse=True)[:args.n_best_size]
+            preds, key=lambda x: (x.start_logit + x.end_logit), reverse=True
+        )[: args.n_best_size]
 
         # In very rare edge cases we could only have single null prediction.
         # So we just create a nonce prediction in this case to avoid failure.
         if not nbest:
-            nbest.append(
-                Prediction(
-                    text="empty", start_logit=0.0, end_logit=0.0))
+            nbest.append(Prediction(text="empty", start_logit=0.0, end_logit=0.0))
 
         total_scores = []
         best_non_null_entry = None
@@ -95,23 +103,26 @@ def get_answers(args, examples, features, results):
             output["end_logit"] = entry.end_logit
             nbest_answers[qas_id].append(output)
         if args.version_2_with_negative:
-            score_diff = null_vals[qas_id][
-                0] - best_non_null_entry.start_logit - best_non_null_entry.end_logit
+            score_diff = (
+                null_vals[qas_id][0]
+                - best_non_null_entry.start_logit
+                - best_non_null_entry.end_logit
+            )
             if score_diff > args.null_score_diff_threshold:
                 answers[qas_id] = ""
             else:
                 answers[qas_id] = best_non_null_entry.text
         else:
-            answers[qas_id] = nbest_answers[qas_id][0]['text']
+            answers[qas_id] = nbest_answers[qas_id][0]["text"]
 
     return answers, nbest_answers
 
 
 def get_answer_text(args, example, feature, pred):
-    tok_tokens = feature.tokens[pred.start_index:(pred.end_index + 1)]
+    tok_tokens = feature.tokens[pred.start_index : (pred.end_index + 1)]
     orig_doc_start = feature.token_to_orig_map[pred.start_index]
     orig_doc_end = feature.token_to_orig_map[pred.end_index]
-    orig_tokens = example.doc_tokens[orig_doc_start:(orig_doc_end + 1)]
+    orig_tokens = example.doc_tokens[orig_doc_start : (orig_doc_end + 1)]
     tok_text = " ".join(tok_tokens)
 
     # De-tokenize WordPieces that have been split off.
@@ -123,17 +134,17 @@ def get_answer_text(args, example, feature, pred):
     tok_text = " ".join(tok_text.split())
     orig_text = " ".join(orig_tokens)
 
-    final_text = get_final_text(tok_text, orig_text, args.do_lower_case,
-                                args.verbose_logging)
+    final_text = get_final_text(
+        tok_text, orig_text, args.do_lower_case, args.verbose_logging
+    )
     return final_text
 
 
-def get_valid_prelim_predictions(args, start_indices, end_indices, feature,
-                                 result):
+def get_valid_prelim_predictions(args, start_indices, end_indices, feature, result):
 
     _PrelimPrediction = collections.namedtuple(
-        "PrelimPrediction",
-        ["start_index", "end_index", "start_logit", "end_logit"])
+        "PrelimPrediction", ["start_index", "end_index", "start_logit", "end_logit"]
+    )
     prelim_predictions = []
     for start_index in start_indices:
         for end_index in end_indices:
@@ -157,7 +168,9 @@ def get_valid_prelim_predictions(args, start_indices, end_indices, feature,
                     start_index=start_index,
                     end_index=end_index,
                     start_logit=result.start_logits[start_index],
-                    end_logit=result.end_logits[end_index]))
+                    end_logit=result.end_logits[end_index],
+                )
+            )
     return prelim_predictions
 
 
@@ -171,8 +184,8 @@ def match_results(examples, features, results):
     results.sort(key=lambda x: x.unique_id)
 
     for f, r in zip(
-            features, results
-    ):  #original code assumes strict ordering of examples. TODO: rewrite this
+        features, results
+    ):  # original code assumes strict ordering of examples. TODO: rewrite this
         yield examples[f.example_index], f, r
 
 
@@ -238,7 +251,9 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
         if verbose_logging:
             logging.info(
                 "Length not equal after stripping spaces: '%s' vs '%s'",
-                orig_ns_text, tok_ns_text)
+                orig_ns_text,
+                tok_ns_text,
+            )
         return orig_text
 
     # We then project the characters in `pred_text` back to `orig_text` using
@@ -269,14 +284,13 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
             logging.info("Couldn't map end position")
         return orig_text
 
-    output_text = orig_text[orig_start_position:(orig_end_position + 1)]
+    output_text = orig_text[orig_start_position : (orig_end_position + 1)]
     return output_text
 
 
 def _get_best_indices(logits, n_best_size):
     """Get the n-best logits from a list."""
-    index_and_score = sorted(
-        enumerate(logits), key=lambda x: x[1], reverse=True)
+    index_and_score = sorted(enumerate(logits), key=lambda x: x[1], reverse=True)
 
     best_indices = []
     for i in range(len(index_and_score)):

@@ -14,10 +14,9 @@
 
 import time
 
+import dllogger as DLLogger
 import numpy as np
 import tensorflow as tf
-
-import dllogger as DLLogger
 
 
 class ProfilingHook(tf.estimator.SessionRunHook):
@@ -35,9 +34,13 @@ class ProfilingHook(tf.estimator.SessionRunHook):
             self._timestamps.append(time.time())
 
     def end(self, session):
-        deltas = np.array([self._timestamps[i + 1] - self._timestamps[i] for i in range(len(self._timestamps) - 1)])
-        stats = process_performance_stats(np.array(deltas),
-                                          self._global_batch_size)
+        deltas = np.array(
+            [
+                self._timestamps[i + 1] - self._timestamps[i]
+                for i in range(len(self._timestamps) - 1)
+            ]
+        )
+        stats = process_performance_stats(np.array(deltas), self._global_batch_size)
 
         self._logger.log(step=(), data={metric: value for (metric, value) in stats})
         self._logger.flush()
@@ -50,9 +53,10 @@ def process_performance_stats(timestamps, batch_size):
     n = np.sqrt(len(timestamps_ms))
     throughput_imgps = (1000.0 * batch_size / timestamps_ms).mean()
 
-    stats = [("Throughput Avg", str(throughput_imgps)),
-             ('Latency Avg:', str(latency_ms))]
-    for ci, lvl in zip(["90%:", "95%:", "99%:"],
-                       [1.645, 1.960, 2.576]):
-        stats.append(("Latency_"+ci, str(latency_ms + lvl * std / n)))
+    stats = [
+        ("Throughput Avg", str(throughput_imgps)),
+        ("Latency Avg:", str(latency_ms)),
+    ]
+    for ci, lvl in zip(["90%:", "95%:", "99%:"], [1.645, 1.960, 2.576]):
+        stats.append(("Latency_" + ci, str(latency_ms + lvl * std / n)))
     return stats

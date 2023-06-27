@@ -40,8 +40,9 @@ class ModuleProxyWrapper(torch.nn.Module):
 
     def __init__(self, module: torch.nn.Module):
         super().__init__()
-        assert hasattr(module, "module"), \
-            "ModuleProxyWrapper expects input to wrap another module"
+        assert hasattr(
+            module, "module"
+        ), "ModuleProxyWrapper expects input to wrap another module"
         self.module = module
 
     def __getattr__(self, name):

@@ -13,14 +13,15 @@
 # limitations under the License.
 
 import json
+
 import matplotlib.pyplot as plt
 
 
 def get_curve(filename):
     hrs = []
-    with open(filename, 'r') as opened:
+    with open(filename, "r") as opened:
         for line in opened.readlines():
-            d = json.loads(line[len("DLLL "):])
+            d = json.loads(line[len("DLLL ") :])
             try:
                 hrs.append(d["data"]["hr@10"])
             except KeyError:
@@ -39,7 +40,10 @@ tf32 = "TF32"
 
 
 def get_accs(arch, numgpu, prec):
-    data = [get_curve(arch.format(numgpus=numgpu, num_run=num_run, precision=prec)) for num_run in range(1, 21)]
+    data = [
+        get_curve(arch.format(numgpus=numgpu, num_run=num_run, precision=prec))
+        for num_run in range(1, 21)
+    ]
     return data[0]
 
 
@@ -58,7 +62,7 @@ def get_plots():
                 axs[x].plot(range(len(d)), d, label=f"{titles[i]} x {numgpu} {prec[i]}")
         axs[x].legend()
 
-    #plt.show()
+    # plt.show()
     plt.savefig("val_curves.png")
 
 

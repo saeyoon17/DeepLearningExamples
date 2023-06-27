@@ -1,16 +1,17 @@
-from tqdm import tqdm
-import torch
 import contextlib
-import time
 import logging
+import time
 
-from pytorch_quantization import quant_modules
-from pytorch_quantization import nn as quant_nn
+import dllogger
+import torch
 from pytorch_quantization import calib
+from pytorch_quantization import nn as quant_nn
+from pytorch_quantization import quant_modules
 from pytorch_quantization.tensor_quant import QuantDescriptor
+from tqdm import tqdm
+
 from . import logger as log
 from .utils import calc_ips
-import dllogger
 
 initialize = quant_modules.initialize
 deactivate = quant_modules.deactivate
@@ -19,7 +20,7 @@ IPS_METADATA = {"unit": "img/s", "format": ":.2f"}
 TIME_METADATA = {"unit": "s", "format": ":.5f"}
 
 
-def select_default_calib_method(calib_method='histogram'):
+def select_default_calib_method(calib_method="histogram"):
     """Set up selected calibration method in whole network"""
     quant_desc_input = QuantDescriptor(calib_method=calib_method)
     quant_nn.QuantConv1d.set_default_quant_desc_input(quant_desc_input)
@@ -28,7 +29,7 @@ def select_default_calib_method(calib_method='histogram'):
     quant_nn.QuantAdaptiveAvgPool2d.set_default_quant_desc_input(quant_desc_input)
 
 
-def quantization_setup(calib_method='histogram'):
+def quantization_setup(calib_method="histogram"):
     """Change network into quantized version "automatically" and selects histogram as default quantization method"""
     select_default_calib_method(calib_method)
     initialize()
@@ -69,7 +70,7 @@ def collect_stats(model, data_loader, logger, num_batches):
     # Enable calibrators
     data_iter = enumerate(data_loader)
     if logger is not None:
-        data_iter = logger.iteration_generator_wrapper(data_iter, mode='calib')
+        data_iter = logger.iteration_generator_wrapper(data_iter, mode="calib")
 
     for name, module in model.named_modules():
         if isinstance(module, quant_nn.TensorQuantizer):
@@ -113,7 +114,10 @@ def collect_stats(model, data_loader, logger, num_batches):
 def compute_amax(model, **kwargs):
     """Loads statistics of data and calculates quantization parameters in whole network"""
     for name, module in model.named_modules():
-        if isinstance(module, quant_nn.TensorQuantizer) and module._calibrator is not None:
+        if (
+            isinstance(module, quant_nn.TensorQuantizer)
+            and module._calibrator is not None
+        ):
             if isinstance(module._calibrator, calib.MaxCalibrator):
                 module.load_calib_amax()
             else:

@@ -7,7 +7,8 @@
 
 from . import FairseqLRScheduler, register_lr_scheduler
 
-@register_lr_scheduler('inverse_sqrt')
+
+@register_lr_scheduler("inverse_sqrt")
 class InverseSquareRootSchedule(FairseqLRScheduler):
     """Decay the LR based on the inverse square root of the update number.
 
@@ -34,8 +35,8 @@ class InverseSquareRootSchedule(FairseqLRScheduler):
         super().__init__(args, optimizer)
         if len(args.lr) > 1:
             raise ValueError(
-                'Cannot use a fixed learning rate schedule with inverse_sqrt.'
-                ' Consider --lr-scheduler=fixed instead.'
+                "Cannot use a fixed learning rate schedule with inverse_sqrt."
+                " Consider --lr-scheduler=fixed instead."
             )
         warmup_end_lr = args.lr[0]
         if args.warmup_init_lr < 0:
@@ -54,10 +55,20 @@ class InverseSquareRootSchedule(FairseqLRScheduler):
     @staticmethod
     def add_args(parser):
         """Add arguments to the parser for this LR scheduler."""
-        parser.add_argument('--warmup-updates', default=4000, type=int, metavar='N',
-                            help='warmup the learning rate linearly for the first N updates')
-        parser.add_argument('--warmup-init-lr', default=-1, type=float, metavar='LR',
-                            help='initial learning rate during warmup phase; default is args.lr')
+        parser.add_argument(
+            "--warmup-updates",
+            default=4000,
+            type=int,
+            metavar="N",
+            help="warmup the learning rate linearly for the first N updates",
+        )
+        parser.add_argument(
+            "--warmup-init-lr",
+            default=-1,
+            type=float,
+            metavar="LR",
+            help="initial learning rate during warmup phase; default is args.lr",
+        )
 
     def step(self, epoch, val_loss=None):
         """Update the learning rate at the end of the given epoch."""

@@ -16,7 +16,9 @@ import tensorflow as tf
 
 
 class DiceLoss(tf.keras.losses.Loss):
-    def __init__(self, y_one_hot=True, reduce_batch=False, eps=1e-6, include_background=False):
+    def __init__(
+        self, y_one_hot=True, reduce_batch=False, eps=1e-6, include_background=False
+    ):
         super().__init__()
         self.y_one_hot = y_one_hot
         self.reduce_batch = reduce_batch
@@ -43,7 +45,9 @@ class DiceLoss(tf.keras.losses.Loss):
         flat_pred = tf.reshape(tf.cast(y_pred, tf.float32), flat_shape)
         flat_true = tf.reshape(y_true, flat_shape)
 
-        dice_coefs = self.dice_coef(flat_true, tf.keras.activations.softmax(flat_pred, axis=-1))
+        dice_coefs = self.dice_coef(
+            flat_true, tf.keras.activations.softmax(flat_pred, axis=-1)
+        )
         if not self.include_background:
             dice_coefs = dice_coefs[1:]
         dice_loss = tf.reduce_mean(1 - dice_coefs)
@@ -80,4 +84,10 @@ class WeightDecay:
     @tf.function
     def __call__(self, model):
         # TODO: add_n -> accumulate_n ?
-        return self.factor * tf.add_n([tf.nn.l2_loss(v) for v in model.trainable_variables if "norm" not in v.name])
+        return self.factor * tf.add_n(
+            [
+                tf.nn.l2_loss(v)
+                for v in model.trainable_variables
+                if "norm" not in v.name
+            ]
+        )

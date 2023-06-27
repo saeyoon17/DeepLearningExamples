@@ -18,9 +18,7 @@ import similaritymeasures
 
 def get_normalised_cdf(nodes, cdf_points=100):
     unique_nodes, unique_nodes_counts = np.unique(nodes, return_counts=True)
-    node_degree, node_degree_counts = np.unique(
-        unique_nodes_counts, return_counts=True
-    )
+    node_degree, node_degree_counts = np.unique(unique_nodes_counts, return_counts=True)
     node_degree_normalized = (
         node_degree / node_degree[-1]
     )  # they are sorted, so [-1] is max
@@ -34,9 +32,7 @@ def get_normalised_cdf(nodes, cdf_points=100):
     )
     F_normalized = np.zeros(shape=(cdf_points, 2))
     F_normalized[:, 0] = node_degree_normalized[
-        np.array(
-            (cdf_points_for_F[0:-1] + cdf_points_for_F[1:]) / 2, dtype=np.int32
-        )
+        np.array((cdf_points_for_F[0:-1] + cdf_points_for_F[1:]) / 2, dtype=np.int32)
     ]
     for i in range(cdf_points_for_F.shape[0] - 1):
         beginning = cdf_points_for_F[i]
@@ -45,11 +41,7 @@ def get_normalised_cdf(nodes, cdf_points=100):
         F_normalized[i, 1] = np.mean(matching_list)
         F_normalized[i, 0] = (
             node_degree_normalized[beginning]
-            + (
-                node_degree_normalized[end - 1]
-                - node_degree_normalized[beginning]
-            )
-            / 2
+            + (node_degree_normalized[end - 1] - node_degree_normalized[beginning]) / 2
         )
     return F_normalized
 
@@ -81,9 +73,7 @@ def remove_nans(*values):
     return tuple(F[~indicies] for F in values)
 
 
-def get_frechet_score(
-    edges_original, edges_to_compare, cdf_points=1000, log=True
-):
+def get_frechet_score(edges_original, edges_to_compare, cdf_points=1000, log=True):
     F1_normalized = get_normalised_cdf(edges_original, cdf_points=cdf_points)
     F2_normalized = get_normalised_cdf(edges_to_compare, cdf_points=cdf_points)
     F1, F2 = remove_nans(F1_normalized, F2_normalized)
@@ -134,15 +124,9 @@ def get_frechet_score_bipartite(
     original_out_dd, original_in_dd = get_out_in_dd(edges_original)
     compare_out_dd, compare_in_dd = get_out_in_dd(edges_to_compare)
 
-    dd_score = get_frechet_score(
-        edges_original, edges_to_compare, cdf_points, log
-    )
-    out_dd_score = get_frechet_score(
-        original_out_dd, compare_out_dd, cdf_points, log
-    )
-    in_dd_score = get_frechet_score(
-        original_in_dd, compare_in_dd, cdf_points, log
-    )
+    dd_score = get_frechet_score(edges_original, edges_to_compare, cdf_points, log)
+    out_dd_score = get_frechet_score(original_out_dd, compare_out_dd, cdf_points, log)
+    in_dd_score = get_frechet_score(original_in_dd, compare_in_dd, cdf_points, log)
 
     return dd_score, out_dd_score, in_dd_score
 

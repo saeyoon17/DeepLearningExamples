@@ -14,12 +14,11 @@
 
 import horovod.tensorflow as hvd
 import tensorflow as tf
-
+from data.outbrain.defaults import MAP_FEATURE_CHANNEL, MULTIHOT_CHANNEL
 from trainer.utils.benchmark import ThroughputCalculator
 from trainer.utils.evaluator import Evaluator
 from trainer.utils.schedulers import LearningRateScheduler
 from trainer.utils.trainer import Trainer
-from data.outbrain.defaults import MAP_FEATURE_CHANNEL, MULTIHOT_CHANNEL
 
 
 def run(args, model, config):
@@ -74,7 +73,7 @@ def run(args, model, config):
         args=args,
         maybe_map_column=maybe_map_column,
         multihot_hotnesses_dict=multihot_hotness_dict,
-        num_auc_thresholds=args.num_auc_thresholds
+        num_auc_thresholds=args.num_auc_thresholds,
     )
 
     trainer = Trainer(
@@ -88,7 +87,7 @@ def run(args, model, config):
         args=args,
         train_dataset=train_dataset,
         evaluator=evaluator,
-        multihot_hotnesses_dict=multihot_hotness_dict
+        multihot_hotnesses_dict=multihot_hotness_dict,
     )
 
     trainer.maybe_restore_checkpoint()

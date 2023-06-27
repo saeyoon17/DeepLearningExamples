@@ -15,7 +15,7 @@
 import os
 import tarfile
 from pathlib import Path
-from typing import Tuple, Dict, List
+from typing import Dict, List, Tuple
 
 from PIL import Image
 from tqdm import tqdm
@@ -36,7 +36,9 @@ def parse_meta_mat(metafile) -> Dict[int, str]:
 
     meta = scipy.io.loadmat(metafile, squeeze_me=True)["synsets"]
     nums_children = list(zip(*meta))[4]
-    meta = [meta[idx] for idx, num_children in enumerate(nums_children) if num_children == 0]
+    meta = [
+        meta[idx] for idx, num_children in enumerate(nums_children) if num_children == 0
+    ]
     idcs, wnids = list(zip(*meta))[:2]
     idx_to_wnid = {idx: wnid for idx, wnid in zip(idcs, wnids)}
     return idx_to_wnid
@@ -48,12 +50,18 @@ def _process_image(image_file, target_size):
 
     # scale image to size where minimal size is _RESIZE_MIN
     scale_factor = max(_RESIZE_MIN / original_size[0], _RESIZE_MIN / original_size[1])
-    resize_to = int(original_size[0] * scale_factor), int(original_size[1] * scale_factor)
+    resize_to = int(original_size[0] * scale_factor), int(
+        original_size[1] * scale_factor
+    )
     resized_image = image.resize(resize_to)
 
     # central crop of image to target_size
-    left, upper = (resize_to[0] - target_size[0]) // 2, (resize_to[1] - target_size[1]) // 2
-    cropped_image = resized_image.crop((left, upper, left + target_size[0], upper + target_size[1]))
+    left, upper = (resize_to[0] - target_size[0]) // 2, (
+        resize_to[1] - target_size[1]
+    ) // 2
+    cropped_image = resized_image.crop(
+        (left, upper, left + target_size[0], upper + target_size[1])
+    )
     return cropped_image
 
 
@@ -115,7 +123,9 @@ def main():
     output_dir = datasets_dir / IMAGENET_DIRNAME
     with tarfile.open(image_archive_path, mode="r") as image_archive_file:
         image_rel_paths = sorted(image_archive_file.getnames())
-        for cls, image_rel_path in tqdm(zip(labels, image_rel_paths), total=len(image_rel_paths)):
+        for cls, image_rel_path in tqdm(
+            zip(labels, image_rel_paths), total=len(image_rel_paths)
+        ):
             output_path = output_dir / str(cls) / image_rel_path
             original_image_file = image_archive_file.extractfile(image_rel_path)
             processed_image = _process_image(original_image_file, target_size)

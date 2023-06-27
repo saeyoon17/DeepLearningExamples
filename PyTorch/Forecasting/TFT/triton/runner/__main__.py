@@ -23,9 +23,9 @@ from .config import Config
 from .executor import Executor
 from .finalizer import ExperimentFinalizer
 from .maintainer import DockerMaintainer
+from .pipeline_impl import pipeline
 from .preparer import ExperimentPreparer
 from .runner_proxy import RunnerProxy
-from .pipeline_impl import pipeline
 
 
 class ExperimentRunner(RunnerProxy):
@@ -50,9 +50,18 @@ def execute(config_path: str, devices: List[str]):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config-path", type=str, required=True, help="Path to configuration file with details.")
     parser.add_argument(
-        "--devices", type=str, nargs="*", required=False, help="Path to configuration file with details."
+        "--config-path",
+        type=str,
+        required=True,
+        help="Path to configuration file with details.",
+    )
+    parser.add_argument(
+        "--devices",
+        type=str,
+        nargs="*",
+        required=False,
+        help="Path to configuration file with details.",
     )
 
     args = parser.parse_args()

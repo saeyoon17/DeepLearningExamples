@@ -20,12 +20,9 @@ import numpy as np
 import torch
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
-
-from image_classification.dataloaders import get_pytorch_val_loader
-
-from tqdm import tqdm
-
 import tritongrpcclient
+from image_classification.dataloaders import get_pytorch_val_loader
+from tqdm import tqdm
 from tritonclientutils import InferenceServerException
 
 

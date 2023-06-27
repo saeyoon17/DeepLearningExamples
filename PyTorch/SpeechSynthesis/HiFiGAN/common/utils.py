@@ -43,15 +43,13 @@ import os
 import re
 import shutil
 import warnings
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict, defaultdict
 from pathlib import Path
 from typing import Optional
 
-import soundfile  # flac
-
 import matplotlib
-
 import numpy as np
+import soundfile  # flac
 import torch
 import torch.distributed as dist
 
@@ -84,14 +82,14 @@ def reduce_tensor(tensor, world_size):
 
 def adjust_fine_tuning_lr(args, ckpt_d):
     assert args.fine_tuning
-    if args.fine_tune_lr_factor == 1.:
+    if args.fine_tune_lr_factor == 1.0:
         return
-    for k in ['optim_d', 'optim_g']:
-        for param_group in ckpt_d[k]['param_groups']:
-            old_v = param_group['lr']
+    for k in ["optim_d", "optim_g"]:
+        for param_group in ckpt_d[k]["param_groups"]:
+            old_v = param_group["lr"]
             new_v = old_v * args.fine_tune_lr_factor
-            print(f'Init fine-tuning: changing {k} lr: {old_v} --> {new_v}')
-            param_group['lr'] = new_v
+            print(f"Init fine-tuning: changing {k} lr: {old_v} --> {new_v}")
+            param_group["lr"] = new_v
 
 
 def init_distributed(args, world_size, rank):
@@ -102,13 +100,14 @@ def init_distributed(args, world_size, rank):
     torch.cuda.set_device(rank % torch.cuda.device_count())
 
     # Initialize distributed communication
-    dist.init_process_group(backend=('nccl' if args.cuda else 'gloo'),
-                            init_method='env://')
+    dist.init_process_group(
+        backend=("nccl" if args.cuda else "gloo"), init_method="env://"
+    )
     print(f"{args.local_rank}: Done initializing distributed training")
 
 
 def load_wav(full_path, torch_tensor=False):
-    data, sampling_rate = soundfile.read(full_path, dtype='int16')
+    data, sampling_rate = soundfile.read(full_path, dtype="int16")
     if torch_tensor:
         return torch.FloatTensor(data.astype(np.float32)), sampling_rate
     else:
@@ -135,7 +134,7 @@ def load_filepaths_and_text(dataset_path, fnames, has_speakers=False, split="|")
 
     fpaths_and_text = []
     for fname in fnames:
-        with open(fname, encoding='utf-8') as f:
+        with open(fname, encoding="utf-8") as f:
             fpaths_and_text += [split_line(dataset_path, line) for line in f]
     return fpaths_and_text
 
@@ -146,10 +145,10 @@ def to_gpu(x):
 
 
 def l2_promote():
-    _libcudart = ctypes.CDLL('libcudart.so')
+    _libcudart = ctypes.CDLL("libcudart.so")
     # Set device limit on the current device
     # cudaLimitMaxL2FetchGranularity = 0x05
-    pValue = ctypes.cast((ctypes.c_int*1)(), ctypes.POINTER(ctypes.c_int))
+    pValue = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
     _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
     _libcudart.cudaDeviceGetLimit(pValue, ctypes.c_int(0x05))
     assert pValue.contents.value == 128
@@ -160,7 +159,7 @@ def prepare_tmp(path):
         return
     p = Path(path)
     if p.is_dir():
-        warnings.warn(f'{p} exists. Removing...')
+        warnings.warn(f"{p} exists. Removing...")
         shutil.rmtree(p, ignore_errors=True)
     p.mkdir(parents=False, exist_ok=False)
 
@@ -173,9 +172,9 @@ def print_once(*msg):
 def plot_spectrogram(spectrogram):
     matplotlib.use("Agg")
     import matplotlib.pylab as plt
+
     fig, ax = plt.subplots(figsize=(10, 2))
-    im = ax.imshow(spectrogram, aspect="auto", origin="lower",
-                   interpolation='none')
+    im = ax.imshow(spectrogram, aspect="auto", origin="lower", interpolation="none")
     plt.colorbar(im, ax=ax)
     fig.canvas.draw()
     plt.close()
@@ -189,7 +188,7 @@ def init_weights(m, mean=0.0, std=0.01):
 
 
 def get_padding(kernel_size, dilation=1):
-    return int((kernel_size*dilation - dilation)/2)
+    return int((kernel_size * dilation - dilation) / 2)
 
 
 class AttrDict(dict):
@@ -208,24 +207,38 @@ class DefaultAttrDict(defaultdict):
 
 
 class Checkpointer:
-
-    def __init__(self, save_dir,
-                 keep_milestones=[1000, 2000, 3000, 4000, 5000, 6000]):
+    def __init__(self, save_dir, keep_milestones=[1000, 2000, 3000, 4000, 5000, 6000]):
         self.save_dir = save_dir
         self.keep_milestones = keep_milestones
 
-        find = lambda name: {int(re.search('_(\d+).pt', fn).group(1)): fn
-                             for fn in glob.glob(f'{save_dir}/{name}_checkpoint_*.pt')}
+        find = lambda name: {
+            int(re.search("_(\d+).pt", fn).group(1)): fn
+            for fn in glob.glob(f"{save_dir}/{name}_checkpoint_*.pt")
+        }
 
-        saved_g = find('hifigan_gen')
-        saved_d = find('hifigan_discrim')
+        saved_g = find("hifigan_gen")
+        saved_d = find("hifigan_discrim")
 
         common_epochs = sorted(set(saved_g.keys()) & set(saved_d.keys()))
-        self.tracked = OrderedDict([(ep, (saved_g[ep], saved_d[ep]))
-                                    for ep in common_epochs])
+        self.tracked = OrderedDict(
+            [(ep, (saved_g[ep], saved_d[ep])) for ep in common_epochs]
+        )
 
-    def maybe_load(self, gen, mpd, msd, optim_g, optim_d, scaler_g, scaler_d,
-                   train_state, args, gen_ema=None, mpd_ema=None, msd_ema=None):
+    def maybe_load(
+        self,
+        gen,
+        mpd,
+        msd,
+        optim_g,
+        optim_d,
+        scaler_g,
+        scaler_d,
+        train_state,
+        args,
+        gen_ema=None,
+        mpd_ema=None,
+        msd_ema=None,
+    ):
 
         fpath_g = args.checkpoint_path_gen
         fpath_d = args.checkpoint_path_discrim
@@ -244,53 +257,67 @@ class Checkpointer:
         ckpt_d = None
         for fpath_g, fpath_d in ckpt_paths:
             if args.local_rank == 0:
-                print(f'Loading models from {fpath_g} {fpath_d}')
+                print(f"Loading models from {fpath_g} {fpath_d}")
             try:
-                ckpt_g = torch.load(fpath_g, map_location='cpu')
-                ckpt_d = torch.load(fpath_d, map_location='cpu')
+                ckpt_g = torch.load(fpath_g, map_location="cpu")
+                ckpt_d = torch.load(fpath_d, map_location="cpu")
                 break
             except:
-                print(f'WARNING: Cannot load {fpath_g} and {fpath_d}')
+                print(f"WARNING: Cannot load {fpath_g} and {fpath_d}")
 
         if ckpt_g is None or ckpt_d is None:
             return
 
-        ep_g = ckpt_g.get('train_state', ckpt_g).get('epoch', None)
-        ep_d = ckpt_d.get('train_state', ckpt_d).get('epoch', None)
-        assert ep_g == ep_d, \
-            f'Mismatched epochs of gen and discrim ({ep_g} != {ep_d})'
+        ep_g = ckpt_g.get("train_state", ckpt_g).get("epoch", None)
+        ep_d = ckpt_d.get("train_state", ckpt_d).get("epoch", None)
+        assert ep_g == ep_d, f"Mismatched epochs of gen and discrim ({ep_g} != {ep_d})"
 
-        train_state.update(ckpt_g['train_state'])
+        train_state.update(ckpt_g["train_state"])
 
-        fine_tune_epoch_start = train_state.get('fine_tune_epoch_start')
+        fine_tune_epoch_start = train_state.get("fine_tune_epoch_start")
         if args.fine_tuning and fine_tune_epoch_start is None:
             # Fine-tuning just began
-            train_state['fine_tune_epoch_start'] = train_state['epoch'] + 1
-            train_state['fine_tune_lr_factor'] = args.fine_tune_lr_factor
+            train_state["fine_tune_epoch_start"] = train_state["epoch"] + 1
+            train_state["fine_tune_lr_factor"] = args.fine_tune_lr_factor
             adjust_fine_tuning_lr(args, ckpt_d)
 
-        unwrap = lambda m: getattr(m, 'module', m)
-        unwrap(gen).load_state_dict(ckpt_g.get('gen', ckpt_g['generator']))
-        unwrap(mpd).load_state_dict(ckpt_d['mpd'])
-        unwrap(msd).load_state_dict(ckpt_d['msd'])
-        optim_g.load_state_dict(ckpt_d['optim_g'])
-        optim_d.load_state_dict(ckpt_d['optim_d'])
-        if 'scaler_g' in ckpt_d:
-            scaler_g.load_state_dict(ckpt_d['scaler_g'])
-            scaler_d.load_state_dict(ckpt_d['scaler_d'])
+        unwrap = lambda m: getattr(m, "module", m)
+        unwrap(gen).load_state_dict(ckpt_g.get("gen", ckpt_g["generator"]))
+        unwrap(mpd).load_state_dict(ckpt_d["mpd"])
+        unwrap(msd).load_state_dict(ckpt_d["msd"])
+        optim_g.load_state_dict(ckpt_d["optim_g"])
+        optim_d.load_state_dict(ckpt_d["optim_d"])
+        if "scaler_g" in ckpt_d:
+            scaler_g.load_state_dict(ckpt_d["scaler_g"])
+            scaler_d.load_state_dict(ckpt_d["scaler_d"])
         else:
-            warnings.warn('No grad scaler state found in the checkpoint.')
+            warnings.warn("No grad scaler state found in the checkpoint.")
 
         if gen_ema is not None:
-            gen_ema.load_state_dict(ckpt_g['gen_ema'])
+            gen_ema.load_state_dict(ckpt_g["gen_ema"])
         if mpd_ema is not None:
-            mpd_ema.load_state_dict(ckpt_d['mpd_ema'])
+            mpd_ema.load_state_dict(ckpt_d["mpd_ema"])
         if msd_ema is not None:
-            msd_ema.load_state_dict(ckpt_d['msd_ema'])
+            msd_ema.load_state_dict(ckpt_d["msd_ema"])
 
-    def maybe_save(self, gen, mpd, msd, optim_g, optim_d, scaler_g, scaler_d,
-                   epoch, train_state, args, gen_config, train_setup,
-                   gen_ema=None, mpd_ema=None, msd_ema=None):
+    def maybe_save(
+        self,
+        gen,
+        mpd,
+        msd,
+        optim_g,
+        optim_d,
+        scaler_g,
+        scaler_d,
+        epoch,
+        train_state,
+        args,
+        gen_config,
+        train_setup,
+        gen_ema=None,
+        mpd_ema=None,
+        msd_ema=None,
+    ):
 
         rank = 0
         if dist.is_initialized():
@@ -303,35 +330,36 @@ class Checkpointer:
         if epoch == 0:
             return
 
-        if epoch < args.epochs and (args.checkpoint_interval == 0
-                or epoch % args.checkpoint_interval > 0):
+        if epoch < args.epochs and (
+            args.checkpoint_interval == 0 or epoch % args.checkpoint_interval > 0
+        ):
             return
 
-        unwrap = lambda m: getattr(m, 'module', m)
+        unwrap = lambda m: getattr(m, "module", m)
 
-        fpath_g = Path(self.save_dir, f'hifigan_gen_checkpoint_{epoch}.pt')
+        fpath_g = Path(self.save_dir, f"hifigan_gen_checkpoint_{epoch}.pt")
         ckpt_g = {
-            'generator': unwrap(gen).state_dict(),
-            'gen_ema': gen_ema.state_dict() if gen_ema is not None else None,
-            'config': gen_config,
-            'train_setup': train_setup,
-            'train_state': train_state,
+            "generator": unwrap(gen).state_dict(),
+            "gen_ema": gen_ema.state_dict() if gen_ema is not None else None,
+            "config": gen_config,
+            "train_setup": train_setup,
+            "train_state": train_state,
         }
 
-        fpath_d = Path(self.save_dir, f'hifigan_discrim_checkpoint_{epoch}.pt')
+        fpath_d = Path(self.save_dir, f"hifigan_discrim_checkpoint_{epoch}.pt")
         ckpt_d = {
-            'mpd': unwrap(mpd).state_dict(),
-            'msd': unwrap(msd).state_dict(),
-            'mpd_ema': mpd_ema.state_dict() if mpd_ema is not None else None,
-            'msd_ema': msd_ema.state_dict() if msd_ema is not None else None,
-            'optim_g': optim_g.state_dict(),
-            'optim_d': optim_d.state_dict(),
-            'scaler_g': scaler_g.state_dict(),
-            'scaler_d': scaler_d.state_dict(),
-            'train_state': train_state,
+            "mpd": unwrap(mpd).state_dict(),
+            "msd": unwrap(msd).state_dict(),
+            "mpd_ema": mpd_ema.state_dict() if mpd_ema is not None else None,
+            "msd_ema": msd_ema.state_dict() if msd_ema is not None else None,
+            "optim_g": optim_g.state_dict(),
+            "optim_d": optim_d.state_dict(),
+            "scaler_g": scaler_g.state_dict(),
+            "scaler_d": scaler_d.state_dict(),
+            "train_state": train_state,
             # compat with original code
-            'steps': train_state['iters_all'],
-            'epoch': epoch,
+            "steps": train_state["iters_all"],
+            "epoch": epoch,
         }
 
         print(f"Saving model and optimizer state to {fpath_g} and {fpath_d}")

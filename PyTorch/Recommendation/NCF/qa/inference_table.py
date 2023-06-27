@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+
 import tabulate
 
 archs = ["a100", "v100"]
@@ -23,7 +24,7 @@ for arch in archs:
         filename = f"inference/{arch}_{prec}.log"
         with open(filename) as opened:
             line = opened.readlines()[-1]
-        log = json.loads(line[len("DLLL "):])['data']
+        log = json.loads(line[len("DLLL ") :])["data"]
         print(log)
         batch_sizes = [1024, 4096, 16384, 65536, 262144, 1048576]
         t_avg = "batch_{}_mean_throughput"
@@ -31,14 +32,25 @@ for arch in archs:
         l_90 = "batch_{}_p90_latency"
         l_95 = "batch_{}_p95_latency"
         l_99 = "batch_{}_p99_latency"
-        headers = ["Batch size", "Throughput Avg", "Latency Avg", "Latency 90%", "Latency 95%", "Latency 99%"]
+        headers = [
+            "Batch size",
+            "Throughput Avg",
+            "Latency Avg",
+            "Latency 90%",
+            "Latency 95%",
+            "Latency 99%",
+        ]
         table = []
         for bsize in batch_sizes:
-            table.append([bsize,
-                          "{:3.3f}".format(log[t_avg.format(bsize)]),
-                          "{:.6f}".format(log[l_mean.format(bsize)]),
-                          "{:.6f}".format(log[l_90.format(bsize)]),
-                          "{:.6f}".format(log[l_95.format(bsize)]),
-                          "{:.6f}".format(log[l_99.format(bsize)])])
+            table.append(
+                [
+                    bsize,
+                    "{:3.3f}".format(log[t_avg.format(bsize)]),
+                    "{:.6f}".format(log[l_mean.format(bsize)]),
+                    "{:.6f}".format(log[l_90.format(bsize)]),
+                    "{:.6f}".format(log[l_95.format(bsize)]),
+                    "{:.6f}".format(log[l_99.format(bsize)]),
+                ]
+            )
         print(filename)
-        print(tabulate.tabulate(table, headers, tablefmt='pipe'))
+        print(tabulate.tabulate(table, headers, tablefmt="pipe"))

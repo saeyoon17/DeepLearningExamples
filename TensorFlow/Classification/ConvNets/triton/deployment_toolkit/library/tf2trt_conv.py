@@ -39,7 +39,9 @@ class TFGraphDef2TRTConverter(BaseConverter):
 
     def convert(self, model: Model, dataloader_fn) -> Model:
         inputnames2tensorname = {name: spec.name for name, spec in model.inputs.items()}
-        outputnames2tensorname = {name: spec.name for name, spec in model.outputs.items()}
+        outputnames2tensorname = {
+            name: spec.name for name, spec in model.outputs.items()
+        }
         onnx_model = tfgraph2onnx(
             model.handle,
             inputnames2tensorname,
@@ -64,11 +66,19 @@ class TFGraphDef2TRTConverter(BaseConverter):
         return model._replace(handle=cuda_engine)
 
     @staticmethod
-    def required_source_model_precision(requested_model_precision: Precision) -> Precision:
+    def required_source_model_precision(
+        requested_model_precision: Precision,
+    ) -> Precision:
         # TensorRT requires source models to be in FP32 precision
         return Precision.FP32
 
 
-converters.register_extension(f"{Format.TF_ESTIMATOR.value}--{Format.TRT.value}", TFGraphDef2TRTConverter)
-converters.register_extension(f"{Format.TF_KERAS.value}--{Format.TRT.value}", TFGraphDef2TRTConverter)
-converters.register_extension(f"{Format.TF_SAVEDMODEL.value}--{Format.TRT.value}", TFGraphDef2TRTConverter)
+converters.register_extension(
+    f"{Format.TF_ESTIMATOR.value}--{Format.TRT.value}", TFGraphDef2TRTConverter
+)
+converters.register_extension(
+    f"{Format.TF_KERAS.value}--{Format.TRT.value}", TFGraphDef2TRTConverter
+)
+converters.register_extension(
+    f"{Format.TF_SAVEDMODEL.value}--{Format.TRT.value}", TFGraphDef2TRTConverter
+)

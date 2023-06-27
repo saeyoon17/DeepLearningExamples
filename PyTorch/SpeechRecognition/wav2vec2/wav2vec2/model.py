@@ -25,27 +25,19 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch import Tensor
-
 from common import fairseq_fake_modules
 from common.fairseq import utils
 from common.fairseq.data.data_utils import compute_mask_indices
-from common.fairseq.modules import (
-    Fp32GroupNorm,
-    Fp32LayerNorm,
-    Fp32MaskedGroupNorm,
-    GradMultiply,
-    GumbelVectorQuantizer,
-    LayerNorm,
-    MaskedGroupNorm,
-    MultiheadAttention,
-    SamePad,
-    TransposeLast,
-)
+from common.fairseq.modules import (Fp32GroupNorm, Fp32LayerNorm,
+                                    Fp32MaskedGroupNorm, GradMultiply,
+                                    GumbelVectorQuantizer, LayerNorm,
+                                    MaskedGroupNorm, MultiheadAttention,
+                                    SamePad, TransposeLast)
 from common.features import FilterbankFeatures
 from common.helpers import load_wrapped_state
 from common.pyt_mha import PytMultiheadAttention
 from common.utils import print_once
+from torch import Tensor
 
 
 class Fp32Conv1d(nn.Conv1d):
@@ -56,8 +48,13 @@ class Fp32Conv1d(nn.Conv1d):
 
     def forward(self, x):
         return F.conv1d(
-            x.float(), self.weight, bias=self.bias, stride=self.stride,
-            padding=self.padding, dilation=self.dilation, groups=self.groups
+            x.float(),
+            self.weight,
+            bias=self.bias,
+            stride=self.stride,
+            padding=self.padding,
+            dilation=self.dilation,
+            groups=self.groups,
         ).to(dtype=x.dtype)
 
 
@@ -78,9 +75,7 @@ def init_bert_params(module):
     def normal_(data):
         # with FSDP, module params will be on CUDA, so we cast them back to CPU
         # so that the RNG is consistent with and without FSDP
-        data.copy_(
-            data.cpu().normal_(mean=0.0, std=0.02).to(data.device)
-        )
+        data.copy_(data.cpu().normal_(mean=0.0, std=0.02).to(data.device))
 
     if isinstance(module, nn.Linear):
         normal_(module.weight.data)
@@ -107,7 +102,6 @@ def Linear(in_features, out_features, bias=True):
 
 
 class MaskedBlock(nn.Module):
-
     def __init__(self, *args):
         super().__init__()
 
@@ -168,7 +162,8 @@ class Wav2Vec2Model(nn.Module):
                 frame_subsampling=cfg.spectrogram_feature_subsampling,
                 window_size=cfg.spectrogram_window_size,
                 window_stride=cfg.spectrogram_window_stride,
-                n_filt=cfg.spectrogram_n_filt).cuda()
+                n_filt=cfg.spectrogram_n_filt,
+            ).cuda()
             self.feature_extractr = None
             self.spec_feature_extractor.eval()
             self.embed = self.spec_feature_extractor.output_dim()
@@ -182,7 +177,7 @@ class Wav2Vec2Model(nn.Module):
                 mode=cfg.extractor_mode,
                 conv_bias=cfg.conv_bias,
                 fp32_norms=cfg.fp32_conv_norms,
-                masked=getattr(cfg, 'masked_feature_extractor', False),
+                masked=getattr(cfg, "masked_feature_extractor", False),
             )
 
         self.post_extract_proj = (
@@ -365,8 +360,10 @@ class Wav2Vec2Model(nn.Module):
                 tszs = tszs.expand(-1, self.n_negatives).flatten()
 
                 neg_idxs = torch.randint(
-                    low=0, high=high - 1, size=(bsz, self.n_negatives * num),
-                    device=y.device
+                    low=0,
+                    high=high - 1,
+                    size=(bsz, self.n_negatives * num),
+                    device=y.device,
                 )
                 neg_idxs[neg_idxs >= tszs] += 1
 
@@ -378,7 +375,7 @@ class Wav2Vec2Model(nn.Module):
                     low=0,
                     high=cross_high - 1,
                     size=(bsz, self.cross_sample_negatives * num),
-                    device=y.device
+                    device=y.device,
                 )
                 cross_neg_idxs[cross_neg_idxs >= tszs] += 1
 
@@ -406,8 +403,9 @@ class Wav2Vec2Model(nn.Module):
         targets = torch.cat([y, negatives], dim=0)
 
         if self.fp32_cosine_sim:
-            logits = torch.cosine_similarity(x.float(), targets.float(),
-                                             dim=-1).type_as(x)
+            logits = torch.cosine_similarity(
+                x.float(), targets.float(), dim=-1
+            ).type_as(x)
         else:
             logits = torch.cosine_similarity(x, targets, dim=-1)
 
@@ -420,7 +418,9 @@ class Wav2Vec2Model(nn.Module):
 
         return logits
 
-    def _conv_out_length(self, input_length: torch.Tensor, kernel_size: int, stride: int):
+    def _conv_out_length(
+        self, input_length: torch.Tensor, kernel_size: int, stride: int
+    ):
         return torch.floor((input_length - kernel_size) / stride + 1)
 
     def _get_feat_extract_output_lengths(self, input_lengths: torch.LongTensor):
@@ -429,9 +429,7 @@ class Wav2Vec2Model(nn.Module):
         """
         for i in range(len(self.conv_cfg_list)):
             input_lengths = self._conv_out_length(
-                input_lengths,
-                self.conv_cfg_list[i][1],
-                self.conv_cfg_list[i][2]
+                input_lengths, self.conv_cfg_list[i][1], self.conv_cfg_list[i][2]
             )
 
         return input_lengths.to(torch.long)
@@ -488,7 +486,9 @@ class Wav2Vec2Model(nn.Module):
             else:
                 input_lengths = (torch.zeros(source.size(0)) + source.size(1)).cuda()
 
-            features, output_lengths = self.spec_feature_extractor(source, input_lengths)
+            features, output_lengths = self.spec_feature_extractor(
+                source, input_lengths
+            )
             output_lengths = output_lengths.to(torch.long)
 
         else:
@@ -500,7 +500,9 @@ class Wav2Vec2Model(nn.Module):
                 with torch.no_grad():
                     if masked_inference:
                         input_lengths = (1 - padding_mask.long()).sum(-1)
-                        features, _ = self.feature_extractor.masked_forward(source, input_lengths)
+                        features, _ = self.feature_extractor.masked_forward(
+                            source, input_lengths
+                        )
                     else:
                         features = self.feature_extractor(source)
 
@@ -568,7 +570,9 @@ class Wav2Vec2Model(nn.Module):
             split_sizes = sub_batch_sizes.tolist()
             sub_x, sub_y, sub_mask_indices, sub_negs = [], [], [], []
 
-            for s, e in zip(np.cumsum(split_sizes) - split_sizes, np.cumsum(split_sizes)):
+            for s, e in zip(
+                np.cumsum(split_sizes) - split_sizes, np.cumsum(split_sizes)
+            ):
                 x_, mask_indices_ = self.apply_mask(
                     features[s:e],
                     padding_mask[s:e] if padding_mask is not None else None,
@@ -576,7 +580,7 @@ class Wav2Vec2Model(nn.Module):
                 sub_x.append(x_)
                 sub_mask_indices.append(mask_indices_)
                 y_ = unmasked_features[s:e][mask_indices_].view(
-                     e-s, -1, unmasked_features.size(-1)
+                    e - s, -1, unmasked_features.size(-1)
                 )
 
                 q_ = self.quantizer(y_, produce_targets=False)
@@ -613,7 +617,7 @@ class Wav2Vec2Model(nn.Module):
             offset = 0
             for y_, mask_inds_, negs_ in zip(sub_y, sub_mask_indices, sub_negs):
                 sz = mask_inds_.sum()
-                x_ = x[offset:offset+sz].view(mask_inds_.size(0), -1, x.size(-1))
+                x_ = x[offset : offset + sz].view(mask_inds_.size(0), -1, x.size(-1))
                 x_ = self.compute_preds(x_, y_, negs_)
                 sub_x2.append(x_)
                 offset += sz
@@ -967,8 +971,9 @@ class ConvFeatureExtractionModel(nn.Module):
             is_group_norm=False,
             conv_bias=False,
         ):
-            assert not (is_layer_norm and is_group_norm), (
-                "layer norm and group norm are mutually exclusive")
+            assert not (
+                is_layer_norm and is_group_norm
+            ), "layer norm and group norm are mutually exclusive"
 
             def make_conv():
                 conv = nn.Conv1d(n_in, n_out, k, stride=stride, bias=conv_bias)
@@ -979,16 +984,21 @@ class ConvFeatureExtractionModel(nn.Module):
                 if is_group_norm:
                     l = GroupNorm_(dim, dim, affine=True)
                 elif is_layer_norm:
-                    l = nn.Sequential(TransposeLast(),
-                                      LayerNorm_(dim, elementwise_affine=True),
-                                      TransposeLast())
+                    l = nn.Sequential(
+                        TransposeLast(),
+                        LayerNorm_(dim, elementwise_affine=True),
+                        TransposeLast(),
+                    )
                 return l
 
             has_norm = is_layer_norm or is_group_norm
-            return Block_(make_conv(),
-                          nn.Dropout(p=dropout),
-                          *([make_norm()] if has_norm else []),
-                          nn.GELU())
+            return Block_(
+                make_conv(),
+                nn.Dropout(p=dropout),
+                *([make_norm()] if has_norm else []),
+                nn.GELU(),
+            )
+
         in_d = 1
         self.conv_layers = nn.ModuleList()
         for i, cl in enumerate(conv_layers):
@@ -1099,38 +1109,44 @@ class TransformerEncoder(nn.Module):
         self.pos_conv = nn.Sequential(self.pos_conv, SamePad(args.conv_pos), nn.GELU())
 
         def create_decoder_layers(n_layers):
-            return nn.ModuleList([
-                TransformerSentenceEncoderLayer(
-                    embedding_dim=self.embedding_dim,
-                    ffn_embedding_dim=args.encoder_ffn_embed_dim,
-                    num_attention_heads=args.encoder_attention_heads,
-                    dropout=self.dropout,
-                    attention_dropout=args.attention_dropout,
-                    activation_dropout=args.activation_dropout,
-                    activation_fn=args.activation_fn,
-                    layer_norm_first=args.layer_norm_first,
-                    rotary_embeddings=args.rotary_embeddings,
-                    mha=args.mha,
-                    fp32_transformer_layernorm=args.fp32_transformer_layernorm,
-                    fp32_mha_softmax=args.fp32_mha_softmax,
-                )
-                for _ in range(n_layers)
-            ])
+            return nn.ModuleList(
+                [
+                    TransformerSentenceEncoderLayer(
+                        embedding_dim=self.embedding_dim,
+                        ffn_embedding_dim=args.encoder_ffn_embed_dim,
+                        num_attention_heads=args.encoder_attention_heads,
+                        dropout=self.dropout,
+                        attention_dropout=args.attention_dropout,
+                        activation_dropout=args.activation_dropout,
+                        activation_fn=args.activation_fn,
+                        layer_norm_first=args.layer_norm_first,
+                        rotary_embeddings=args.rotary_embeddings,
+                        mha=args.mha,
+                        fp32_transformer_layernorm=args.fp32_transformer_layernorm,
+                        fp32_mha_softmax=args.fp32_mha_softmax,
+                    )
+                    for _ in range(n_layers)
+                ]
+            )
 
         if args.hourglass_transformer:
             n_pre, (n_hourglass, self.shorten_factor), n_post = eval(
-                args.hourglass_transformer)
+                args.hourglass_transformer
+            )
 
             self.layers = create_decoder_layers(n_pre)
             self.hourglass_layers = create_decoder_layers(n_hourglass)
             self.post_layers = create_decoder_layers(n_post)
 
-            assert args.hourglass_resample in ['linear', 'naive']
+            assert args.hourglass_resample in ["linear", "naive"]
             # otherwise i want to resample before merging resutls
             assert not args.layer_norm_first
 
-            kw = {'emb_dim': self.embedding_dim, 'factor': self.shorten_factor,
-                  'mode': args.hourglass_resample}
+            kw = {
+                "emb_dim": self.embedding_dim,
+                "factor": self.shorten_factor,
+                "mode": args.hourglass_resample,
+            }
             self.upsample_layer = Upsampler(**kw)
             self.downsample_layer = Downsampler(**kw)
         else:
@@ -1144,8 +1160,9 @@ class TransformerEncoder(nn.Module):
 
         self.apply(init_bert_params)
 
-    def forward(self, x: Tensor, padding_mask: Optional[Tensor] = None,
-                layer: int = -1):
+    def forward(
+        self, x: Tensor, padding_mask: Optional[Tensor] = None, layer: int = -1
+    ):
 
         x, layer_results = self.extract_features(x, padding_mask, layer)
 
@@ -1154,44 +1171,47 @@ class TransformerEncoder(nn.Module):
 
         return x, layer_results
 
-    def process_layers(self, x: Tensor, padding_mask: Optional[Tensor],
-                       tgt_layer: int = -1):
+    def process_layers(
+        self, x: Tensor, padding_mask: Optional[Tensor], tgt_layer: int = -1
+    ):
 
         for i, layer in enumerate(self.layers):
             if not self.training or (torch.rand(1) > self.layerdrop):
-                x, _ = layer(x, self_attn_padding_mask=padding_mask,
-                             need_weights=False)
+                x, _ = layer(x, self_attn_padding_mask=padding_mask, need_weights=False)
             if i == tgt_layer:
                 return x
         return x
 
-    def process_hourglass_layers(self, x: Tensor, padding_mask:
-                                 Optional[Tensor], tgt_layer: int = -1):
+    def process_hourglass_layers(
+        self, x: Tensor, padding_mask: Optional[Tensor], tgt_layer: int = -1
+    ):
 
         for i, layer in enumerate(self.hourglass_layers):
             if not self.training or (torch.rand(1) > self.layerdrop):
-                x, _ = layer(x, self_attn_padding_mask=padding_mask,
-                             need_weights=False)
+                x, _ = layer(x, self_attn_padding_mask=padding_mask, need_weights=False)
             if i == tgt_layer:
                 return x
         return x
 
-    def process_post_layers(self, x: Tensor, padding_mask: Optional[Tensor],
-                            tgt_layer: int = -1):
+    def process_post_layers(
+        self, x: Tensor, padding_mask: Optional[Tensor], tgt_layer: int = -1
+    ):
 
         if self.post_layers is None:
             return x
         else:
             for i, layer in enumerate(self.post_layers):
                 if not self.training or (torch.rand(1) > self.layerdrop):
-                    x, _ = layer(x, self_attn_padding_mask=padding_mask,
-                                 need_weights=False)
+                    x, _ = layer(
+                        x, self_attn_padding_mask=padding_mask, need_weights=False
+                    )
                 if i == tgt_layer:
                     return x
             return x
 
-    def extract_features(self, x: Tensor, padding_mask: Optional[Tensor] = None,
-                         tgt_layer: int = -1):
+    def extract_features(
+        self, x: Tensor, padding_mask: Optional[Tensor] = None, tgt_layer: int = -1
+    ):
 
         if padding_mask is not None:
             x[padding_mask] = 0
@@ -1211,8 +1231,9 @@ class TransformerEncoder(nn.Module):
         if self.hourglass_layers is not None:
             # we don't want to take outputs from inside of hourglass
             # as they are shortened and differnt
-            n_layers_before_upsampling = (len(self.layers)  # pre layers
-                                          + len(self.hourglass_layers))
+            n_layers_before_upsampling = len(self.layers) + len(  # pre layers
+                self.hourglass_layers
+            )
             assert tgt_layer == -1 or tgt_layer >= n_layers_before_upsampling
             if tgt_layer is not None:
                 tgt_layer = tgt_layer - n_layers_before_upsampling
@@ -1221,24 +1242,31 @@ class TransformerEncoder(nn.Module):
             res = x
             hourglass_pad_mask = padding_mask
 
-            diff = ((self.shorten_factor - x.size(0) % self.shorten_factor)
-                    % self.shorten_factor)
+            diff = (
+                self.shorten_factor - x.size(0) % self.shorten_factor
+            ) % self.shorten_factor
 
             if diff != 0:
                 x = torch.cat([x, x.new_zeros(diff, x.size(1), x.size(2))])
 
             if hourglass_pad_mask is not None:
                 if diff != 0:
-                    hourglass_pad_mask = torch.cat([
-                        hourglass_pad_mask,
-                        x.new_ones(hourglass_pad_mask.size(0), diff)
-                    ], dim=1)
+                    hourglass_pad_mask = torch.cat(
+                        [
+                            hourglass_pad_mask,
+                            x.new_ones(hourglass_pad_mask.size(0), diff),
+                        ],
+                        dim=1,
+                    )
 
-                hourglass_pad_mask = (F.avg_pool1d(
-                    hourglass_pad_mask.unsqueeze(0).float(),
-                    self.shorten_factor,
-                    self.shorten_factor
-                ).int() > 0).squeeze(0)
+                hourglass_pad_mask = (
+                    F.avg_pool1d(
+                        hourglass_pad_mask.unsqueeze(0).float(),
+                        self.shorten_factor,
+                        self.shorten_factor,
+                    ).int()
+                    > 0
+                ).squeeze(0)
 
             x = self.downsample_layer(x)
             x = self.process_hourglass_layers(x, hourglass_pad_mask)
@@ -1281,7 +1309,7 @@ class TransformerSentenceEncoderLayer(nn.Module):
         activation_fn: str = "relu",
         layer_norm_first: bool = False,
         rotary_embeddings: bool = False,
-        mha: str = 'fairseq',
+        mha: str = "fairseq",
         fp32_transformer_layernorm: bool = False,
         fp32_mha_softmax: bool = False,
     ) -> None:
@@ -1297,15 +1325,14 @@ class TransformerSentenceEncoderLayer(nn.Module):
         # Initialize blocks
         self.activation_fn = utils.get_activation_fn(activation_fn)
 
-        MHA = {'fairseq': MultiheadAttention,
-               'pyt': PytMultiheadAttention}[mha]
+        MHA = {"fairseq": MultiheadAttention, "pyt": PytMultiheadAttention}[mha]
 
         self.self_attn = MHA(
             self.embedding_dim,
             num_attention_heads,
             dropout=attention_dropout,
             self_attention=True,
-            rotary_embeddings=rotary_embeddings
+            rotary_embeddings=rotary_embeddings,
         )
 
         self.dropout1 = nn.Dropout(dropout)
@@ -1419,13 +1446,12 @@ class Wav2VecEncoder(nn.Module):
 
         with torch.no_grad():
             out = self.w2v_model.extract_features(
-                source=source, padding_mask=padding_mask, mask=False,
-                layer=layer)
+                source=source, padding_mask=padding_mask, mask=False, layer=layer
+            )
 
         return out
 
-    def infer(self, source: Tensor, padding_mask: Optional[Tensor],
-              tbc: bool = True):
+    def infer(self, source: Tensor, padding_mask: Optional[Tensor], tbc: bool = True):
         assert padding_mask is not None
 
         x, padding_mask = self.w2v_model.infer(source, padding_mask)
@@ -1441,8 +1467,7 @@ class Wav2VecEncoder(nn.Module):
 
         return x, padding_mask
 
-    def forward(self, source: Tensor, padding_mask: Optional[Tensor],
-                tbc: bool = True):
+    def forward(self, source: Tensor, padding_mask: Optional[Tensor], tbc: bool = True):
 
         ft = self.freeze_finetune_updates <= self.num_updates
 
@@ -1450,7 +1475,7 @@ class Wav2VecEncoder(nn.Module):
             res = self.w2v_model.extract_features(
                 source=source,
                 padding_mask=padding_mask,
-                mask=self.apply_mask and self.training
+                mask=self.apply_mask and self.training,
             )
 
         x = res["x"]
@@ -1507,7 +1532,9 @@ class Wav2VecCtc(nn.Module):
         return state_dict
 
     @torch.jit.export
-    def get_logits(self, logits: Tensor, padding_mask: Optional[Tensor], normalize: bool = False):
+    def get_logits(
+        self, logits: Tensor, padding_mask: Optional[Tensor], normalize: bool = False
+    ):
 
         if self.blank_weight != 0:
             if self.blank_mode == "add":
@@ -1519,8 +1546,9 @@ class Wav2VecCtc(nn.Module):
 
         if padding_mask is not None and padding_mask.any():
             num_classes = logits.size(-1)
-            masking_tensor = torch.full((num_classes,), float("-inf"),
-                                        dtype=logits.dtype, device=logits.device)
+            masking_tensor = torch.full(
+                (num_classes,), float("-inf"), dtype=logits.dtype, device=logits.device
+            )
             masking_tensor[0] = 0
             logits[padding_mask.T] = masking_tensor
 
@@ -1530,7 +1558,9 @@ class Wav2VecCtc(nn.Module):
         return logits
 
     @torch.jit.export
-    def get_normalized_probs(self, logits: Tensor, padding_mask: Optional[Tensor], log_probs: bool):
+    def get_normalized_probs(
+        self, logits: Tensor, padding_mask: Optional[Tensor], log_probs: bool
+    ):
         """Get normalized probabilities (or log probs) from a net's output."""
 
         logits = self.get_logits(logits, padding_mask, normalize=False)
@@ -1540,8 +1570,7 @@ class Wav2VecCtc(nn.Module):
         else:
             return F.softmax(logits.float(), dim=-1)
 
-    def forward(self, source: Tensor, padding_mask: Optional[Tensor],
-                tbc: bool = True):
+    def forward(self, source: Tensor, padding_mask: Optional[Tensor], tbc: bool = True):
         return self.w2v_encoder(source, padding_mask, tbc)
 
     def set_num_updates(self, num_updates):

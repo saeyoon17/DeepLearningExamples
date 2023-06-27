@@ -16,9 +16,11 @@ import multiprocessing
 from functools import partial
 
 import tensorflow as tf
-
-from sim.data.defaults import (DIMENSIONS_SELECTOR, LABEL_CHANNEL, NEGATIVE_HISTORY_CHANNEL, POSITIVE_HISTORY_CHANNEL,
-                               TARGET_ITEM_FEATURES_CHANNEL, USER_FEATURES_CHANNEL, REMAINDER_FILENAME)
+from sim.data.defaults import (DIMENSIONS_SELECTOR, LABEL_CHANNEL,
+                               NEGATIVE_HISTORY_CHANNEL,
+                               POSITIVE_HISTORY_CHANNEL, REMAINDER_FILENAME,
+                               TARGET_ITEM_FEATURES_CHANNEL,
+                               USER_FEATURES_CHANNEL)
 
 
 def _remap_column_values_tfrecord(sample, feature_spec, long_seq_length):
@@ -27,20 +29,26 @@ def _remap_column_values_tfrecord(sample, feature_spec, long_seq_length):
     features = feature_spec.feature_spec
 
     user_features = {
-        f_name: tf.reshape(sample[f_name], [-1]) for f_name in channel_spec[USER_FEATURES_CHANNEL]
+        f_name: tf.reshape(sample[f_name], [-1])
+        for f_name in channel_spec[USER_FEATURES_CHANNEL]
     }
 
     target_item_features = {
-        f_name: tf.reshape(sample[f_name], [-1]) for f_name in channel_spec[TARGET_ITEM_FEATURES_CHANNEL]
+        f_name: tf.reshape(sample[f_name], [-1])
+        for f_name in channel_spec[TARGET_ITEM_FEATURES_CHANNEL]
     }
 
     padded_positive = {
-        f_name: tf.reshape(sample[f_name], [-1, features[f_name][DIMENSIONS_SELECTOR][0]]) 
+        f_name: tf.reshape(
+            sample[f_name], [-1, features[f_name][DIMENSIONS_SELECTOR][0]]
+        )
         for f_name in channel_spec[POSITIVE_HISTORY_CHANNEL]
     }
 
     padded_negative = {
-        f_name: tf.reshape(sample[f_name], [-1, features[f_name][DIMENSIONS_SELECTOR][0]]) 
+        f_name: tf.reshape(
+            sample[f_name], [-1, features[f_name][DIMENSIONS_SELECTOR][0]]
+        )
         for f_name in channel_spec[NEGATIVE_HISTORY_CHANNEL]
     }
 
@@ -75,7 +83,7 @@ def _remap_column_values_tfrecord(sample, feature_spec, long_seq_length):
         "short_neg_sequence_features": short_neg_sequence_features,
         "long_sequence_mask": long_sequence_mask,
         "short_sequence_mask": short_sequence_mask,
-        "other_features": None
+        "other_features": None,
     }, target
 
 
@@ -99,8 +107,8 @@ def get_dataloader_tfrecord(
     prefetch_buffer_size=90,
     num_parallel_calls=None,
     disable_cache=False,
-    prebatch_size=0
-    ):
+    prebatch_size=0,
+):
 
     features = feature_spec.feature_spec
     prebatched = prebatch_size > 0
@@ -145,7 +153,7 @@ def get_dataloader_tfrecord(
 
     dataset = dataset.map(
         map_func=partial(tf.io.parse_example, features=tf_feature_spec),
-        num_parallel_calls=num_parallel_calls
+        num_parallel_calls=num_parallel_calls,
     )
 
     if splitting_function is not None:
@@ -163,19 +171,19 @@ def get_dataloader_tfrecord(
         dataset = dataset.concatenate(remainder)
 
     dataset = dataset.map(
-        map_func=partial(_remap_column_values_tfrecord, feature_spec=feature_spec, long_seq_length=long_seq_length),
-        num_parallel_calls=num_parallel_calls
+        map_func=partial(
+            _remap_column_values_tfrecord,
+            feature_spec=feature_spec,
+            long_seq_length=long_seq_length,
+        ),
+        num_parallel_calls=num_parallel_calls,
     )
 
     if repeat_count > 0:
-        dataset = dataset.repeat(
-            count=repeat_count
-        )
+        dataset = dataset.repeat(count=repeat_count)
 
     if prefetch_buffer_size > 0:
-        dataset = dataset.prefetch(
-            buffer_size=prefetch_buffer_size
-        )
+        dataset = dataset.prefetch(buffer_size=prefetch_buffer_size)
 
     if not disable_cache:
         dataset = dataset.cache()

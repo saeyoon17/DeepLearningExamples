@@ -29,23 +29,32 @@
 # limitations under the License.
 
 from argparse import ArgumentParser
+
 import pandas as pd
+import tensorflow as tf
 from load import implicit_load
 
-import tensorflow as tf
-
 MIN_RATINGS = 20
-USER_COLUMN = 'user_id'
-ITEM_COLUMN = 'item_id'
+USER_COLUMN = "user_id"
+ITEM_COLUMN = "item_id"
 
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('--path', type=str, default='/data/ml-20m/ratings.csv',
-                        help='Path to reviews CSV file from MovieLens')
-    parser.add_argument('--output', type=str, default='/data',
-                        help='Output directory for train and test files')
+    parser.add_argument(
+        "--path",
+        type=str,
+        default="/data/ml-20m/ratings.csv",
+        help="Path to reviews CSV file from MovieLens",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="/data",
+        help="Output directory for train and test files",
+    )
     return parser.parse_args()
+
 
 def main():
     args = parse_args()
@@ -63,21 +72,22 @@ def main():
 
     print("Creating list of items for each user")
     # Need to sort before popping to get last item
-    df.sort_values(by='timestamp', inplace=True)
+    df.sort_values(by="timestamp", inplace=True)
 
     # clean up data
-    del df['rating'], df['timestamp']
-    df = df.drop_duplicates() # assuming it keeps order
+    del df["rating"], df["timestamp"]
+    df = df.drop_duplicates()  # assuming it keeps order
 
     # now we have filtered and sorted by time data, we can split test data out
     grouped_sorted = df.groupby(USER_COLUMN, group_keys=False)
-    test_data = grouped_sorted.tail(1).sort_values(by='user_id')
+    test_data = grouped_sorted.tail(1).sort_values(by="user_id")
     # need to pop for each group
     train_data = grouped_sorted.apply(lambda x: x.iloc[:-1])
     train_data = train_data.sort_values([USER_COLUMN, ITEM_COLUMN])
 
-    train_data.to_pickle(args.output + '/train_ratings.pickle')
-    test_data.to_pickle(args.output + '/test_ratings.pickle')
+    train_data.to_pickle(args.output + "/train_ratings.pickle")
+    test_data.to_pickle(args.output + "/test_ratings.pickle")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

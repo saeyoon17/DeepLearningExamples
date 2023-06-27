@@ -24,13 +24,13 @@ from syngen.generator.graph.seeder import BaseSeeder
 
 
 class BaseGenerator(abc.ABC):
-    """ BaseGenerator class """
+    """BaseGenerator class"""
 
     JSON_ASSERTION = "Expected file to be json"
 
     @classmethod
     def get_generators(cls, include_parents=True):
-        """ Recursively find subclasses
+        """Recursively find subclasses
         Args:
             include_parents (bool): whether to include parents to other classes. (default: `True`)
         Returns:
@@ -43,7 +43,10 @@ class BaseGenerator(abc.ABC):
             generators.update(children)
 
             if include_parents or not children:
-                if abc.ABC not in child.__bases__ and BaseGenerator not in child.__bases__:
+                if (
+                    abc.ABC not in child.__bases__
+                    and BaseGenerator not in child.__bases__
+                ):
                     generators[child.__name__] = child
         return generators
 
@@ -56,7 +59,7 @@ class BaseGenerator(abc.ABC):
 
 
 class BaseGraphGenerator(BaseGenerator, ABC):
-    """ Base class for all graph generators
+    """Base class for all graph generators
     Args:
         *args: optional positional args
         **kwargs: optional key-word args
@@ -77,11 +80,9 @@ class BaseGraphGenerator(BaseGenerator, ABC):
         self.logger.log(f"Using seed: {self.seeder.seed}")
         self.fitter = fitter or FastFitter()
 
-    def fit(
-        self, graph: List[Tuple[int, int]], is_directed: bool, *args, **kwargs
-    ):
-        """ Fits generator on the graph
-        Args: 
+    def fit(self, graph: List[Tuple[int, int]], is_directed: bool, *args, **kwargs):
+        """Fits generator on the graph
+        Args:
             graph (List[Tuple[int, int]]): graph to be fitted on
             is_directed (bool): flag indicating whether the graph is directed
             *args: optional positional args
@@ -97,8 +98,8 @@ class BaseGraphGenerator(BaseGenerator, ABC):
         *args,
         **kwargs,
     ):
-        """ Generates graph with approximately `num_nodes` and exactly `num_edges` from generator
-        Args: 
+        """Generates graph with approximately `num_nodes` and exactly `num_edges` from generator
+        Args:
             num_nodes (int): approximate number of nodes to be generated
             num_edges (int): exact number of edges to be generated
             is_directed (bool): flag indicating whether the generated graph has to be directed
@@ -114,7 +115,7 @@ class BaseGraphGenerator(BaseGenerator, ABC):
         return self._fit_results
 
     def save_fit_results(self, save_path: str = "./fit_results.json"):
-        """ Store fitted results into json file
+        """Store fitted results into json file
         Args:
             save_path (str): path to the json file with the fitted result
         """
@@ -128,7 +129,7 @@ class BaseGraphGenerator(BaseGenerator, ABC):
 
     def load_fit_results(self, load_path: str = "./fit_results.json"):
         """load fitted results from json file
-        Args:  
+        Args:
             load_path (str): path to the json file with the fitted result
         """
         assert load_path.endswith(".json"), self.JSON_ASSERTION
@@ -136,12 +137,12 @@ class BaseGraphGenerator(BaseGenerator, ABC):
             self._fit_results = json.load(fjson)
 
     def save(self, path):
-        with open(path, 'wb') as file_handler:
+        with open(path, "wb") as file_handler:
             pickle.dump(self, file_handler, protocol=pickle.HIGHEST_PROTOCOL)
 
     @classmethod
     def load(cls, path):
-        with open(path, 'rb') as file_handler:
+        with open(path, "rb") as file_handler:
             model = pickle.load(file_handler)
         return model
 
@@ -151,7 +152,7 @@ class BaseGraphGenerator(BaseGenerator, ABC):
 
 
 class BaseBipartiteGraphGenerator(BaseGenerator, ABC):
-    """ Base class for all bipartite graph generators
+    """Base class for all bipartite graph generators
     Args:
         *args: optional positional args
         **kwargs: optional key-word args
@@ -183,7 +184,7 @@ class BaseBipartiteGraphGenerator(BaseGenerator, ABC):
         *args,
         **kwargs,
     ):
-        """ Fits generator on the graph
+        """Fits generator on the graph
 
         Args:
             graph (List[Tuple[int, int]]): graph to be fitted on
@@ -205,7 +206,7 @@ class BaseBipartiteGraphGenerator(BaseGenerator, ABC):
         *args,
         **kwargs,
     ):
-        """ Generates graph with approximately `num_nodes_src_set`/`num_nodes_dst_set` nodes
+        """Generates graph with approximately `num_nodes_src_set`/`num_nodes_dst_set` nodes
          and exactly `num_edges_src_dst`/`num_edges_dst_src` edges from generator
         Args:
             num_nodes_src_set (int): approximate number of source nodes to be generated
@@ -225,7 +226,7 @@ class BaseBipartiteGraphGenerator(BaseGenerator, ABC):
         return self._fit_src_dst_results, self._fit_dst_src_results
 
     def save_fit_results(self, save_path: str = "./fit_results.json"):
-        """ Stores fitted results into json file
+        """Stores fitted results into json file
         Args:
             save_path (str): path to the json file with the fitted result
         """
@@ -244,7 +245,7 @@ class BaseBipartiteGraphGenerator(BaseGenerator, ABC):
             json.dump(wrapped_results, fjson)
 
     def load_fit_results(self, load_path: str = "./fit_results.json"):
-        """ Loads fitted results from json file
+        """Loads fitted results from json file
         Args:
             load_path (str): path to the json file with the fitted result
         """
@@ -259,12 +260,12 @@ class BaseBipartiteGraphGenerator(BaseGenerator, ABC):
         self._fit_dst_src_results = wrapped_results["fit_dst_src_results"]
 
     def save(self, path):
-        with open(path, 'wb') as file_handler:
+        with open(path, "wb") as file_handler:
             pickle.dump(self, file_handler, protocol=pickle.HIGHEST_PROTOCOL)
 
     @classmethod
     def load(cls, path):
-        with open(path, 'rb') as file_handler:
+        with open(path, "rb") as file_handler:
             model = pickle.load(file_handler)
         return model
 

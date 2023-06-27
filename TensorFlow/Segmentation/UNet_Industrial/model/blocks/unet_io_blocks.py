@@ -20,15 +20,18 @@
 # ==============================================================================
 
 import tensorflow as tf
-
-from model import layers
-from model import blocks
+from model import blocks, layers
 
 __all__ = ["input_unet_block", "output_unet_block"]
 
 
 def input_unet_block(
-    inputs, filters, data_format='NCHW', is_training=True, conv2d_hparams=None, block_name='input_block'
+    inputs,
+    filters,
+    data_format="NCHW",
+    is_training=True,
+    conv2d_hparams=None,
+    block_name="input_block",
 ):
 
     with tf.variable_scope(block_name):
@@ -38,7 +41,7 @@ def input_unet_block(
             n_channels=filters,
             kernel_size=(3, 3),
             strides=(1, 1),
-            padding='same',
+            padding="same",
             data_format=data_format,
             use_bias=True,
             trainable=is_training,
@@ -47,7 +50,10 @@ def input_unet_block(
         )
 
         net = blocks.activation_block(
-            inputs=net, act_fn=conv2d_hparams.activation_fn, trainable=is_training, block_name='act1'
+            inputs=net,
+            act_fn=conv2d_hparams.activation_fn,
+            trainable=is_training,
+            block_name="act1",
         )
 
         net = layers.conv2d(
@@ -55,7 +61,7 @@ def input_unet_block(
             n_channels=filters,
             kernel_size=(3, 3),
             strides=(1, 1),
-            padding='same',
+            padding="same",
             data_format=data_format,
             use_bias=True,
             trainable=is_training,
@@ -64,16 +70,19 @@ def input_unet_block(
         )
 
         net = blocks.activation_block(
-            inputs=net, act_fn=conv2d_hparams.activation_fn, trainable=is_training, block_name='act2'
+            inputs=net,
+            act_fn=conv2d_hparams.activation_fn,
+            trainable=is_training,
+            block_name="act2",
         )
 
         outputs = layers.max_pooling2d(
             inputs=net,
             pool_size=(2, 2),
             strides=(2, 2),
-            padding='valid',
+            padding="valid",
             data_format=data_format,
-            name="max_pooling2d"
+            name="max_pooling2d",
         )
 
         return outputs, net
@@ -84,22 +93,24 @@ def output_unet_block(
     residual_input,
     filters,
     n_output_channels,
-    data_format='NCHW',
+    data_format="NCHW",
     is_training=True,
     conv2d_hparams=None,
-    block_name='output_block'
+    block_name="output_block",
 ):
 
     with tf.variable_scope(block_name):
 
-        net = layers.concat([inputs, residual_input], axis=1 if data_format == 'NCHW' else 3)
+        net = layers.concat(
+            [inputs, residual_input], axis=1 if data_format == "NCHW" else 3
+        )
 
         net = layers.conv2d(
             net,
             n_channels=filters,
             kernel_size=(3, 3),
             strides=(1, 1),
-            padding='same',
+            padding="same",
             data_format=data_format,
             use_bias=True,
             trainable=is_training,
@@ -108,7 +119,10 @@ def output_unet_block(
         )
 
         net = blocks.activation_block(
-            inputs=net, act_fn=conv2d_hparams.activation_fn, trainable=is_training, block_name='act1'
+            inputs=net,
+            act_fn=conv2d_hparams.activation_fn,
+            trainable=is_training,
+            block_name="act1",
         )
 
         net = layers.conv2d(
@@ -116,7 +130,7 @@ def output_unet_block(
             n_channels=filters,
             kernel_size=(3, 3),
             strides=(1, 1),
-            padding='same',
+            padding="same",
             data_format=data_format,
             use_bias=True,
             trainable=is_training,
@@ -125,7 +139,10 @@ def output_unet_block(
         )
 
         net = blocks.activation_block(
-            inputs=net, act_fn=conv2d_hparams.activation_fn, trainable=is_training, block_name='act2'
+            inputs=net,
+            act_fn=conv2d_hparams.activation_fn,
+            trainable=is_training,
+            block_name="act2",
         )
 
         net = layers.conv2d(
@@ -133,7 +150,7 @@ def output_unet_block(
             n_channels=n_output_channels,
             kernel_size=(1, 1),
             strides=(1, 1),
-            padding='same',
+            padding="same",
             data_format=data_format,
             use_bias=True,
             trainable=is_training,

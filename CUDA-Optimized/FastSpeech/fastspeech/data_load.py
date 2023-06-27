@@ -26,8 +26,8 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-class PadDataLoader(DataLoader):
 
+class PadDataLoader(DataLoader):
     @staticmethod
     def pad_collate_fn(batch):
         """
@@ -41,7 +41,9 @@ class PadDataLoader(DataLoader):
             # check diff dims
             if not isinstance(sub_batch[0], np.ndarray):
                 # if list of float or int
-                assert all([type(x) == type(sub_batch[0]) for x in sub_batch[1:]]), sub_batch
+                assert all(
+                    [type(x) == type(sub_batch[0]) for x in sub_batch[1:]]
+                ), sub_batch
                 if isinstance(sub_batch[0], int):
                     sub_batch = torch.LongTensor(sub_batch)
                 elif isinstance(sub_batch[0], float):
@@ -50,19 +52,30 @@ class PadDataLoader(DataLoader):
             elif any(list(map(lambda x: x.shape != sub_batch[0].shape, sub_batch[1:]))):
                 sub_batch = torch.from_numpy(__class__.pad_zero(sub_batch))
             else:
-                sub_batch = torch.from_numpy(np.concatenate(np.expand_dims(sub_batch, axis=0)))
+                sub_batch = torch.from_numpy(
+                    np.concatenate(np.expand_dims(sub_batch, axis=0))
+                )
             result[key] = sub_batch
         return result
 
-    def __init__(self, dataset, batch_size, num_workers, shuffle=True, pin_memory=True, drop_last=True):
-        super().__init__(dataset,
-                         batch_size=batch_size,
-                         shuffle=shuffle,
-                         num_workers=num_workers,
-                         pin_memory=pin_memory,
-                         collate_fn=self.pad_collate_fn,
-                         drop_last=drop_last
-                         )
+    def __init__(
+        self,
+        dataset,
+        batch_size,
+        num_workers,
+        shuffle=True,
+        pin_memory=True,
+        drop_last=True,
+    ):
+        super().__init__(
+            dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            collate_fn=self.pad_collate_fn,
+            drop_last=drop_last,
+        )
 
     @staticmethod
     def pad_zero(sub_batch):
@@ -77,13 +90,11 @@ class PadDataLoader(DataLoader):
         temp = np.zeros((len(sub_batch), *max_dims), dtype=sub_batch[0].dtype)
         for i, b in enumerate(sub_batch):
             if len(b.shape) == 1:
-                temp[i, :b.shape[0]] = b
+                temp[i, : b.shape[0]] = b
             elif len(b.shape) == 2:
-                temp[i, :b.shape[0], :b.shape[1]] = b
+                temp[i, : b.shape[0], : b.shape[1]] = b
             elif len(b.shape) == 3:
-                temp[i, :b.shape[0], :b.shape[1], :b.shape[2]] = b
+                temp[i, : b.shape[0], : b.shape[1], : b.shape[2]] = b
             else:
                 raise ValueError
         return temp
-
-

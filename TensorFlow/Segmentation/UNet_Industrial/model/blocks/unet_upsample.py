@@ -20,9 +20,7 @@
 # ==============================================================================
 
 import tensorflow as tf
-
-from model import layers
-from model import blocks
+from model import blocks, layers
 
 __all__ = ["upsample_unet_block"]
 
@@ -31,31 +29,35 @@ def upsample_unet_block(
     inputs,
     residual_input,
     filters,
-    data_format='NCHW',
+    data_format="NCHW",
     is_training=True,
     conv2d_hparams=None,
-    block_name='upsample_block'
+    block_name="upsample_block",
 ):
 
     if not isinstance(conv2d_hparams, tf.contrib.training.HParams):
         raise ValueError("The paramater `conv2d_hparams` is not of type `HParams`")
 
-    if data_format not in ['NHWC', 'NCHW']:
-        raise ValueError("Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format)
+    if data_format not in ["NHWC", "NCHW"]:
+        raise ValueError(
+            "Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format
+        )
 
     if not isinstance(residual_input, tf.Tensor):
         raise ValueError("`residual_input` should be a Tensorflow Tensor")
 
     with tf.variable_scope(block_name):
 
-        net = layers.concat([inputs, residual_input], axis=1 if data_format == 'NCHW' else 3)
+        net = layers.concat(
+            [inputs, residual_input], axis=1 if data_format == "NCHW" else 3
+        )
 
         net = layers.conv2d(
             net,
             n_channels=filters,
             kernel_size=(3, 3),
             strides=(1, 1),
-            padding='same',
+            padding="same",
             data_format=data_format,
             use_bias=True,
             trainable=is_training,
@@ -64,7 +66,10 @@ def upsample_unet_block(
         )
 
         net = blocks.activation_block(
-            inputs=net, act_fn=conv2d_hparams.activation_fn, trainable=is_training, block_name='act1'
+            inputs=net,
+            act_fn=conv2d_hparams.activation_fn,
+            trainable=is_training,
+            block_name="act1",
         )
 
         net = layers.conv2d(
@@ -72,7 +77,7 @@ def upsample_unet_block(
             n_channels=filters / 2,
             kernel_size=(3, 3),
             strides=(1, 1),
-            padding='same',
+            padding="same",
             data_format=data_format,
             use_bias=True,
             trainable=is_training,
@@ -81,14 +86,17 @@ def upsample_unet_block(
         )
 
         net = blocks.activation_block(
-            inputs=net, act_fn=conv2d_hparams.activation_fn, trainable=is_training, block_name='act2'
+            inputs=net,
+            act_fn=conv2d_hparams.activation_fn,
+            trainable=is_training,
+            block_name="act2",
         )
 
         net = layers.deconv2d(
             net,
             n_channels=filters / 2,
             kernel_size=(2, 2),
-            padding='same',
+            padding="same",
             data_format=data_format,
             use_bias=True,
             trainable=is_training,
@@ -97,7 +105,10 @@ def upsample_unet_block(
         )
 
         net = blocks.activation_block(
-            inputs=net, act_fn=conv2d_hparams.activation_fn, trainable=is_training, block_name='act3'
+            inputs=net,
+            act_fn=conv2d_hparams.activation_fn,
+            trainable=is_training,
+            block_name="act3",
         )
 
         return net

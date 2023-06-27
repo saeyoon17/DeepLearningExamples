@@ -18,7 +18,6 @@ import cupy
 import dask_cudf
 import numpy as np
 import pandas as pd
-
 from syngen.graph_aligner.base_graph_aligner import BaseGraphAligner
 from syngen.utils.types import DataFrameType, MetaData
 from syngen.utils.utils import df_to_cudf, df_to_dask_cudf, df_to_pandas
@@ -58,7 +57,7 @@ class RandomAligner(BaseGraphAligner):
         node_id_col: str = "id",
         batch_size: int = 1000,
     ) -> Dict[str, DataFrameType]:
-        """ Align given features onto graph defined in `data[MetaData.EDGE_LIST]`
+        """Align given features onto graph defined in `data[MetaData.EDGE_LIST]`
 
         Args:
             data (Dict[str, DataFrameType]): dictionary containing graph edge list and edge/node
@@ -130,9 +129,7 @@ class RandomAligner(BaseGraphAligner):
             features
         ), "generated tabular data must be greater or \
                 equal to the number of nodes in dest_data"
-        rand_idxs = np.random.choice(
-            np.arange(len(features)), size=len(vertices)
-        )
+        rand_idxs = np.random.choice(np.arange(len(features)), size=len(vertices))
         features = df_to_pandas(features)
         columns = list(self.node_columns)
         features = features.iloc[rand_idxs][columns].reset_index(drop=True)
@@ -141,11 +138,11 @@ class RandomAligner(BaseGraphAligner):
         return data
 
     def save(self, path):
-        with open(path, 'wb') as file_handler:
+        with open(path, "wb") as file_handler:
             pickle.dump(self, file_handler, protocol=pickle.HIGHEST_PROTOCOL)
 
     @classmethod
     def load(cls, path):
-        with open(path, 'rb') as file_handler:
+        with open(path, "rb") as file_handler:
             model = pickle.load(file_handler)
         return model

@@ -15,32 +15,43 @@
 import os
 import time
 
-import tensorflow as tf
+import dllogger.logger as dllg
 import horovod.tensorflow as hvd
-
+import tensorflow as tf
+from dllogger import tags
 from dllogger.autologging import log_hardware
 from dllogger.logger import LOGGER
-import dllogger.logger as dllg
-from dllogger import tags
 
 
 class ProfilerHook(tf.train.SessionRunHook):
-
     def __init__(self, out_dir, global_batch_size, log_every=10, warmup_steps=20):
-        LOGGER.set_model_name('UNet_TF')
-        LOGGER.set_backends([
-            dllg.JsonBackend(log_file=os.path.join(out_dir, 'dlloger_out.json'),
-                             logging_scope=dllg.Scope.TRAIN_ITER, iteration_interval=1),
-            dllg.StdOutBackend(log_file=None,
-                               logging_scope=dllg.Scope.TRAIN_ITER, iteration_interval=log_every)
-
-        ])
+        LOGGER.set_model_name("UNet_TF")
+        LOGGER.set_backends(
+            [
+                dllg.JsonBackend(
+                    log_file=os.path.join(out_dir, "dlloger_out.json"),
+                    logging_scope=dllg.Scope.TRAIN_ITER,
+                    iteration_interval=1,
+                ),
+                dllg.StdOutBackend(
+                    log_file=None,
+                    logging_scope=dllg.Scope.TRAIN_ITER,
+                    iteration_interval=log_every,
+                ),
+            ]
+        )
 
         self._perf = dllg.AverageMeter()
 
-        LOGGER.register_metric('loss', meter=dllg.AverageMeter(), metric_scope=dllg.Scope.TRAIN_ITER)
-        LOGGER.register_metric('dice_loss', meter=dllg.AverageMeter(), metric_scope=dllg.Scope.TRAIN_ITER)
-        LOGGER.register_metric('total_loss', meter=dllg.AverageMeter(), metric_scope=dllg.Scope.TRAIN_ITER)
+        LOGGER.register_metric(
+            "loss", meter=dllg.AverageMeter(), metric_scope=dllg.Scope.TRAIN_ITER
+        )
+        LOGGER.register_metric(
+            "dice_loss", meter=dllg.AverageMeter(), metric_scope=dllg.Scope.TRAIN_ITER
+        )
+        LOGGER.register_metric(
+            "total_loss", meter=dllg.AverageMeter(), metric_scope=dllg.Scope.TRAIN_ITER
+        )
 
         self._warmup_steps = warmup_steps
         self._global_batch_size = global_batch_size
@@ -50,17 +61,16 @@ class ProfilerHook(tf.train.SessionRunHook):
         LOGGER.iteration_start()
         run_args = tf.train.SessionRunArgs(
             fetches=[
-                'UNet/cross_loss_ref:0',
-                'UNet/dice_loss_ref:0',
-                'UNet/total_loss_ref:0']
+                "UNet/cross_loss_ref:0",
+                "UNet/dice_loss_ref:0",
+                "UNet/total_loss_ref:0",
+            ]
         )
         self._t0 = time.time()
 
         return run_args
 
-    def after_run(self,
-                  run_context,
-                  run_values):
+    def after_run(self, run_context, run_values):
         cross_loss, dice_loss, total_loss = run_values.results
 
         batch_time = time.time() - self._t0

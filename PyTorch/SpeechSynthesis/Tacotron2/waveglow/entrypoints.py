@@ -25,10 +25,11 @@
 #
 # *****************************************************************************
 
-import urllib.request
-import torch
 import os
 import sys
+import urllib.request
+
+import torch
 
 
 # from https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/SpeechSynthesis/Tacotron2/inference.py
@@ -41,7 +42,7 @@ def checkpoint_from_distributed(state_dict):
     """
     ret = False
     for key, _ in state_dict.items():
-        if key.find('module.') != -1:
+        if key.find("module.") != -1:
             ret = True
             break
     return ret
@@ -57,21 +58,22 @@ def unwrap_distributed(state_dict):
     """
     new_state_dict = {}
     for key, value in state_dict.items():
-        new_key = key.replace('module.1.', '')
-        new_key = new_key.replace('module.', '')
+        new_key = key.replace("module.1.", "")
+        new_key = new_key.replace("module.", "")
         new_state_dict[new_key] = value
     return new_state_dict
 
 
 def _download_checkpoint(checkpoint, force_reload):
-    model_dir = os.path.join(torch.hub._get_torch_home(), 'checkpoints')
+    model_dir = os.path.join(torch.hub._get_torch_home(), "checkpoints")
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
     ckpt_file = os.path.join(model_dir, os.path.basename(checkpoint))
     if not os.path.exists(ckpt_file) or force_reload:
-        sys.stderr.write('Downloading checkpoint from {}\n'.format(checkpoint))
+        sys.stderr.write("Downloading checkpoint from {}\n".format(checkpoint))
         urllib.request.urlretrieve(checkpoint, ckpt_file)
     return ckpt_file
+
 
 def nvidia_waveglow(pretrained=True, **kwargs):
     """Constructs a WaveGlow model (nn.module with additional infer(input) method).
@@ -89,25 +91,29 @@ def nvidia_waveglow(pretrained=True, **kwargs):
 
     if pretrained:
         if fp16:
-            checkpoint = 'https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ckpt_amp/versions/19.09.0/files/nvidia_waveglowpyt_fp16_20190427'
+            checkpoint = "https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ckpt_amp/versions/19.09.0/files/nvidia_waveglowpyt_fp16_20190427"
         else:
-            checkpoint = 'https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ckpt_fp32/versions/19.09.0/files/nvidia_waveglowpyt_fp32_20190427'
+            checkpoint = "https://api.ngc.nvidia.com/v2/models/nvidia/waveglow_ckpt_fp32/versions/19.09.0/files/nvidia_waveglowpyt_fp32_20190427"
         ckpt_file = _download_checkpoint(checkpoint, force_reload)
         ckpt = torch.load(ckpt_file)
-        state_dict = ckpt['state_dict']
+        state_dict = ckpt["state_dict"]
         if checkpoint_from_distributed(state_dict):
             state_dict = unwrap_distributed(state_dict)
-        config = ckpt['config']
+        config = ckpt["config"]
     else:
-        config = {'n_mel_channels': 80, 'n_flows': 12, 'n_group': 8,
-                  'n_early_every': 4, 'n_early_size': 2,
-                  'WN_config': {'n_layers': 8, 'kernel_size': 3,
-                                'n_channels': 512}}
-        for k,v in kwargs.items():
+        config = {
+            "n_mel_channels": 80,
+            "n_flows": 12,
+            "n_group": 8,
+            "n_early_every": 4,
+            "n_early_size": 2,
+            "WN_config": {"n_layers": 8, "kernel_size": 3, "n_channels": 512},
+        }
+        for k, v in kwargs.items():
             if k in config.keys():
                 config[k] = v
-            elif k in config['WN_config'].keys():
-                config['WN_config'][k] = v
+            elif k in config["WN_config"].keys():
+                config["WN_config"][k] = v
 
     m = waveglow.WaveGlow(**config)
 

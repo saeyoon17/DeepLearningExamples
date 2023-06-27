@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-__all__ = ['AverageMeter']
+__all__ = ["AverageMeter"]
 
 
 class AverageMeter:
@@ -20,7 +20,7 @@ class AverageMeter:
     A container to keep running sum, mean and last value.
     """
 
-    def __init__(self, name='', fmt='f', postfix="", need_avg=True):
+    def __init__(self, name="", fmt="f", postfix="", need_avg=True):
         self.name = name
         self.fmt = fmt
         self.postfix = postfix
@@ -44,4 +44,4 @@ class AverageMeter:
 
     @property
     def total(self):
-        return '{self.sum:{self.fmt}}{self.postfix}'.format(self=self)
+        return "{self.sum:{self.fmt}}{self.postfix}".format(self=self)

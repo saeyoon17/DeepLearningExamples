@@ -53,7 +53,9 @@ def main(args):
         export_model(args, model)
         suffix = "amp" if args.amp else "fp32"
         sm = f"{args.results}/saved_model_task_{args.task}_dim_{args.dim}_" + suffix
-        trt = f"{args.results}/trt_saved_model_task_{args.task}_dim_{args.dim}_" + suffix
+        trt = (
+            f"{args.results}/trt_saved_model_task_{args.task}_dim_{args.dim}_" + suffix
+        )
         args.saved_model_dir = sm if args.load_sm else trt
         args.exec_mode = "evaluate" if args.validate else "predict"
 

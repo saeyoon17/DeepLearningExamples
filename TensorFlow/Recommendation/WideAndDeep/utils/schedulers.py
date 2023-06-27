@@ -14,10 +14,12 @@
 
 import tensorflow as tf
 
-__all__ = ['learning_rate_scheduler']
+__all__ = ["learning_rate_scheduler"]
 
 
 def learning_rate_scheduler(lr_init, warmup_steps, global_step):
-    warmup_lr = (lr_init * tf.cast(global_step, tf.float32) / tf.cast(warmup_steps, tf.float32))
+    warmup_lr = (
+        lr_init * tf.cast(global_step, tf.float32) / tf.cast(warmup_steps, tf.float32)
+    )
 
     return tf.cond(global_step < warmup_steps, lambda: warmup_lr, lambda: lr_init)

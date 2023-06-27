@@ -25,8 +25,8 @@ from tqdm.auto import tqdm
 if __name__ == "__main__" and __package__ is None:
     __package__ = pathlib.Path(__file__).parent.name
 
-from .logger import LOGGER
 from .exceptions import RunnerException
+from .logger import LOGGER
 
 
 def unzip(checkpoint_path: pathlib.Path, archive_path: pathlib.Path) -> None:

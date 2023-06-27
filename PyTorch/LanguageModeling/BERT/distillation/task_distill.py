@@ -20,43 +20,52 @@ from __future__ import absolute_import, division, print_function
 
 import argparse
 import csv
+import datetime
 import logging
+import math
 import os
 import random
 import sys
-import time, datetime
-import math
+import time
 
 import numpy as np
 import torch
+from scipy.stats import pearsonr, spearmanr
+from sklearn.metrics import f1_score, matthews_corrcoef
+from torch.nn import CrossEntropyLoss, MSELoss
 from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler,
                               TensorDataset)
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm, trange
 
-from torch.nn import CrossEntropyLoss, MSELoss
-from scipy.stats import pearsonr, spearmanr
-from sklearn.metrics import matthews_corrcoef, f1_score
+sys.path.append("/workspace/bert/")
+from itertools import chain
 
-sys.path.append('/workspace/bert/')
-from modeling import BertForSequenceClassification, BertForQuestionAnswering, Project, WEIGHTS_NAME, CONFIG_NAME
-from schedulers import LinearWarmUpScheduler, ConstantLR
-from tokenization_utils import BertTokenizer
+import utils.squad.squad_metrics as squad_metrics
 from apex.optimizers import FusedAdam
-
 from hooks import *
 from losses import *
-from utils.utils import is_main_process, get_rank, get_world_size, unwrap_ddp, set_seed
+from modeling import (CONFIG_NAME, WEIGHTS_NAME, BertForQuestionAnswering,
+                      BertForSequenceClassification, Project)
+from schedulers import ConstantLR, LinearWarmUpScheduler
+from tokenization_utils import BertTokenizer
 from utils.squad.squad_metrics import compute_predictions, squad_evaluate
-import utils.squad.squad_metrics as squad_metrics
-from utils.squad.squad_utils import squad_convert_examples_to_features, SquadResult, RawResult, SquadV1Processor, SquadV2Processor, load_and_cache_examples
-from itertools import chain
+from utils.squad.squad_utils import (RawResult, SquadResult, SquadV1Processor,
+                                     SquadV2Processor, load_and_cache_examples,
+                                     squad_convert_examples_to_features)
+from utils.utils import (get_rank, get_world_size, is_main_process, set_seed,
+                         unwrap_ddp)
+
 csv.field_size_limit(sys.maxsize)
 
-log_format = '%(asctime)s %(message)s'
-logging.basicConfig(stream=sys.stdout, level=logging.INFO,
-                    format=log_format, datefmt='%m/%d %I:%M:%S %p')
-fh = logging.FileHandler('debug_layer_loss.log')
+log_format = "%(asctime)s %(message)s"
+logging.basicConfig(
+    stream=sys.stdout,
+    level=logging.INFO,
+    format=log_format,
+    datefmt="%m/%d %I:%M:%S %p",
+)
+fh = logging.FileHandler("debug_layer_loss.log")
 fh.setFormatter(logging.Formatter(log_format))
 logging.getLogger().addHandler(fh)
 logger = logging.getLogger()
@@ -123,7 +132,7 @@ class DataProcessor(object):
             lines = []
             for line in reader:
                 if sys.version_info[0] == 2:
-                    line = list(unicode(cell, 'utf-8') for cell in line)
+                    line = list(unicode(cell, "utf-8") for cell in line)
                 lines.append(line)
             return lines
 
@@ -134,16 +143,19 @@ class MrpcProcessor(DataProcessor):
     def get_train_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_aug_examples(self, data_dir):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug"
+        )
 
     def get_labels(self):
         """See base class."""
@@ -160,7 +172,8 @@ class MrpcProcessor(DataProcessor):
             text_b = line[4]
             label = line[0]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
 
@@ -170,17 +183,19 @@ class MnliProcessor(DataProcessor):
     def get_train_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")),
-            "dev_matched")
+            self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")), "dev_matched"
+        )
 
     def get_aug_examples(self, data_dir):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug"
+        )
 
     def get_labels(self):
         """See base class."""
@@ -197,7 +212,8 @@ class MnliProcessor(DataProcessor):
             text_b = line[9]
             label = line[-1]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
 
@@ -207,8 +223,8 @@ class MnliMismatchedProcessor(MnliProcessor):
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev_mismatched.tsv")),
-            "dev_matched")
+            self._read_tsv(os.path.join(data_dir, "dev_mismatched.tsv")), "dev_matched"
+        )
 
 
 class ColaProcessor(DataProcessor):
@@ -217,16 +233,19 @@ class ColaProcessor(DataProcessor):
     def get_train_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_aug_examples(self, data_dir):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug"
+        )
 
     def get_labels(self):
         """See base class."""
@@ -240,7 +259,8 @@ class ColaProcessor(DataProcessor):
             text_a = line[3]
             label = line[1]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=label)
+            )
         return examples
 
 
@@ -251,17 +271,20 @@ class Sst2Processor(DataProcessor):
         """See base class."""
         print("Using train data")
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_aug_examples(self, data_dir):
         print("Using Aug Data")
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug"
+        )
 
     def get_labels(self):
         """See base class."""
@@ -277,7 +300,8 @@ class Sst2Processor(DataProcessor):
             text_a = line[0]
             label = line[1]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=label)
+            )
         return examples
 
 
@@ -287,16 +311,19 @@ class StsbProcessor(DataProcessor):
     def get_train_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_aug_examples(self, data_dir):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug"
+        )
 
     def get_labels(self):
         """See base class."""
@@ -313,7 +340,8 @@ class StsbProcessor(DataProcessor):
             text_b = line[8]
             label = line[-1]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
 
@@ -323,16 +351,19 @@ class QqpProcessor(DataProcessor):
     def get_train_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_aug_examples(self, data_dir):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug"
+        )
 
     def get_labels(self):
         """See base class."""
@@ -352,7 +383,8 @@ class QqpProcessor(DataProcessor):
             except IndexError:
                 continue
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
 
@@ -362,17 +394,19 @@ class QnliProcessor(DataProcessor):
     def get_train_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")),
-            "dev_matched")
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev_matched"
+        )
 
     def get_aug_examples(self, data_dir):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug"
+        )
 
     def get_labels(self):
         """See base class."""
@@ -389,7 +423,8 @@ class QnliProcessor(DataProcessor):
             text_b = line[2]
             label = line[-1]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
 
@@ -399,16 +434,19 @@ class RteProcessor(DataProcessor):
     def get_train_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_aug_examples(self, data_dir):
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug")
+            self._read_tsv(os.path.join(data_dir, "train_aug.tsv")), "aug"
+        )
 
     def get_labels(self):
         """See base class."""
@@ -425,7 +463,8 @@ class RteProcessor(DataProcessor):
             text_b = line[2]
             label = line[-1]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
 
@@ -435,12 +474,14 @@ class WnliProcessor(DataProcessor):
     def get_train_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
         return self._create_examples(
-            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_labels(self):
         """See base class."""
@@ -457,12 +498,14 @@ class WnliProcessor(DataProcessor):
             text_b = line[2]
             label = line[-1]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
 
-def convert_examples_to_features(examples, label_list, max_seq_length,
-                                 tokenizer, output_mode):
+def convert_examples_to_features(
+    examples, label_list, max_seq_length, tokenizer, output_mode
+):
     """Loads a data file into a list of `InputBatch`s."""
 
     label_map = {label: i for i, label in enumerate(label_list)}
@@ -481,7 +524,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
             _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
         else:
             if len(tokens_a) > max_seq_length - 2:
-                tokens_a = tokens_a[:(max_seq_length - 2)]
+                tokens_a = tokens_a[: (max_seq_length - 2)]
 
         tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
         segment_ids = [0] * len(tokens)
@@ -513,21 +556,22 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         if ex_index < 1:
             logger.info("*** Example ***")
             logger.info("guid: %s" % (example.guid))
-            logger.info("tokens: %s" % " ".join(
-                [str(x) for x in tokens]))
+            logger.info("tokens: %s" % " ".join([str(x) for x in tokens]))
             logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
             logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-            logger.info(
-                "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+            logger.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
             logger.info("label: {}".format(example.label))
             logger.info("label_id: {}".format(label_id))
 
         features.append(
-            InputFeatures(input_ids=input_ids,
-                          input_mask=input_mask,
-                          segment_ids=segment_ids,
-                          label_id=label_id,
-                          seq_length=seq_length))
+            InputFeatures(
+                input_ids=input_ids,
+                input_mask=input_mask,
+                segment_ids=segment_ids,
+                label_id=label_id,
+                seq_length=seq_length,
+            )
+        )
     return features
 
 
@@ -603,8 +647,9 @@ def get_tensor_data(output_mode, features):
     all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
     all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
     all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
-    tensor_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids,
-                                all_label_ids, all_seq_lengths)
+    tensor_data = TensorDataset(
+        all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_seq_lengths
+    )
     return tensor_data, all_label_ids
 
 
@@ -617,8 +662,9 @@ def result_to_file(result, file_name, step, train_summary_writer):
             train_summary_writer.add_scalar(key, result[key], step)
 
 
-def do_eval(model, task_name, eval_dataloader,
-            device, output_mode, eval_labels, num_labels, amp):
+def do_eval(
+    model, task_name, eval_dataloader, device, output_mode, eval_labels, num_labels, amp
+):
     eval_loss = 0
     nb_eval_steps = 0
     preds = []
@@ -642,8 +688,7 @@ def do_eval(model, task_name, eval_dataloader,
         if len(preds) == 0:
             preds.append(logits.detach().cpu().numpy())
         else:
-            preds[0] = np.append(
-                preds[0], logits.detach().cpu().numpy(), axis=0)
+            preds[0] = np.append(preds[0], logits.detach().cpu().numpy(), axis=0)
 
     eval_loss = eval_loss / nb_eval_steps
 
@@ -653,136 +698,144 @@ def do_eval(model, task_name, eval_dataloader,
     elif output_mode == "regression":
         preds = np.squeeze(preds)
     result = compute_metrics(task_name, preds, eval_labels.numpy())
-    result['eval_loss'] = eval_loss
+    result["eval_loss"] = eval_loss
 
     return result
 
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_dir",
-                        default=None,
-                        type=str,
-                        required=True,
-                        help="The input data dir. Should contain the .tsv files (or other data files) for the task.")
-    parser.add_argument("--teacher_model",
-                        default=None,
-                        type=str,
-                        help="The teacher model dir.")
-    parser.add_argument("--student_model",
-                        default=None,
-                        type=str,
-                        required=True,
-                        help="The student model dir.")
-    parser.add_argument("--task_name",
-                        default=None,
-                        type=str,
-                        required=True,
-                        help="The name of the task to train.")
-    parser.add_argument("--output_dir",
-                        default=None,
-                        type=str,
-                        required=True,
-                        help="The output directory where the model predictions and checkpoints will be written.")
-    parser.add_argument("--cache_dir",
-                        default="",
-                        type=str,
-                        help="Where do you want to store the pre-trained models downloaded from s3")
-    parser.add_argument("--max_seq_length",
-                        default=128,
-                        type=int,
-                        help="The maximum total input sequence length after WordPiece tokenization. \n"
-                             "Sequences longer than this will be truncated, and sequences shorter \n"
-                             "than this will be padded.")
-    parser.add_argument("--do_eval",
-                        action='store_true',
-                        help="Whether to run eval on the dev set.")
-    parser.add_argument("--do_lower_case",
-                        action='store_true',
-                        help="Set this flag if you are using an uncased model.")
-    parser.add_argument('--amp',
-                        action='store_true',
-                        default=False,
-                        help="Whether to use 16-bit float precision instead of 32-bit")
-    parser.add_argument("--train_batch_size",
-                        default=32,
-                        type=int,
-                        help="Total batch size for training.")
-    parser.add_argument("--eval_batch_size",
-                        default=32,
-                        type=int,
-                        help="Total batch size for eval.")
-    parser.add_argument("--learning_rate",
-                        default=5e-5,
-                        type=float,
-                        help="The initial learning rate for Adam.")
-    parser.add_argument('--weight_decay', '--wd',
-                        default=1e-4,
-                        type=float,
-                        metavar='W',
-                        help='weight decay')
-    parser.add_argument("--num_train_epochs",
-                        default=3.0,
-                        type=float,
-                        help="Total number of training epochs to perform.")
-    parser.add_argument("--max_steps",
-                        default=-1,
-                        type=int,
-                        help="Total number of training steps to perform.")
-    parser.add_argument("--warmup_proportion",
-                        default=0.1,
-                        type=float,
-                        help="Proportion of training to perform linear learning rate warmup for. "
-                             "E.g., 0.1 = 10%% of training.")
-    parser.add_argument("--no_cuda",
-                        action='store_true',
-                        help="Whether not to use CUDA when available")
-    parser.add_argument('--seed',
-                        type=int,
-                        default=42,
-                        help="random seed for initialization")
-    parser.add_argument('--gradient_accumulation_steps',
-                        type=int,
-                        default=1,
-                        help="Number of updates steps to accumulate before performing a backward/update pass.")
-    parser.add_argument('--max_grad_norm',
-                        type=float,
-                        default=1.,
-                        help="Gradient Clipping threshold")
+    parser.add_argument(
+        "--data_dir",
+        default=None,
+        type=str,
+        required=True,
+        help="The input data dir. Should contain the .tsv files (or other data files) for the task.",
+    )
+    parser.add_argument(
+        "--teacher_model", default=None, type=str, help="The teacher model dir."
+    )
+    parser.add_argument(
+        "--student_model",
+        default=None,
+        type=str,
+        required=True,
+        help="The student model dir.",
+    )
+    parser.add_argument(
+        "--task_name",
+        default=None,
+        type=str,
+        required=True,
+        help="The name of the task to train.",
+    )
+    parser.add_argument(
+        "--output_dir",
+        default=None,
+        type=str,
+        required=True,
+        help="The output directory where the model predictions and checkpoints will be written.",
+    )
+    parser.add_argument(
+        "--cache_dir",
+        default="",
+        type=str,
+        help="Where do you want to store the pre-trained models downloaded from s3",
+    )
+    parser.add_argument(
+        "--max_seq_length",
+        default=128,
+        type=int,
+        help="The maximum total input sequence length after WordPiece tokenization. \n"
+        "Sequences longer than this will be truncated, and sequences shorter \n"
+        "than this will be padded.",
+    )
+    parser.add_argument(
+        "--do_eval", action="store_true", help="Whether to run eval on the dev set."
+    )
+    parser.add_argument(
+        "--do_lower_case",
+        action="store_true",
+        help="Set this flag if you are using an uncased model.",
+    )
+    parser.add_argument(
+        "--amp",
+        action="store_true",
+        default=False,
+        help="Whether to use 16-bit float precision instead of 32-bit",
+    )
+    parser.add_argument(
+        "--train_batch_size",
+        default=32,
+        type=int,
+        help="Total batch size for training.",
+    )
+    parser.add_argument(
+        "--eval_batch_size", default=32, type=int, help="Total batch size for eval."
+    )
+    parser.add_argument(
+        "--learning_rate",
+        default=5e-5,
+        type=float,
+        help="The initial learning rate for Adam.",
+    )
+    parser.add_argument(
+        "--weight_decay",
+        "--wd",
+        default=1e-4,
+        type=float,
+        metavar="W",
+        help="weight decay",
+    )
+    parser.add_argument(
+        "--num_train_epochs",
+        default=3.0,
+        type=float,
+        help="Total number of training epochs to perform.",
+    )
+    parser.add_argument(
+        "--max_steps",
+        default=-1,
+        type=int,
+        help="Total number of training steps to perform.",
+    )
+    parser.add_argument(
+        "--warmup_proportion",
+        default=0.1,
+        type=float,
+        help="Proportion of training to perform linear learning rate warmup for. "
+        "E.g., 0.1 = 10%% of training.",
+    )
+    parser.add_argument(
+        "--no_cuda", action="store_true", help="Whether not to use CUDA when available"
+    )
+    parser.add_argument(
+        "--seed", type=int, default=42, help="random seed for initialization"
+    )
+    parser.add_argument(
+        "--gradient_accumulation_steps",
+        type=int,
+        default=1,
+        help="Number of updates steps to accumulate before performing a backward/update pass.",
+    )
+    parser.add_argument(
+        "--max_grad_norm", type=float, default=1.0, help="Gradient Clipping threshold"
+    )
 
     # added arguments
-    parser.add_argument('--aug_train',
-                        action='store_true')
-    parser.add_argument('--value_state_loss',
-                        action='store_true',
-                        default=False)
-    parser.add_argument('--hidden_state_loss',
-                        action='store_true',
-                        default=False)
-    parser.add_argument('--use_last_layer',
-                        action='store_true',
-                        default=False)
-    parser.add_argument('--use_kld',
-                        action='store_true',
-                        default=False)
-    parser.add_argument('--use_cosine',
-                        action='store_true',
-                        default=False)
-    parser.add_argument('--average_loss',
-                        action='store_true',
-                        default=False)
-    parser.add_argument('--eval_step',
-                        type=int,
-                        default=50)
-    parser.add_argument('--pred_distill',
-                        action='store_true')
-    parser.add_argument('--data_url',
-                        type=str,
-                        default="")
-    parser.add_argument('--temperature',
-                        type=float,
-                        default=1.)
+    parser.add_argument("--aug_train", action="store_true")
+    parser.add_argument("--value_state_loss", action="store_true", default=False)
+    parser.add_argument("--hidden_state_loss", action="store_true", default=False)
+    parser.add_argument("--use_last_layer", action="store_true", default=False)
+    parser.add_argument("--use_kld", action="store_true", default=False)
+    parser.add_argument("--use_cosine", action="store_true", default=False)
+    parser.add_argument("--average_loss", action="store_true", default=False)
+    parser.add_argument("--eval_step", type=int, default=50)
+    parser.add_argument("--pred_distill", action="store_true")
+    parser.add_argument("--data_url", type=str, default="")
+    parser.add_argument("--temperature", type=float, default=1.0)
 
-    #SQUAD args
+    # SQUAD args
     parser.add_argument(
         "--n_best_size",
         default=20,
@@ -794,13 +847,13 @@ def main():
         default=30,
         type=int,
         help="The maximum length of an answer that can be generated. This is needed because the start "
-             "and end predictions are not conditioned on one another.",
+        "and end predictions are not conditioned on one another.",
     )
     parser.add_argument(
         "--verbose_logging",
         action="store_true",
         help="If true, all of the warnings related to data processing will be printed. "
-             "A number of warnings are expected for a normal SQuAD evaluation.",
+        "A number of warnings are expected for a normal SQuAD evaluation.",
     )
     parser.add_argument(
         "--lang_id",
@@ -808,29 +861,42 @@ def main():
         type=int,
         help="language id of input for language-specific xlm models (see tokenization_xlm.PRETRAINED_INIT_CONFIGURATION)",
     )
-    parser.add_argument("--local_rank", type=int, default=-1, help="local_rank for distributed training on gpus")
-    parser.add_argument('--distill_config',
-                        default="distillation_config.json",
-                        type=str,
-                        help="path the distillation config")
+    parser.add_argument(
+        "--local_rank",
+        type=int,
+        default=-1,
+        help="local_rank for distributed training on gpus",
+    )
+    parser.add_argument(
+        "--distill_config",
+        default="distillation_config.json",
+        type=str,
+        help="path the distillation config",
+    )
 
     args = parser.parse_args()
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
-        raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
+        raise ValueError(
+            "Output directory ({}) already exists and is not empty.".format(
+                args.output_dir
+            )
+        )
     if not os.path.exists(args.output_dir) and is_main_process():
         os.makedirs(args.output_dir, exist_ok=True)
 
     # Setup CUDA, GPU & distributed training
     if args.local_rank == -1 or args.no_cuda:
-        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+        device = torch.device(
+            "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
+        )
     else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
         torch.cuda.set_device(args.local_rank)
         device = torch.device("cuda", args.local_rank)
         torch.distributed.init_process_group(backend="nccl")
     args.device = device
-    logger.info('device: {}'.format(device))
-    logger.info('The args: {}'.format(args))
+    logger.info("device: {}".format(device))
+    logger.info("The args: {}".format(args))
 
     processors = {
         "cola": ColaProcessor,
@@ -877,12 +943,14 @@ def main():
     mcc_tasks = ["cola"]
 
     # Prepare devices
-    #device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+    # device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
     n_gpu = torch.cuda.device_count()
 
-    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
-                        datefmt='%m/%d/%Y %H:%M:%S',
-                        level=logging.INFO)
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
+        datefmt="%m/%d/%Y %H:%M:%S",
+        level=logging.INFO,
+    )
 
     logger.info("device: {} n_gpu: {}".format(device, n_gpu))
     set_seed(args.seed, n_gpu)
@@ -890,8 +958,11 @@ def main():
     # Prepare task settings
     # Set up tensorboard
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    train_log_dir = os.path.join(args.output_dir, current_time,
-                                 'train_' + str(get_rank()) + '_of_' + str(get_world_size()))
+    train_log_dir = os.path.join(
+        args.output_dir,
+        current_time,
+        "train_" + str(get_rank()) + "_of_" + str(get_world_size()),
+    )
     train_summary_writer = SummaryWriter(train_log_dir)
 
     task_name = args.task_name.lower()
@@ -907,54 +978,103 @@ def main():
     label_list = processor.get_labels() if task_name != "squadv1.1" else []
     num_labels = len(label_list)
 
-    tokenizer = BertTokenizer.from_pretrained(args.student_model, do_lower_case=args.do_lower_case)
+    tokenizer = BertTokenizer.from_pretrained(
+        args.student_model, do_lower_case=args.do_lower_case
+    )
 
     if not args.do_eval:
         if task_name == "squadv1.1":
-            train_data = load_and_cache_examples(args, tokenizer, evaluate=False, output_examples=False)
+            train_data = load_and_cache_examples(
+                args, tokenizer, evaluate=False, output_examples=False
+            )
         else:
             if not args.aug_train:
                 train_examples = processor.get_train_examples(args.data_dir)
             else:
                 train_examples = processor.get_aug_examples(args.data_dir)
         if args.gradient_accumulation_steps < 1:
-            raise ValueError("Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
-                args.gradient_accumulation_steps))
+            raise ValueError(
+                "Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
+                    args.gradient_accumulation_steps
+                )
+            )
 
         if task_name != "squadv1.1":
-            num_train_optimization_steps = int(len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps) * args.num_train_epochs
+            num_train_optimization_steps = (
+                int(
+                    len(train_examples)
+                    / args.train_batch_size
+                    / args.gradient_accumulation_steps
+                )
+                * args.num_train_epochs
+            )
 
-            train_features = convert_examples_to_features(train_examples, label_list,
-                                                          args.max_seq_length, tokenizer, output_mode)
+            train_features = convert_examples_to_features(
+                train_examples, label_list, args.max_seq_length, tokenizer, output_mode
+            )
             train_data, _ = get_tensor_data(output_mode, train_features)
         if args.local_rank == -1:
             train_sampler = RandomSampler(train_data)
         else:
             train_sampler = torch.utils.data.distributed.DistributedSampler(train_data)
-        train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size, num_workers=4, pin_memory=True)
+        train_dataloader = DataLoader(
+            train_data,
+            sampler=train_sampler,
+            batch_size=args.train_batch_size,
+            num_workers=4,
+            pin_memory=True,
+        )
 
         if args.max_steps > 0:
             num_train_optimization_steps = args.max_steps
         else:
-            num_train_optimization_steps = len(train_dataloader) // args.gradient_accumulation_steps * args.num_train_epochs
+            num_train_optimization_steps = (
+                len(train_dataloader)
+                // args.gradient_accumulation_steps
+                * args.num_train_epochs
+            )
 
     if "SQuAD" not in args.task_name:
         eval_examples = processor.get_dev_examples(args.data_dir)
-        eval_features = convert_examples_to_features(eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
+        eval_features = convert_examples_to_features(
+            eval_examples, label_list, args.max_seq_length, tokenizer, output_mode
+        )
         eval_data, eval_labels = get_tensor_data(output_mode, eval_features)
         eval_sampler = SequentialSampler(eval_data)
-        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size, num_workers=4)
+        eval_dataloader = DataLoader(
+            eval_data,
+            sampler=eval_sampler,
+            batch_size=args.eval_batch_size,
+            num_workers=4,
+        )
 
     if not args.do_eval:
         if "SQuAD" not in args.task_name:
-            teacher_model, teacher_config = BertForSequenceClassification.from_pretrained(args.teacher_model, distill_config=args.distill_config, num_labels=num_labels, pooler=True)
+            (
+                teacher_model,
+                teacher_config,
+            ) = BertForSequenceClassification.from_pretrained(
+                args.teacher_model,
+                distill_config=args.distill_config,
+                num_labels=num_labels,
+                pooler=True,
+            )
         else:
-            teacher_model, teacher_config = BertForQuestionAnswering.from_pretrained(args.teacher_model, distill_config=args.distill_config, pooler=False)
+            teacher_model, teacher_config = BertForQuestionAnswering.from_pretrained(
+                args.teacher_model, distill_config=args.distill_config, pooler=False
+            )
 
     if "SQuAD" not in args.task_name:
-        student_model, student_config = BertForSequenceClassification.from_pretrained(args.student_model, distill_config=args.distill_config, num_labels=num_labels, pooler=True)
+        student_model, student_config = BertForSequenceClassification.from_pretrained(
+            args.student_model,
+            distill_config=args.distill_config,
+            num_labels=num_labels,
+            pooler=True,
+        )
     else:
-        student_model, student_config = BertForQuestionAnswering.from_pretrained(args.student_model, distill_config=args.distill_config, pooler=False)
+        student_model, student_config = BertForQuestionAnswering.from_pretrained(
+            args.student_model, distill_config=args.distill_config, pooler=False
+        )
 
     # We need a projection layer since teacher.hidden_size != student.hidden_size
     if not args.do_eval:
@@ -967,8 +1087,12 @@ def main():
     else:
         use_projection = False
 
-    distill_config = {"nn_module_names": []} #Empty list since we don't want to use nn module hooks here
-    distill_hooks_student, distill_hooks_teacher = DistillHooks(distill_config), DistillHooks(distill_config)
+    distill_config = {
+        "nn_module_names": []
+    }  # Empty list since we don't want to use nn module hooks here
+    distill_hooks_student, distill_hooks_teacher = DistillHooks(
+        distill_config
+    ), DistillHooks(distill_config)
 
     student_model.register_forward_hook(distill_hooks_student.child_to_main_hook)
     if not args.do_eval:
@@ -983,16 +1107,24 @@ def main():
     if args.local_rank != -1:
         if not args.do_eval:
             teacher_model = torch.nn.parallel.DistributedDataParallel(
-                    teacher_model, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=False
-                )
+                teacher_model,
+                device_ids=[args.local_rank],
+                output_device=args.local_rank,
+                find_unused_parameters=False,
+            )
         student_model = torch.nn.parallel.DistributedDataParallel(
-            student_model, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=False
+            student_model,
+            device_ids=[args.local_rank],
+            output_device=args.local_rank,
+            find_unused_parameters=False,
         )
         if student_config.distillation_config["use_hidden_states"] and use_projection:
             project = torch.nn.parallel.DistributedDataParallel(
-                         project, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=False
-                     )
-
+                project,
+                device_ids=[args.local_rank],
+                output_device=args.local_rank,
+                find_unused_parameters=False,
+            )
 
     if args.do_eval:
         global_step = 0
@@ -1004,14 +1136,26 @@ def main():
         if "SQuAD" not in args.task_name:
             logger.info("  Num examples = %d", len(eval_examples))
             logger.info("  Batch size = %d", args.eval_batch_size)
-            result = do_eval(student_model, task_name, eval_dataloader,
-                         device, output_mode, eval_labels, num_labels, args.amp)
+            result = do_eval(
+                student_model,
+                task_name,
+                eval_dataloader,
+                device,
+                output_mode,
+                eval_labels,
+                num_labels,
+                args.amp,
+            )
             num_examples = len(eval_examples)
         else:
-            dataset, examples, features = load_and_cache_examples(args, tokenizer, evaluate=True, output_examples=True)
+            dataset, examples, features = load_and_cache_examples(
+                args, tokenizer, evaluate=True, output_examples=True
+            )
             logger.info("  Num examples = %d", len(features))
             logger.info("  Batch size = %d", args.eval_batch_size)
-            result = squad_metrics.evaluate(args, student_model, dataset, examples, features, prefix="final")#global_step)
+            result = squad_metrics.evaluate(
+                args, student_model, dataset, examples, features, prefix="final"
+            )  # global_step)
             result["global_step"] = global_step
             num_examples = len(features)
 
@@ -1019,7 +1163,11 @@ def main():
         logger.info("***** Eval results *****")
         for key in sorted(result.keys()):
             logger.info("  %s = %s", key, str(result[key]))
-        logger.info("time for inference {} perf {}".format(eval_end - eval_start, num_examples * 100 / (eval_end - eval_start)))
+        logger.info(
+            "time for inference {} perf {}".format(
+                eval_end - eval_start, num_examples * 100 / (eval_end - eval_start)
+            )
+        )
     else:
         scaler = torch.cuda.amp.GradScaler()
 
@@ -1033,29 +1181,46 @@ def main():
             param_optimizer += list(project.named_parameters())
         size = 0
         for n, p in student_model.named_parameters():
-            logger.info('n: {}'.format(n))
+            logger.info("n: {}".format(n))
             size += p.nelement()
 
-        logger.info('Total parameters: {}'.format(size))
-        no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+        logger.info("Total parameters: {}".format(size))
+        no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
         optimizer_grouped_parameters = [
-            {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-            {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+            {
+                "params": [
+                    p for n, p in param_optimizer if not any(nd in n for nd in no_decay)
+                ],
+                "weight_decay": 0.01,
+            },
+            {
+                "params": [
+                    p for n, p in param_optimizer if any(nd in n for nd in no_decay)
+                ],
+                "weight_decay": 0.0,
+            },
         ]
 
-        optimizer = FusedAdam(optimizer_grouped_parameters,
-                                  lr=args.learning_rate,
-                                  bias_correction=False)
-        schedule = 'warmup_linear'
+        optimizer = FusedAdam(
+            optimizer_grouped_parameters, lr=args.learning_rate, bias_correction=False
+        )
+        schedule = "warmup_linear"
         if not student_config.distillation_config["use_pred_states"]:
             scheduler = ConstantLR(optimizer)
         else:
-            scheduler = LinearWarmUpScheduler(optimizer, warmup=args.warmup_proportion, total_steps=num_train_optimization_steps)
-        transformer_losses = TransformerLosses(student_config, teacher_config, device, args)
+            scheduler = LinearWarmUpScheduler(
+                optimizer,
+                warmup=args.warmup_proportion,
+                total_steps=num_train_optimization_steps,
+            )
+        transformer_losses = TransformerLosses(
+            student_config, teacher_config, device, args
+        )
+
         def soft_cross_entropy(predicts, targets):
             student_likelihood = torch.nn.functional.log_softmax(predicts, dim=-1)
             targets_prob = torch.nn.functional.softmax(targets, dim=-1)
-            return (- targets_prob * student_likelihood).mean()
+            return (-targets_prob * student_likelihood).mean()
 
         # Train and evaluate
         global_step = 0
@@ -1064,16 +1229,18 @@ def main():
 
         iter_start = time.time()
         for epoch_ in trange(int(args.num_train_epochs), desc="Epoch"):
-            tr_loss = 0.
-            tr_att_loss = 0.
-            tr_rep_loss = 0.
-            tr_value_loss = 0.
-            tr_cls_loss = 0.
+            tr_loss = 0.0
+            tr_att_loss = 0.0
+            tr_rep_loss = 0.0
+            tr_value_loss = 0.0
+            tr_cls_loss = 0.0
 
             student_model.train()
             nb_tr_examples, nb_tr_steps = 0, 0
 
-            for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration", ascii=True)):
+            for step, batch in enumerate(
+                tqdm(train_dataloader, desc="Iteration", ascii=True)
+            ):
                 batch = tuple(t.to(device) for t in batch)
 
                 if "squad" in task_name:
@@ -1084,42 +1251,88 @@ def main():
                 if input_ids.size()[0] != args.train_batch_size:
                     continue
 
-                att_loss = 0.
-                rep_loss = 0.
-                value_loss = 0.
-                cls_loss = 0.
+                att_loss = 0.0
+                rep_loss = 0.0
+                value_loss = 0.0
+                cls_loss = 0.0
 
                 with torch.cuda.amp.autocast(enabled=args.amp):
                     student_model(input_ids, segment_ids, input_mask)
 
                     # Gather student states extracted by hooks
                     temp_model = unwrap_ddp(student_model)
-                    student_atts = flatten_states(temp_model.distill_states_dict, "attention_scores")
-                    student_reps = flatten_states(temp_model.distill_states_dict, "hidden_states")
-                    student_values = flatten_states(temp_model.distill_states_dict, "value_states")
-                    student_embeddings = flatten_states(temp_model.distill_states_dict, "embedding_states")
-                    student_logits = flatten_states(temp_model.distill_states_dict, "pred_states")
+                    student_atts = flatten_states(
+                        temp_model.distill_states_dict, "attention_scores"
+                    )
+                    student_reps = flatten_states(
+                        temp_model.distill_states_dict, "hidden_states"
+                    )
+                    student_values = flatten_states(
+                        temp_model.distill_states_dict, "value_states"
+                    )
+                    student_embeddings = flatten_states(
+                        temp_model.distill_states_dict, "embedding_states"
+                    )
+                    student_logits = flatten_states(
+                        temp_model.distill_states_dict, "pred_states"
+                    )
                     if student_config.distillation_config["use_attention_scores"]:
-                        bsz, attn_heads, seq_len, _  = student_atts[0].shape
+                        bsz, attn_heads, seq_len, _ = student_atts[0].shape
 
-                    #No gradient for teacher training
+                    # No gradient for teacher training
                     with torch.no_grad():
                         teacher_model(input_ids, segment_ids, input_mask)
 
                     # Gather teacher states extracted by hooks
                     temp_model = unwrap_ddp(teacher_model)
-                    teacher_atts = [i.detach() for i in flatten_states(temp_model.distill_states_dict, "attention_scores")]
-                    teacher_reps = [i.detach() for i in flatten_states(temp_model.distill_states_dict, "hidden_states")]
-                    teacher_values = [i.detach() for i in flatten_states(temp_model.distill_states_dict, "value_states")]
+                    teacher_atts = [
+                        i.detach()
+                        for i in flatten_states(
+                            temp_model.distill_states_dict, "attention_scores"
+                        )
+                    ]
+                    teacher_reps = [
+                        i.detach()
+                        for i in flatten_states(
+                            temp_model.distill_states_dict, "hidden_states"
+                        )
+                    ]
+                    teacher_values = [
+                        i.detach()
+                        for i in flatten_states(
+                            temp_model.distill_states_dict, "value_states"
+                        )
+                    ]
                     if student_config.distillation_config["use_pred_states"]:
                         if "squad" in task_name:
-                            teacher_logits = [[i.detach() for i in flatten_states(temp_model.distill_states_dict, "pred_states")[0]]]
+                            teacher_logits = [
+                                [
+                                    i.detach()
+                                    for i in flatten_states(
+                                        temp_model.distill_states_dict, "pred_states"
+                                    )[0]
+                                ]
+                            ]
                         else:
-                            teacher_logits = [flatten_states(temp_model.distill_states_dict, "pred_states")[0].detach()]
-                    teacher_embeddings = [i.detach() for i in flatten_states(temp_model.distill_states_dict, "embedding_states")]
+                            teacher_logits = [
+                                flatten_states(
+                                    temp_model.distill_states_dict, "pred_states"
+                                )[0].detach()
+                            ]
+                    teacher_embeddings = [
+                        i.detach()
+                        for i in flatten_states(
+                            temp_model.distill_states_dict, "embedding_states"
+                        )
+                    ]
 
-                    #MiniLM
-                    if student_config.distillation_config["student_teacher_layer_mapping"] == "last_layer":
+                    # MiniLM
+                    if (
+                        student_config.distillation_config[
+                            "student_teacher_layer_mapping"
+                        ]
+                        == "last_layer"
+                    ):
                         if student_config.distillation_config["use_attention_scores"]:
                             student_atts = [student_atts[-1]]
                             new_teacher_atts = [teacher_atts[-1]]
@@ -1136,49 +1349,99 @@ def main():
                             teacher_layer_num = len(teacher_atts)
                             student_layer_num = len(student_atts)
                             assert teacher_layer_num % student_layer_num == 0
-                            layers_per_block = int(teacher_layer_num / student_layer_num)
-                            new_teacher_atts = [teacher_atts[i * layers_per_block + layers_per_block - 1]
-                                                for i in range(student_layer_num)]
+                            layers_per_block = int(
+                                teacher_layer_num / student_layer_num
+                            )
+                            new_teacher_atts = [
+                                teacher_atts[
+                                    i * layers_per_block + layers_per_block - 1
+                                ]
+                                for i in range(student_layer_num)
+                            ]
 
                         if student_config.distillation_config["use_value_states"]:
                             teacher_layer_num = len(teacher_values)
                             student_layer_num = len(student_values)
                             assert teacher_layer_num % student_layer_num == 0
-                            layers_per_block = int(teacher_layer_num / student_layer_num)
-                            new_teacher_values = [teacher_values[i * layers_per_block + layers_per_block - 1]
-                                        for i in range(student_layer_num)]
+                            layers_per_block = int(
+                                teacher_layer_num / student_layer_num
+                            )
+                            new_teacher_values = [
+                                teacher_values[
+                                    i * layers_per_block + layers_per_block - 1
+                                ]
+                                for i in range(student_layer_num)
+                            ]
 
                         if student_config.distillation_config["use_hidden_states"]:
                             teacher_layer_num = len(teacher_reps)
                             student_layer_num = len(student_reps)
                             assert teacher_layer_num % student_layer_num == 0
-                            layers_per_block = int(teacher_layer_num / student_layer_num)
-                            new_teacher_reps = [teacher_reps[i * layers_per_block + layers_per_block - 1]
-                                        for i in range(student_layer_num)]
+                            layers_per_block = int(
+                                teacher_layer_num / student_layer_num
+                            )
+                            new_teacher_reps = [
+                                teacher_reps[
+                                    i * layers_per_block + layers_per_block - 1
+                                ]
+                                for i in range(student_layer_num)
+                            ]
                             new_student_reps = student_reps
 
                     if student_config.distillation_config["use_attention_scores"]:
-                        att_loss = transformer_losses.compute_loss(student_atts, new_teacher_atts, loss_name="attention_loss")
+                        att_loss = transformer_losses.compute_loss(
+                            student_atts, new_teacher_atts, loss_name="attention_loss"
+                        )
 
                     if student_config.distillation_config["use_hidden_states"]:
-                        if student_config.distillation_config["use_hidden_states"] and use_projection:
-                            rep_loss = transformer_losses.compute_loss(project(new_student_reps), new_teacher_reps, loss_name="hidden_state_loss")
+                        if (
+                            student_config.distillation_config["use_hidden_states"]
+                            and use_projection
+                        ):
+                            rep_loss = transformer_losses.compute_loss(
+                                project(new_student_reps),
+                                new_teacher_reps,
+                                loss_name="hidden_state_loss",
+                            )
                         else:
-                            rep_loss = transformer_losses.compute_loss(new_student_reps, new_teacher_reps, loss_name="hidden_state_loss")
+                            rep_loss = transformer_losses.compute_loss(
+                                new_student_reps,
+                                new_teacher_reps,
+                                loss_name="hidden_state_loss",
+                            )
 
                     if student_config.distillation_config["use_embedding_states"]:
-                        if student_config.distillation_config["use_hidden_states"] and use_projection:
-                            rep_loss += transformer_losses.compute_loss(project(student_embeddings), teacher_embeddings, loss_name="embedding_state_loss")
+                        if (
+                            student_config.distillation_config["use_hidden_states"]
+                            and use_projection
+                        ):
+                            rep_loss += transformer_losses.compute_loss(
+                                project(student_embeddings),
+                                teacher_embeddings,
+                                loss_name="embedding_state_loss",
+                            )
                         else:
-                            rep_loss += transformer_losses.compute_loss(student_embeddings, teacher_embeddings, loss_name="embedding_state_loss")
+                            rep_loss += transformer_losses.compute_loss(
+                                student_embeddings,
+                                teacher_embeddings,
+                                loss_name="embedding_state_loss",
+                            )
 
                     if student_config.distillation_config["use_value_states"]:
-                        value_loss = transformer_losses.compute_loss(student_values, new_teacher_values, loss_name="value_state_loss")
+                        value_loss = transformer_losses.compute_loss(
+                            student_values,
+                            new_teacher_values,
+                            loss_name="value_state_loss",
+                        )
 
                     if not args.average_loss:
                         loss = rep_loss + att_loss + value_loss
                     else:
-                        loss = (rep_loss / len(new_student_reps)) + (att_loss / len(student_atts)) + (value_loss / len(student_values))
+                        loss = (
+                            (rep_loss / len(new_student_reps))
+                            + (att_loss / len(student_atts))
+                            + (value_loss / len(student_values))
+                        )
 
                     if student_config.distillation_config["use_attention_scores"]:
                         tr_att_loss += att_loss.item()
@@ -1187,21 +1450,29 @@ def main():
                     if student_config.distillation_config["use_value_states"]:
                         tr_value_loss += value_loss.item()
 
-                    #pred layer specific
+                    # pred layer specific
                     if student_config.distillation_config["use_pred_states"]:
                         if output_mode == "classification":
                             if "squad" in task_name:
-                                cls_loss = 0.
+                                cls_loss = 0.0
                                 # Iterate over start and end logits
-                                for index, student_logit in enumerate(student_logits[0]):
-                                    cls_loss += soft_cross_entropy(student_logit / args.temperature,
-                                                          teacher_logits[0][index] / args.temperature)
+                                for index, student_logit in enumerate(
+                                    student_logits[0]
+                                ):
+                                    cls_loss += soft_cross_entropy(
+                                        student_logit / args.temperature,
+                                        teacher_logits[0][index] / args.temperature,
+                                    )
                             else:
-                                cls_loss = soft_cross_entropy(student_logits[0] / args.temperature,
-                                                          teacher_logits[0] / args.temperature)
+                                cls_loss = soft_cross_entropy(
+                                    student_logits[0] / args.temperature,
+                                    teacher_logits[0] / args.temperature,
+                                )
                         elif output_mode == "regression":
                             loss_mse = MSELoss()
-                            cls_loss = loss_mse(student_logits[0].view(-1), label_ids.view(-1))
+                            cls_loss = loss_mse(
+                                student_logits[0].view(-1), label_ids.view(-1)
+                            )
 
                         loss = cls_loss
                         tr_cls_loss += cls_loss.item()
@@ -1215,10 +1486,21 @@ def main():
                 else:
                     loss.backward()
 
-                if student_config.distillation_config["use_hidden_states"] and use_projection:
-                    torch.nn.utils.clip_grad_norm_(chain(student_model.parameters(), project.parameters()), args.max_grad_norm, error_if_nonfinite=False)
+                if (
+                    student_config.distillation_config["use_hidden_states"]
+                    and use_projection
+                ):
+                    torch.nn.utils.clip_grad_norm_(
+                        chain(student_model.parameters(), project.parameters()),
+                        args.max_grad_norm,
+                        error_if_nonfinite=False,
+                    )
                 else:
-                    torch.nn.utils.clip_grad_norm_(student_model.parameters(), args.max_grad_norm, error_if_nonfinite=False)
+                    torch.nn.utils.clip_grad_norm_(
+                        student_model.parameters(),
+                        args.max_grad_norm,
+                        error_if_nonfinite=False,
+                    )
 
                 tr_loss += loss.item()
                 nb_tr_examples += input_ids.size(0)
@@ -1253,45 +1535,74 @@ def main():
                     result = {}
                     if student_config.distillation_config["use_pred_states"]:
                         if "SQuAD" not in args.task_name:
-                            result = do_eval(student_model, task_name, eval_dataloader,
-                                             device, output_mode, eval_labels, num_labels, args.amp)
+                            result = do_eval(
+                                student_model,
+                                task_name,
+                                eval_dataloader,
+                                device,
+                                output_mode,
+                                eval_labels,
+                                num_labels,
+                                args.amp,
+                            )
                         else:
-                            dataset, examples, features = load_and_cache_examples(args, tokenizer, evaluate=True, output_examples=True)
-                            result = squad_metrics.evaluate(args, student_model, dataset, examples, features, prefix="final")#global_step)
+                            dataset, examples, features = load_and_cache_examples(
+                                args, tokenizer, evaluate=True, output_examples=True
+                            )
+                            result = squad_metrics.evaluate(
+                                args,
+                                student_model,
+                                dataset,
+                                examples,
+                                features,
+                                prefix="final",
+                            )  # global_step)
 
-                    result['global_step'] = global_step
-                    result['lr'] = optimizer.param_groups[0]["lr"]
-                    result['cls_loss'] = cls_loss
-                    result['att_loss'] = att_loss
-                    result['rep_loss'] = rep_loss
-                    result['value_loss'] = value_loss
-                    result['loss'] = loss
-                    result['perf'] = (global_step + 1) * get_world_size() * args.train_batch_size * args.gradient_accumulation_steps / (time.time() - iter_start)
+                    result["global_step"] = global_step
+                    result["lr"] = optimizer.param_groups[0]["lr"]
+                    result["cls_loss"] = cls_loss
+                    result["att_loss"] = att_loss
+                    result["rep_loss"] = rep_loss
+                    result["value_loss"] = value_loss
+                    result["loss"] = loss
+                    result["perf"] = (
+                        (global_step + 1)
+                        * get_world_size()
+                        * args.train_batch_size
+                        * args.gradient_accumulation_steps
+                        / (time.time() - iter_start)
+                    )
 
                     if is_main_process():
-                        result_to_file(result, output_eval_file, global_step, train_summary_writer)
+                        result_to_file(
+                            result, output_eval_file, global_step, train_summary_writer
+                        )
 
                     if not student_config.distillation_config["use_pred_states"]:
                         save_model = True
                     else:
                         save_model = False
 
-                        if task_name in acc_tasks and result['acc'] > best_dev_acc:
-                            best_dev_acc = result['acc']
+                        if task_name in acc_tasks and result["acc"] > best_dev_acc:
+                            best_dev_acc = result["acc"]
                             save_model = True
 
-                        if task_name in corr_tasks and result['corr'] > best_dev_acc:
-                            best_dev_acc = result['corr']
+                        if task_name in corr_tasks and result["corr"] > best_dev_acc:
+                            best_dev_acc = result["corr"]
                             save_model = True
 
-                        if task_name in mcc_tasks and result['mcc'] > best_dev_acc:
-                            best_dev_acc = result['mcc']
+                        if task_name in mcc_tasks and result["mcc"] > best_dev_acc:
+                            best_dev_acc = result["mcc"]
                             save_model = True
 
                     if save_model and is_main_process():
                         logger.info("***** Save model *****")
 
-                        model_to_save = student_model.module if hasattr(student_model, 'module') else student_model
+                        model_to_save = (
+                            student_model.module
+                            if hasattr(student_model, "module")
+                            else student_model
+                        )
 
                         model_name = WEIGHTS_NAME
                         output_model_file = os.path.join(args.output_dir, model_name)
@@ -1302,45 +1613,77 @@ def main():
                         tokenizer.save_vocabulary(args.output_dir)
 
                         # Test mnli-mm
-                        if student_config.distillation_config["use_pred_states"] and task_name == "mnli":
+                        if (
+                            student_config.distillation_config["use_pred_states"]
+                            and task_name == "mnli"
+                        ):
                             task_name = "mnli-mm"
                             processor = processors[task_name]()
-                            if not os.path.exists(args.output_dir + '-MM'):
-                                os.makedirs(args.output_dir + '-MM')
+                            if not os.path.exists(args.output_dir + "-MM"):
+                                os.makedirs(args.output_dir + "-MM")
 
                             eval_examples = processor.get_dev_examples(args.data_dir)
 
                             eval_features = convert_examples_to_features(
-                                eval_examples, label_list, args.max_seq_length, tokenizer, output_mode)
-                            eval_data, eval_labels = get_tensor_data(output_mode, eval_features)
+                                eval_examples,
+                                label_list,
+                                args.max_seq_length,
+                                tokenizer,
+                                output_mode,
+                            )
+                            eval_data, eval_labels = get_tensor_data(
+                                output_mode, eval_features
+                            )
 
                             logger.info("***** Running mm evaluation *****")
                             logger.info("  Num examples = %d", len(eval_examples))
                             logger.info("  Batch size = %d", args.eval_batch_size)
 
                             eval_sampler = SequentialSampler(eval_data)
-                            eval_dataloader = DataLoader(eval_data, sampler=eval_sampler,
-                                                         batch_size=args.eval_batch_size, num_workers=4)
+                            eval_dataloader = DataLoader(
+                                eval_data,
+                                sampler=eval_sampler,
+                                batch_size=args.eval_batch_size,
+                                num_workers=4,
+                            )
 
-                            result = do_eval(student_model, task_name, eval_dataloader,
-                                             device, output_mode, eval_labels, num_labels, args.amp)
+                            result = do_eval(
+                                student_model,
+                                task_name,
+                                eval_dataloader,
+                                device,
+                                output_mode,
+                                eval_labels,
+                                num_labels,
+                                args.amp,
+                            )
 
-                            result['global_step'] = global_step
+                            result["global_step"] = global_step
 
-                            tmp_output_eval_file = os.path.join(args.output_dir + '-MM', "eval_results.txt")
-                            result_to_file(result, tmp_output_eval_file, global_step, train_summary_writer)
+                            tmp_output_eval_file = os.path.join(
+                                args.output_dir + "-MM", "eval_results.txt"
+                            )
+                            result_to_file(
+                                result,
+                                tmp_output_eval_file,
+                                global_step,
+                                train_summary_writer,
+                            )
 
-                            task_name = 'mnli'
+                            task_name = "mnli"
 
                         if oncloud:
-                            logging.info(mox.file.list_directory(args.output_dir, recursive=True))
-                            logging.info(mox.file.list_directory('.', recursive=True))
+                            logging.info(
+                                mox.file.list_directory(args.output_dir, recursive=True)
+                            )
+                            logging.info(mox.file.list_directory(".", recursive=True))
                             mox.file.copy_parallel(args.output_dir, args.data_url)
-                            mox.file.copy_parallel('.', args.data_url)
+                            mox.file.copy_parallel(".", args.data_url)
 
                     student_model.train()
     train_summary_writer.flush()
     train_summary_writer.close()
+
 
 if __name__ == "__main__":
     start_time = time.time()

@@ -23,10 +23,12 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import pprint
+import sys
+from collections import OrderedDict
 
 import fire
+import numpy as np
 import torch
-
 from fastspeech import DEFAULT_DEVICE
 from fastspeech import hparam as hp
 from fastspeech.data_load import PadDataLoader
@@ -36,9 +38,6 @@ from fastspeech.model.fastspeech import Fastspeech
 from fastspeech.trt.fastspeech_trt_inferencer import FastSpeechTRTInferencer
 from fastspeech.utils.logging import tprint
 from fastspeech.utils.pytorch import to_cpu_numpy
-from collections import OrderedDict
-import sys
-import numpy as np
 from torch.nn import functional as F
 
 # import multiprocessing
@@ -49,9 +48,8 @@ np.set_printoptions(threshold=sys.maxsize)
 
 SAMPLE_TEXT = "the more you buy, the more you save."
 
-def verify(hparam="trt.yaml",
-           text=SAMPLE_TEXT,
-           **kwargs):
+
+def verify(hparam="trt.yaml", text=SAMPLE_TEXT, **kwargs):
     hp.set_hparam(hparam, kwargs)
     tprint("Hparams:\n{}".format(pp.pformat(hp)))
     tprint("Device count: {}".format(torch.cuda.device_count()))
@@ -70,16 +68,19 @@ def verify(hparam="trt.yaml",
         is_identical = diff.eq(0).all()
         errors = diff[diff.ne(0)]
         max_error = torch.max(torch.abs(errors)) if len(errors) > 0 else 0
-        print("# {} #\n\n[PyTorch]\n{}\n\n[TRT]: \n{}\n\n[Diff]: \n{}\n\n[Errors]: \n{}\n- identical? {}\n- {} errors out of {}\n- max: {}\n\n".format(name,
-                                                                                                                                                act, 
-                                                                                                                                                act_trt, 
-                                                                                                                                                diff, 
-                                                                                                                                                errors, 
-                                                                                                                                                is_identical, 
-                                                                                                                                                len(errors), 
-                                                                                                                                                len(diff),
-                                                                                                                                                max_error,
-                                                                                                                                                ))
+        print(
+            "# {} #\n\n[PyTorch]\n{}\n\n[TRT]: \n{}\n\n[Diff]: \n{}\n\n[Errors]: \n{}\n- identical? {}\n- {} errors out of {}\n- max: {}\n\n".format(
+                name,
+                act,
+                act_trt,
+                diff,
+                errors,
+                is_identical,
+                len(errors),
+                len(diff),
+                max_error,
+            )
+        )
 
     # print("## PyTorch ##\n\n")
     # for name, act in pytorch.items():
@@ -88,6 +89,7 @@ def verify(hparam="trt.yaml",
     # print("## TRT ##\n\n")
     # for name, act in trt.items():
     #     print("[{}]\ttrt:\n{}\n\n".format(name, act_trt))
+
 
 def join_dict(acts, acts_trt):
     both = dict()
@@ -123,29 +125,29 @@ def infer_trt(text):
         fft_conv1d_padding=hp.fft_conv1d_padding,
         dropout=hp.dropout,
         n_mels=hp.num_mels,
-        fused_layernorm=hp.fused_layernorm
+        fused_layernorm=hp.fused_layernorm,
     )
 
     # dataset
     dataset = TextDataset([text for _ in range(hp.batch_size)])
-    data_loader = PadDataLoader(dataset,
-                                batch_size=hp.batch_size,
-                                num_workers=hp.n_workers,
-                                drop_last=False)
+    data_loader = PadDataLoader(
+        dataset, batch_size=hp.batch_size, num_workers=hp.n_workers, drop_last=False
+    )
 
     # inferencer
-    inferencer = FastSpeechTRTInferencer('fastspeech',
-                            model,
-                            data_loader=data_loader,
-                            ckpt_path=hp.checkpoint_path,
-                            trt_max_ws_size=hp.trt_max_ws_size,
-                            trt_file_path=hp.trt_file_path,
-                            trt_force_build=hp.trt_force_build,
-                            use_fp16=hp.use_fp16,
-                            trt_max_input_seq_len=hp.trt_max_input_seq_len,
-                            trt_max_output_seq_len=hp.trt_max_output_seq_len,
-                            validate_accuracy=True,
-                            )
+    inferencer = FastSpeechTRTInferencer(
+        "fastspeech",
+        model,
+        data_loader=data_loader,
+        ckpt_path=hp.checkpoint_path,
+        trt_max_ws_size=hp.trt_max_ws_size,
+        trt_file_path=hp.trt_file_path,
+        trt_force_build=hp.trt_force_build,
+        use_fp16=hp.use_fp16,
+        trt_max_input_seq_len=hp.trt_max_input_seq_len,
+        trt_max_output_seq_len=hp.trt_max_output_seq_len,
+        validate_accuracy=True,
+    )
     with inferencer:
         acts = dict()
         outs = inferencer.infer(acts=acts)
@@ -172,35 +174,37 @@ def infer_pytorch(text):
         fft_conv1d_padding=hp.fft_conv1d_padding,
         dropout=hp.dropout,
         n_mels=hp.num_mels,
-        fused_layernorm=hp.fused_layernorm
+        fused_layernorm=hp.fused_layernorm,
     )
 
     # dataset
     dataset = TextDataset([text for _ in range(hp.batch_size)])
-    data_loader = PadDataLoader(dataset,
-                                batch_size=hp.batch_size,
-                                num_workers=hp.n_workers,
-                                drop_last=False)
+    data_loader = PadDataLoader(
+        dataset, batch_size=hp.batch_size, num_workers=hp.n_workers, drop_last=False
+    )
 
     # inferencer
     with torch.no_grad():
-        inferencer = FastSpeechInferencer('fastspeech',
-                                model,
-                                data_loader=data_loader,
-                                ckpt_path=hp.checkpoint_path,
-                                device='cuda',
-                                use_fp16=hp.use_fp16,
-                                )
+        inferencer = FastSpeechInferencer(
+            "fastspeech",
+            model,
+            data_loader=data_loader,
+            ckpt_path=hp.checkpoint_path,
+            device="cuda",
+            use_fp16=hp.use_fp16,
+        )
 
         acts = dict()
-        outs = inferencer.infer(acts=acts,
-                                seq_input_len=hp.trt_max_input_seq_len,
-                                seq_output_len=hp.trt_max_output_seq_len)
+        outs = inferencer.infer(
+            acts=acts,
+            seq_input_len=hp.trt_max_input_seq_len,
+            seq_output_len=hp.trt_max_output_seq_len,
+        )
 
     return outs, acts
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     torch.backends.cudnn.enabled = True
     torch.backends.cudnn.benchmark = False
     fire.Fire(verify)

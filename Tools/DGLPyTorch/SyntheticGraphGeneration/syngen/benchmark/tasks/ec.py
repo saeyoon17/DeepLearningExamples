@@ -28,15 +28,9 @@ log = logger
 _NAME = "edge classification"
 
 
-def train_ec(
-    args,
-    pretrain_source,
-    graph_info,
-    *,
-    finetune_source=None
-):
+def train_ec(args, pretrain_source, graph_info, *, finetune_source=None):
     """Example edge classification training loop to pre-train on generated dataset
-       with option to further finetune on a `finetune_source` dataset.
+    with option to further finetune on a `finetune_source` dataset.
     """
     model = MODELS[args.model]
     optimizer = None
@@ -132,9 +126,7 @@ def train_ec(
         if optimizer is None:
             in_feats = g.ndata.get("feat").shape[1]
             in_feats_edge = g.edata.get("feat").shape[1]
-            model = model(
-                in_dim=in_feats, in_dim_edge=in_feats_edge, **vars(args)
-            )
+            model = model(in_dim=in_feats, in_dim_edge=in_feats_edge, **vars(args))
 
             model = model.cuda()
             optimizer = torch.optim.Adam(
@@ -222,9 +214,7 @@ def train_epoch(model, dataloader, optimizer, verbose=False):
         train_acc.append(
             (preds[train_mask] == edge_labels[train_mask]).float().mean().item()
         )
-        val_acc.append(
-            (preds[val_mask] == edge_labels[val_mask]).float().mean().item()
-        )
+        val_acc.append((preds[val_mask] == edge_labels[val_mask]).float().mean().item())
         test_acc.append(
             (preds[test_mask] == edge_labels[test_mask]).float().mean().item()
         )

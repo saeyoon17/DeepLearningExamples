@@ -19,17 +19,18 @@ from dask_cuda import LocalCUDACluster
 
 class LocalCudaClusterManager(object):
     """Manages the state of the LocalCudaCluster"""
+
     def __init__(self):
         self.cluster = None
         self.client = None
-    
+
     def initialize_local_cluster(self):
         """Initializes the cuda cluster"""
         if self.client is None:
             self.cluster = LocalCUDACluster()
             self.client = Client(self.cluster)
             Comms.initialize(p2p=True)
-    
+
     def get_client(self):
         if self.client is not None:
             return self.client

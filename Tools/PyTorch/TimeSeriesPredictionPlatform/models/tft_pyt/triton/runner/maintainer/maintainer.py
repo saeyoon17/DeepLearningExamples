@@ -24,7 +24,13 @@ from .container import Container
 class Maintainer(abc.ABC):
     @abc.abstractmethod
     def triton_container(
-        self, command: str, image: str, devices: List, volumes: Dict, environment: Dict, log_file: Union[pathlib.Path, str]
+        self,
+        command: str,
+        image: str,
+        devices: List,
+        volumes: Dict,
+        environment: Dict,
+        log_file: Union[pathlib.Path, str],
     ) -> Container:
         """
         Return triton container

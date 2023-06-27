@@ -6,9 +6,10 @@ import time
 
 import torch
 import torch.distributed as dist
-
-from maskrcnn_benchmark.utils.comm import get_world_size, synchronized_timestamp
+from maskrcnn_benchmark.utils.comm import (get_world_size,
+                                           synchronized_timestamp)
 from maskrcnn_benchmark.utils.metric_logger import MetricLogger
+
 
 def reduce_loss_dict(loss_dict):
     """
@@ -52,7 +53,9 @@ class Prefetcher:
             with torch.cuda.stream(self.loader_stream):
                 self.images, self.targets, _ = next(self.data_loader)
                 self.images = self.images.to(self.device)
-                self.targets = [target.to(self.device, non_blocking=True) for target in self.targets]
+                self.targets = [
+                    target.to(self.device, non_blocking=True) for target in self.targets
+                ]
         except StopIteration:
             self.images, self.targets = None, None
             self.done = True
@@ -82,7 +85,7 @@ def do_train(
     cfg,
     dllogger,
     per_iter_end_callback_fn=None,
-    nhwc=False
+    nhwc=False,
 ):
     dllogger.log(step="PARAMETER", data={"train_start": True})
     meters = MetricLogger(delimiter="  ")
@@ -118,10 +121,9 @@ def do_train(
         losses_reduced = sum(loss for loss in loss_dict_reduced.values())
         meters.update(loss=losses_reduced, **loss_dict_reduced)
 
-
         # Note: If mixed precision is not used, this ends up doing nothing
         # Otherwise apply loss scaling for mixed-precision recipe
-        if use_amp:        
+        if use_amp:
             scaler.scale(losses).backward()
         else:
             losses.backward()
@@ -134,7 +136,7 @@ def do_train(
                 optimizer.step()
             scheduler.step()
             optimizer.zero_grad()
-        
+
         if not cfg.SOLVER.ACCUMULATE_GRAD:
             _take_step()
         else:
@@ -143,7 +145,7 @@ def do_train(
                     if param.grad is not None:
                         param.grad.data.div_(cfg.SOLVER.ACCUMULATE_STEPS)
                 _take_step()
-            
+
         batch_time = time.time() - end
         end = time.time()
         meters.update(time=batch_time, data=data_time)
@@ -152,8 +154,11 @@ def do_train(
         eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
 
         if iteration % 20 == 0 or iteration == max_iter:
-            log_data = {"eta":eta_string, "learning_rate":optimizer.param_groups[0]["lr"],
-                        "memory": torch.cuda.max_memory_allocated() / 1024.0 / 1024.0 }
+            log_data = {
+                "eta": eta_string,
+                "learning_rate": optimizer.param_groups[0]["lr"],
+                "memory": torch.cuda.max_memory_allocated() / 1024.0 / 1024.0,
+            }
             log_data.update(meters.get_dict())
             dllogger.log(step=(iteration,), data=log_data)
 
@@ -171,12 +176,16 @@ def do_train(
 
     total_training_time = synchronized_timestamp() - start_training_time
     total_time_str = str(datetime.timedelta(seconds=total_training_time))
-    dllogger.log(step=tuple(), data={"e2e_train_time": total_training_time,
-                                                   "train_perf_fps": max_iter * cfg.SOLVER.IMS_PER_BATCH / total_training_time})
+    dllogger.log(
+        step=tuple(),
+        data={
+            "e2e_train_time": total_training_time,
+            "train_perf_fps": max_iter * cfg.SOLVER.IMS_PER_BATCH / total_training_time,
+        },
+    )
     logger = logging.getLogger("maskrcnn_benchmark.trainer")
     logger.info(
-    "Total training time: {} ({:.4f} s / it)".format(
-        total_time_str, total_training_time / (max_iter)
+        "Total training time: {} ({:.4f} s / it)".format(
+            total_time_str, total_training_time / (max_iter)
         )
     )
-

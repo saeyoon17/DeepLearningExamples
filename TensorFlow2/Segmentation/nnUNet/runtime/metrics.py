@@ -20,7 +20,9 @@ class Dice(tf.keras.metrics.Metric):
     def __init__(self, n_class, **kwargs):
         super().__init__(**kwargs)
         self.n_class = n_class
-        self.steps = self.add_weight(name="steps", initializer="zeros", aggregation=tf.VariableAggregation.SUM)
+        self.steps = self.add_weight(
+            name="steps", initializer="zeros", aggregation=tf.VariableAggregation.SUM
+        )
         self.dice = self.add_weight(
             name="dice",
             shape=(n_class,),
@@ -44,7 +46,9 @@ class Dice(tf.keras.metrics.Metric):
             y_true = tf.squeeze(y_true, axis=[-1])
         for i in range(0, self.n_class):
             if tf.math.count_nonzero(y_true == i) == 0:
-                scores = scores.write(i, 1 if tf.math.count_nonzero(pred_classes == i) == 0 else 0)
+                scores = scores.write(
+                    i, 1 if tf.math.count_nonzero(pred_classes == i) == 0 else 0
+                )
                 continue
             true_pos, false_neg, false_pos = self.get_stats(pred_classes, y_true, i)
             denom = tf.cast(2 * true_pos + false_pos + false_neg, dtype=tf.float32)
@@ -54,9 +58,15 @@ class Dice(tf.keras.metrics.Metric):
 
     @staticmethod
     def get_stats(preds, target, class_idx):
-        true_pos = tf.math.count_nonzero(tf.logical_and(preds == class_idx, target == class_idx))
-        false_neg = tf.math.count_nonzero(tf.logical_and(preds != class_idx, target == class_idx))
-        false_pos = tf.math.count_nonzero(tf.logical_and(preds == class_idx, target != class_idx))
+        true_pos = tf.math.count_nonzero(
+            tf.logical_and(preds == class_idx, target == class_idx)
+        )
+        false_neg = tf.math.count_nonzero(
+            tf.logical_and(preds != class_idx, target == class_idx)
+        )
+        false_pos = tf.math.count_nonzero(
+            tf.logical_and(preds == class_idx, target != class_idx)
+        )
         return true_pos, false_neg, false_pos
 
 

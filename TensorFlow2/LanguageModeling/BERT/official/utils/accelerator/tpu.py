@@ -16,7 +16,6 @@
 
 import tensorflow as tf
 
-
 # "local" is a magic word in the TPU cluster resolver; it informs the resolver
 # to use the local CPU as the compute device. This is useful for testing and
 # debugging; the code flow is ostensibly identical, but without the need to

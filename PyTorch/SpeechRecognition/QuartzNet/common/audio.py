@@ -13,18 +13,23 @@
 # limitations under the License.
 
 import random
-import soundfile as sf
 
 import librosa
-import torch
 import numpy as np
-
+import soundfile as sf
 import sox
+import torch
 
 
 def audio_from_file(file_path, offset=0, duration=0, trim=False, target_sr=16000):
-    audio = AudioSegment(file_path, target_sr=target_sr, int_values=False,
-                         offset=offset, duration=duration, trim=trim)
+    audio = AudioSegment(
+        file_path,
+        target_sr=target_sr,
+        int_values=False,
+        offset=offset,
+        duration=duration,
+        trim=trim,
+    )
 
     samples = torch.tensor(audio.samples, dtype=torch.float).cuda()
     num_samples = torch.tensor(samples.shape[0]).int().cuda()
@@ -41,8 +46,16 @@ class AudioSegment(object):
     :raises TypeError: If the sample data type is not float or int.
     """
 
-    def __init__(self, filename, target_sr=None, int_values=False, offset=0,
-                 duration=0, trim=False, trim_db=60):
+    def __init__(
+        self,
+        filename,
+        target_sr=None,
+        int_values=False,
+        offset=0,
+        duration=0,
+        trim=False,
+        trim_db=60,
+    ):
         """Create audio segment from samples.
 
         Samples are converted to float32 internally, with int scaled to [-1, 1].
@@ -54,8 +67,8 @@ class AudioSegment(object):
         :param duration: duration in seconds when loading audio
         :return: numpy array of samples
         """
-        with sf.SoundFile(filename, 'r') as f:
-            dtype = 'int32' if int_values else 'float32'
+        with sf.SoundFile(filename, "r") as f:
+            dtype = "int32" if int_values else "float32"
             sample_rate = f.samplerate
             if offset > 0:
                 f.seek(int(offset * sample_rate))
@@ -67,8 +80,9 @@ class AudioSegment(object):
 
         samples = self._convert_samples_to_float32(samples)
         if target_sr is not None and target_sr != sample_rate:
-            samples = librosa.resample(samples, orig_sr=sample_rate,
-                                       target_sr=target_sr)
+            samples = librosa.resample(
+                samples, orig_sr=sample_rate, target_sr=target_sr
+            )
             sample_rate = target_sr
         if trim:
             samples, _ = librosa.effects.trim(samples, top_db=trim_db)
@@ -95,9 +109,13 @@ class AudioSegment(object):
 
     def __str__(self):
         """Return human-readable representation of segment."""
-        return ("%s: num_samples=%d, sample_rate=%d, duration=%.2fsec, "
-                        "rms=%.2fdB" % (type(self), self.num_samples, self.sample_rate,
-                                                        self.duration, self.rms_db))
+        return "%s: num_samples=%d, sample_rate=%d, duration=%.2fsec, " "rms=%.2fdB" % (
+            type(self),
+            self.num_samples,
+            self.sample_rate,
+            self.duration,
+            self.rms_db,
+        )
 
     @staticmethod
     def _convert_samples_to_float32(samples):
@@ -106,11 +124,11 @@ class AudioSegment(object):
         Audio sample type is usually integer or float-point.
         Integers will be scaled to [-1, 1] in float32.
         """
-        float32_samples = samples.astype('float32')
-        if samples.dtype in np.sctypes['int']:
+        float32_samples = samples.astype("float32")
+        if samples.dtype in np.sctypes["int"]:
             bits = np.iinfo(samples.dtype).bits
-            float32_samples *= (1. / 2 ** (bits - 1))
-        elif samples.dtype in np.sctypes['float']:
+            float32_samples *= 1.0 / 2 ** (bits - 1)
+        elif samples.dtype in np.sctypes["float"]:
             pass
         else:
             raise TypeError("Unsupported sample type: %s." % samples.dtype)
@@ -134,11 +152,11 @@ class AudioSegment(object):
 
     @property
     def rms_db(self):
-        mean_square = np.mean(self._samples ** 2)
+        mean_square = np.mean(self._samples**2)
         return 10 * np.log10(mean_square)
 
     def gain_db(self, gain):
-        self._samples *= 10. ** (gain / 20.)
+        self._samples *= 10.0 ** (gain / 20.0)
 
     def pad(self, pad_size, symmetric=False):
         """Add zero padding to the sample.
@@ -147,9 +165,9 @@ class AudioSegment(object):
         `pad_size` will be added to both sides. If false, `pad_size` zeros
         will be added only to the end.
         """
-        self._samples = np.pad(self._samples,
-                               (pad_size if symmetric else 0, pad_size),
-                               mode='constant')
+        self._samples = np.pad(
+            self._samples, (pad_size if symmetric else 0, pad_size), mode="constant"
+        )
 
     def subsegment(self, start_time=None, end_time=None):
         """Cut the AudioSegment between given boundaries.
@@ -169,17 +187,23 @@ class AudioSegment(object):
         if end_time < 0.0:
             end_time = self.duration + end_time
         if start_time < 0.0:
-            raise ValueError("The slice start position (%f s) is out of "
-                             "bounds." % start_time)
+            raise ValueError(
+                "The slice start position (%f s) is out of " "bounds." % start_time
+            )
         if end_time < 0.0:
-            raise ValueError("The slice end position (%f s) is out of bounds." %
-                             end_time)
+            raise ValueError(
+                "The slice end position (%f s) is out of bounds." % end_time
+            )
         if start_time > end_time:
-            raise ValueError("The slice start position (%f s) is later than "
-                             "the end position (%f s)." % (start_time, end_time))
+            raise ValueError(
+                "The slice start position (%f s) is later than "
+                "the end position (%f s)." % (start_time, end_time)
+            )
         if end_time > self.duration:
-            raise ValueError("The slice end position (%f s) is out of bounds "
-                             "(> %f s)" % (end_time, self.duration))
+            raise ValueError(
+                "The slice end position (%f s) is out of bounds "
+                "(> %f s)" % (end_time, self.duration)
+            )
         start_sample = int(round(start_time * self._sample_rate))
         end_sample = int(round(end_time * self._sample_rate))
         self._samples = self._samples[start_sample:end_sample]
@@ -210,8 +234,11 @@ class SpeedPerturbation(Perturbation):
             rate = self._rng.uniform(self.min_rate, self.max_rate)
 
         if rate is not None:
-            data._samples = sox.Transformer().speed(factor=rate).build_array(
-                input_array=data._samples, sample_rate_in=sample_rate)
+            data._samples = (
+                sox.Transformer()
+                .speed(factor=rate)
+                .build_array(input_array=data._samples, sample_rate_in=sample_rate)
+            )
 
 
 class GainPerturbation(Perturbation):
@@ -224,7 +251,7 @@ class GainPerturbation(Perturbation):
     def __call__(self, data, sample_rate=None):
         del sample_rate
         gain = self._rng.uniform(self._min_gain_dbfs, self._max_gain_dbfs)
-        data._samples = data._samples * (10. ** (gain / 20.))
+        data._samples = data._samples * (10.0 ** (gain / 20.0))
 
 
 class ShiftPerturbation(Perturbation):

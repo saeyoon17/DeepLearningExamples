@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Dict, Optional, Union
 
 import numpy as np
-
 # pytype: disable=import-error
 import onnx
 import onnx.shape_inference
@@ -25,17 +24,8 @@ import onnxruntime
 from google.protobuf import text_format
 from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
 
-from ..core import (
-    BaseLoader,
-    BaseRunner,
-    BaseRunnerSession,
-    BaseSaver,
-    Format,
-    Model,
-    Precision,
-    TensorSpec,
-    TimeMeasurement,
-)
+from ..core import (BaseLoader, BaseRunner, BaseRunnerSession, BaseSaver,
+                    Format, Model, Precision, TensorSpec, TimeMeasurement)
 from ..extensions import loaders, runners, savers
 from .utils import infer_precision
 
@@ -48,7 +38,9 @@ LOGGER = logging.getLogger(__name__)
 def _value_info2tensor_spec(value_info: onnx.ValueInfoProto):
     onnx_data_type_map = {"float": "float32", "double": "float64"}
 
-    elem_type_name = onnx.TensorProto.DataType.Name(value_info.type.tensor_type.elem_type).lower()
+    elem_type_name = onnx.TensorProto.DataType.Name(
+        value_info.type.tensor_type.elem_type
+    ).lower()
     dtype = onnx_data_type_map.get(elem_type_name, elem_type_name)
 
     def _get_dim(dim):
@@ -78,8 +70,12 @@ def _infer_graph_precision(onnx_graph: onnx.GraphProto) -> Optional[Precision]:
 
     node_output2type = {vi.name: _get_dtype(vi) for vi in onnx_graph.value_info}
 
-    node_outputs2node = {output_name: node for node in onnx_graph.node for output_name in node.output}
-    node_inputs2node = {input_name: node for node in onnx_graph.node for input_name in node.input}
+    node_outputs2node = {
+        output_name: node for node in onnx_graph.node for output_name in node.output
+    }
+    node_inputs2node = {
+        input_name: node for node in onnx_graph.node for input_name in node.input
+    }
 
     for node in onnx_graph.node:
         node_dtype = node_output2type.get("+".join(node.output), None)
@@ -112,9 +108,14 @@ def _infer_graph_precision(onnx_graph: onnx.GraphProto) -> Optional[Precision]:
 
     input_names = [n.name for n in onnx_graph.input]
     output_names = [n.name for n in onnx_graph.output]
-    most_common_dtype = infer_precision(nx_graph, input_names, output_names, lambda node: node.get("dtype", None))
+    most_common_dtype = infer_precision(
+        nx_graph, input_names, output_names, lambda node: node.get("dtype", None)
+    )
     if most_common_dtype is not None:
-        precision = {np.dtype("float32"): Precision.FP32, np.dtype("float16"): Precision.FP16}[most_common_dtype]
+        precision = {
+            np.dtype("float32"): Precision.FP32,
+            np.dtype("float16"): Precision.FP16,
+        }[most_common_dtype]
     else:
         precision = None
     return precision
@@ -179,7 +180,9 @@ class OnnxRunner(BaseRunner):
     def init_inference(self, model: Model):
         assert isinstance(model.handle, onnx.ModelProto)
         return OnnxRunnerSession(
-            model=model, providers=self._providers, verbose_runtime_logs=self._verbose_runtime_logs
+            model=model,
+            providers=self._providers,
+            verbose_runtime_logs=self._verbose_runtime_logs,
         )
 
 

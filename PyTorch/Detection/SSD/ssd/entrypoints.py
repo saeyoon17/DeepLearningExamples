@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import os
-import torch
 import sys
 import urllib.request
+
+import torch
+
 
 # from https://github.com/NVIDIA/DeepLearningExamples/blob/master/PyTorch/SpeechSynthesis/Tacotron2/inference.py
 def checkpoint_from_distributed(state_dict):
@@ -27,7 +29,7 @@ def checkpoint_from_distributed(state_dict):
     """
     ret = False
     for key, _ in state_dict.items():
-        if key.find('module.') != -1:
+        if key.find("module.") != -1:
             ret = True
             break
     return ret
@@ -43,28 +45,29 @@ def unwrap_distributed(state_dict):
     """
     new_state_dict = {}
     for key, value in state_dict.items():
-        new_key = key.replace('module.1.', '')
-        new_key = new_key.replace('module.', '')
+        new_key = key.replace("module.1.", "")
+        new_key = new_key.replace("module.", "")
         new_state_dict[new_key] = value
     return new_state_dict
 
 
 def _download_checkpoint(checkpoint, force_reload):
-    model_dir = os.path.join(torch.hub._get_torch_home(), 'checkpoints')
+    model_dir = os.path.join(torch.hub._get_torch_home(), "checkpoints")
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
     ckpt_file = os.path.join(model_dir, os.path.basename(checkpoint))
     if not os.path.exists(ckpt_file) or force_reload:
-        sys.stderr.write('Downloading checkpoint from {}\n'.format(checkpoint))
+        sys.stderr.write("Downloading checkpoint from {}\n".format(checkpoint))
         urllib.request.urlretrieve(checkpoint, ckpt_file)
     return ckpt_file
+
 
 def nvidia_ssd_processing_utils():
     import numpy as np
     import skimage
     from skimage import io, transform
 
-    from .utils import dboxes300_coco, Encoder
+    from .utils import Encoder, dboxes300_coco
 
     class Processing:
         @staticmethod
@@ -79,15 +82,15 @@ def nvidia_ssd_processing_utils():
         def rescale(img, input_height, input_width):
             """Code from Loading_Pretrained_Models.ipynb - a Caffe2 tutorial"""
             aspect = img.shape[1] / float(img.shape[0])
-            if (aspect > 1):
+            if aspect > 1:
                 # landscape orientation - wide image
                 res = int(aspect * input_height)
                 imgScaled = transform.resize(img, (input_width, res))
-            if (aspect < 1):
+            if aspect < 1:
                 # portrait orientation - tall image
                 res = int(input_width / aspect)
                 imgScaled = transform.resize(img, (res, input_height))
-            if (aspect == 1):
+            if aspect == 1:
                 imgScaled = transform.resize(img, (input_width, input_height))
             return imgScaled
 
@@ -97,7 +100,7 @@ def nvidia_ssd_processing_utils():
             y, x, c = img.shape
             startx = x // 2 - (cropx // 2)
             starty = y // 2 - (cropy // 2)
-            return img[starty:starty + cropy, startx:startx + cropx]
+            return img[starty : starty + cropy, startx : startx + cropx]
 
         @staticmethod
         def normalize(img, mean=128, std=128):
@@ -130,7 +133,10 @@ def nvidia_ssd_processing_utils():
             encoder = Encoder(dboxes)
             ploc, plabel = [val.float() for val in predictions]
             results = encoder.decode_batch(ploc, plabel, criteria=0.5, max_output=20)
-            return [[pred.detach().cpu().numpy() for pred in detections] for detections in results]
+            return [
+                [pred.detach().cpu().numpy() for pred in detections]
+                for detections in results
+            ]
 
         @staticmethod
         def pick_best(detections, threshold=0.3):
@@ -141,22 +147,29 @@ def nvidia_ssd_processing_utils():
         @staticmethod
         def get_coco_object_dictionary():
             import os
+
             file_with_coco_names = "category_names.txt"
 
             if not os.path.exists(file_with_coco_names):
                 print("Downloading COCO annotations.")
-                import urllib
-                import zipfile
                 import json
                 import shutil
-                urllib.request.urlretrieve("http://images.cocodataset.org/annotations/annotations_trainval2017.zip", "cocoanno.zip")
+                import urllib
+                import zipfile
+
+                urllib.request.urlretrieve(
+                    "http://images.cocodataset.org/annotations/annotations_trainval2017.zip",
+                    "cocoanno.zip",
+                )
                 with zipfile.ZipFile("cocoanno.zip", "r") as f:
                     f.extractall()
                 print("Downloading finished.")
-                with open("annotations/instances_val2017.json", 'r') as COCO:
+                with open("annotations/instances_val2017.json", "r") as COCO:
                     js = json.loads(COCO.read())
-                class_names = [category['name'] for category in js['categories']]
-                open("category_names.txt", 'w').writelines([c+"\n" for c in class_names])
+                class_names = [category["name"] for category in js["categories"]]
+                open("category_names.txt", "w").writelines(
+                    [c + "\n" for c in class_names]
+                )
                 os.remove("cocoanno.zip")
                 shutil.rmtree("annotations")
             else:
@@ -194,12 +207,12 @@ def nvidia_ssd(pretrained=True, **kwargs):
             return module
 
         m = batchnorm_to_float(m)
-        
+
     if pretrained:
-        checkpoint = 'https://api.ngc.nvidia.com/v2/models/nvidia/ssd_pyt_ckpt_amp/versions/20.06.0/files/nvidia_ssdpyt_amp_200703.pt'
+        checkpoint = "https://api.ngc.nvidia.com/v2/models/nvidia/ssd_pyt_ckpt_amp/versions/20.06.0/files/nvidia_ssdpyt_amp_200703.pt"
         ckpt_file = _download_checkpoint(checkpoint, force_reload)
         ckpt = torch.load(ckpt_file)
-        ckpt = ckpt['model']
+        ckpt = ckpt["model"]
         if checkpoint_from_distributed(ckpt):
             ckpt = unwrap_distributed(ckpt)
         m.load_state_dict(ckpt)

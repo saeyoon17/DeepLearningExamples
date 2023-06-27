@@ -21,10 +21,10 @@
 import logging
 import math
 
-import torch
-from torch.nn.utils import clip_grad_norm_
 import apex.amp._amp_state
+import torch
 from apex import amp
+from torch.nn.utils import clip_grad_norm_
 
 
 class FP16Optimizer:
@@ -32,6 +32,7 @@ class FP16Optimizer:
     Mixed precision optimizer with dynamic loss scaling and backoff.
     https://docs.nvidia.com/deeplearning/sdk/mixed-precision-training/index.html#scalefactor
     """
+
     @staticmethod
     def set_grads(params, params_with_grad):
         """
@@ -56,8 +57,15 @@ class FP16Optimizer:
         for param, new_param in zip(params, new_params):
             param.data.copy_(new_param.data)
 
-    def __init__(self, model, grad_clip=float('inf'), loss_scale=8192,
-                 dls_downscale=2, dls_upscale=2, dls_upscale_interval=128):
+    def __init__(
+        self,
+        model,
+        grad_clip=float("inf"),
+        loss_scale=8192,
+        dls_downscale=2,
+        dls_upscale=2,
+        dls_upscale_interval=128,
+    ):
         """
         Constructor for the Fp16Optimizer.
 
@@ -72,7 +80,7 @@ class FP16Optimizer:
             successfully
         :param dls_upscale_interval: interval for loss scale upscaling
         """
-        logging.info('Initializing fp16 optimizer')
+        logging.info("Initializing fp16 optimizer")
         self.initialize_model(model)
 
         self.since_last_invalid = 0
@@ -88,13 +96,14 @@ class FP16Optimizer:
 
         :param model: fp16 model
         """
-        logging.info('Converting model to half precision')
+        logging.info("Converting model to half precision")
         model.half()
-        logging.info('Initializing fp32 clone weights')
+        logging.info("Initializing fp32 clone weights")
         self.model = model
         self.model.zero_grad()
-        self.fp32_params = [param.to(torch.float32).detach()
-                            for param in model.parameters()]
+        self.fp32_params = [
+            param.to(torch.float32).detach() for param in model.parameters()
+        ]
 
         for param in self.fp32_params:
             param.requires_grad = True
@@ -127,19 +136,18 @@ class FP16Optimizer:
             if math.isfinite(norm):
                 scheduler.step()
                 optimizer.step()
-                self.set_weights(self.model.parameters(),
-                                 self.fp32_params)
+                self.set_weights(self.model.parameters(), self.fp32_params)
                 self.since_last_invalid += 1
             else:
                 self.loss_scale /= self.dls_downscale
                 self.since_last_invalid = 0
-                logging.info(f'Gradient norm: {norm}')
-                logging.info(f'Skipped batch, new scale: {self.loss_scale}')
+                logging.info(f"Gradient norm: {norm}")
+                logging.info(f"Skipped batch, new scale: {self.loss_scale}")
 
             if self.since_last_invalid >= self.dls_upscale_interval:
                 self.loss_scale *= self.dls_upscale
                 self.loss_scale = min(self.loss_scale, 8192.0)
-                logging.info(f'Upscaling, new scale: {self.loss_scale}')
+                logging.info(f"Upscaling, new scale: {self.loss_scale}")
                 self.since_last_invalid = 0
 
             self.model.zero_grad()
@@ -149,6 +157,7 @@ class FP32Optimizer:
     """
     Standard optimizer, computes backward and applies weight update.
     """
+
     def __init__(self, model, grad_clip=None):
         """
         Constructor for the Fp32Optimizer
@@ -157,7 +166,7 @@ class FP32Optimizer:
         :param grad_clip: coefficient for gradient clipping, max L2 norm of the
             gradients
         """
-        logging.info('Initializing fp32 optimizer')
+        logging.info("Initializing fp32 optimizer")
         self.initialize_model(model)
         self.grad_clip = grad_clip
 
@@ -180,7 +189,7 @@ class FP32Optimizer:
         """
         loss.backward()
         if update:
-            if self.grad_clip != float('inf'):
+            if self.grad_clip != float("inf"):
                 clip_grad_norm_(self.model.parameters(), self.grad_clip)
             scheduler.step()
             optimizer.step()
@@ -193,8 +202,10 @@ class AMPOptimizer:
     Uses AMP to apply loss scaling, computes backward and applies weight
     update.
     """
-    def __init__(self, model, grad_clip=None, loss_scale=8192,
-                 dls_upscale_interval=128):
+
+    def __init__(
+        self, model, grad_clip=None, loss_scale=8192, dls_upscale_interval=128
+    ):
         """
         Constructor for the AMPOptimizer
 
@@ -202,7 +213,7 @@ class AMPOptimizer:
         :param grad_clip: coefficient for gradient clipping, max L2 norm of the
             gradients
         """
-        logging.info('Initializing amp optimizer')
+        logging.info("Initializing amp optimizer")
         self.initialize_model(model)
         self.grad_clip = grad_clip
 
@@ -231,7 +242,7 @@ class AMPOptimizer:
             scaled_loss.backward()
 
         if update:
-            if self.grad_clip != float('inf'):
+            if self.grad_clip != float("inf"):
                 clip_grad_norm_(amp.master_params(optimizer), self.grad_clip)
             scheduler.step()
             optimizer.step()

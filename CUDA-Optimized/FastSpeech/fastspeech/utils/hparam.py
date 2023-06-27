@@ -23,6 +23,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+
 import yaml
 
 
@@ -32,7 +33,7 @@ def load_hparam(filepath):
     if not filepath:
         return hparam_dict
 
-    stream = open(filepath, 'r')
+    stream = open(filepath, "r")
     docs = yaml.load_all(stream)
     for doc in docs:
         for k, v in doc.items():
@@ -58,13 +59,14 @@ class Dotdict(dict):
     set attributes: d.val2 = 'second' or d['val2'] = 'second'
     get attributes: d.val2 or d['val2']
     """
+
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
 
     def __init__(self, dct=None):
         dct = dict() if not dct else dct
         for key, value in dct.items():
-            if hasattr(value, 'keys'):
+            if hasattr(value, "keys"):
                 value = Dotdict(value)
             self[key] = value
 
@@ -86,7 +88,6 @@ class Hparam(Dotdict):
         super(Hparam, self).__init__()
 
     def set_hparam(self, filename, hp_commandline=dict()):
-
         def get_hp(file_path):
             """
             It merges parent_yaml in yaml recursively.
@@ -94,16 +95,18 @@ class Hparam(Dotdict):
             :return: merged hparam dict.
             """
             hp = load_hparam(file_path)
-            if 'parent_yaml' not in hp:
+            if "parent_yaml" not in hp:
                 return hp
-            parent_path = os.path.join(self.hp_root_path, hp['parent_yaml'])
+            parent_path = os.path.join(self.hp_root_path, hp["parent_yaml"])
 
             if parent_path == file_path:
-                raise Exception('To set myself({}) on parent_yaml is not allowed.'.format(file_path))
+                raise Exception(
+                    "To set myself({}) on parent_yaml is not allowed.".format(file_path)
+                )
 
             base_hp = get_hp(parent_path)
             hp = merge_dict(hp, base_hp)
-            
+
             return hp
 
         hparam_path = os.path.join(self.hp_root_path, filename)

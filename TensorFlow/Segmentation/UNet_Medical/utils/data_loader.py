@@ -22,12 +22,14 @@ import tensorflow as tf
 from PIL import Image, ImageSequence
 
 
-class Dataset():
+class Dataset:
     """Load, separate and prepare the data for training and prediction"""
 
-    def __init__(self, data_dir, batch_size, fold=1, augment=False, gpu_id=0, num_gpus=1, seed=0):
+    def __init__(
+        self, data_dir, batch_size, fold=1, augment=False, gpu_id=0, num_gpus=1, seed=0
+    ):
         if not os.path.exists(data_dir):
-            raise FileNotFoundError('Cannot find data dir: {}'.format(data_dir))
+            raise FileNotFoundError("Cannot find data dir: {}".format(data_dir))
 
         self._data_dir = data_dir
         self._batch_size = batch_size
@@ -35,10 +37,15 @@ class Dataset():
 
         self._seed = seed
 
-        images = self._load_multipage_tiff(os.path.join(self._data_dir, 'train-volume.tif'))
-        masks = self._load_multipage_tiff(os.path.join(self._data_dir, 'train-labels.tif'))
-        self._test_images = \
-            self._load_multipage_tiff(os.path.join(self._data_dir, 'test-volume.tif'))
+        images = self._load_multipage_tiff(
+            os.path.join(self._data_dir, "train-volume.tif")
+        )
+        masks = self._load_multipage_tiff(
+            os.path.join(self._data_dir, "train-labels.tif")
+        )
+        self._test_images = self._load_multipage_tiff(
+            os.path.join(self._data_dir, "test-volume.tif")
+        )
 
         train_indices, val_indices = self._get_val_train_indices(len(images), fold)
         self._train_images = images[train_indices]
@@ -74,8 +81,8 @@ class Dataset():
             indices = deque(indices)
             indices.rotate(fold * int((1.0 - ratio) * length))
             indices = np.array(indices)
-            train_indices = indices[:int(ratio * len(indices))]
-            val_indices = indices[int(ratio * len(indices)):]
+            train_indices = indices[: int(ratio * len(indices))]
+            val_indices = indices[int(ratio * len(indices)) :]
         else:
             train_indices = indices
             val_indices = []
@@ -113,13 +120,21 @@ class Dataset():
         if self._augment and augment:
             # Horizontal flip
             h_flip = tf.random_uniform([]) > 0.5
-            inputs = tf.cond(h_flip, lambda: tf.image.flip_left_right(inputs), lambda: inputs)
-            labels = tf.cond(h_flip, lambda: tf.image.flip_left_right(labels), lambda: labels)
+            inputs = tf.cond(
+                h_flip, lambda: tf.image.flip_left_right(inputs), lambda: inputs
+            )
+            labels = tf.cond(
+                h_flip, lambda: tf.image.flip_left_right(labels), lambda: labels
+            )
 
             # Vertical flip
             v_flip = tf.random_uniform([]) > 0.5
-            inputs = tf.cond(v_flip, lambda: tf.image.flip_up_down(inputs), lambda: inputs)
-            labels = tf.cond(v_flip, lambda: tf.image.flip_up_down(labels), lambda: labels)
+            inputs = tf.cond(
+                v_flip, lambda: tf.image.flip_up_down(inputs), lambda: inputs
+            )
+            labels = tf.cond(
+                v_flip, lambda: tf.image.flip_up_down(labels), lambda: labels
+            )
 
             # Prepare for batched transforms
             inputs = tf.expand_dims(inputs, 0)
@@ -131,8 +146,12 @@ class Dataset():
             top = tf.random_uniform([]) * 0.3
             bottom = 1 - tf.random_uniform([]) * 0.3
 
-            inputs = tf.image.crop_and_resize(inputs, [[top, left, bottom, right]], [0], (572, 572))
-            labels = tf.image.crop_and_resize(labels, [[top, left, bottom, right]], [0], (572, 572))
+            inputs = tf.image.crop_and_resize(
+                inputs, [[top, left, bottom, right]], [0], (572, 572)
+            )
+            labels = tf.image.crop_and_resize(
+                labels, [[top, left, bottom, right]], [0], (572, 572)
+            )
 
             # Gray value variations
 
@@ -144,7 +163,9 @@ class Dataset():
             labels = tf.squeeze(labels, 0)
 
         # Bring back labels to network's output size and remove interpolation artifacts
-        labels = tf.image.resize_image_with_crop_or_pad(labels, target_width=388, target_height=388)
+        labels = tf.image.resize_image_with_crop_or_pad(
+            labels, target_width=388, target_height=388
+        )
         cond = tf.less(labels, 0.5 * tf.ones(tf.shape(labels)))
         labels = tf.where(cond, tf.zeros(tf.shape(labels)), tf.ones(tf.shape(labels)))
 
@@ -156,7 +177,9 @@ class Dataset():
         labels = self._normalize_labels(labels)
 
         # Bring back labels to network's output size and remove interpolation artifacts
-        labels = tf.image.resize_image_with_crop_or_pad(labels, target_width=388, target_height=388)
+        labels = tf.image.resize_image_with_crop_or_pad(
+            labels, target_width=388, target_height=388
+        )
         cond = tf.less(labels, 0.5 * tf.ones(tf.shape(labels)))
         labels = tf.where(cond, tf.zeros(tf.shape(labels)), tf.ones(tf.shape(labels)))
 
@@ -165,12 +188,15 @@ class Dataset():
     def train_fn(self, drop_remainder=False):
         """Input function for training"""
         dataset = tf.data.Dataset.from_tensor_slices(
-            (self._train_images, self._train_masks))
+            (self._train_images, self._train_masks)
+        )
         dataset = dataset.shard(self._num_gpus, self._gpu_id)
         dataset = dataset.repeat()
         dataset = dataset.shuffle(self._batch_size * 3)
-        dataset = dataset.map(self._preproc_samples,
-                              num_parallel_calls=multiprocessing.cpu_count() // self._num_gpus)
+        dataset = dataset.map(
+            self._preproc_samples,
+            num_parallel_calls=multiprocessing.cpu_count() // self._num_gpus,
+        )
         dataset = dataset.batch(self._batch_size, drop_remainder=drop_remainder)
         dataset = dataset.prefetch(self._batch_size)
 
@@ -179,7 +205,8 @@ class Dataset():
     def eval_fn(self, count=1):
         """Input function for validation"""
         dataset = tf.data.Dataset.from_tensor_slices(
-            (self._val_images, self._val_masks))
+            (self._val_images, self._val_masks)
+        )
         dataset = dataset.repeat(count=count)
         dataset = dataset.map(self._preproc_eval_samples)
         dataset = dataset.batch(self._batch_size)
@@ -189,8 +216,7 @@ class Dataset():
 
     def test_fn(self, count):
         """Input function for testing"""
-        dataset = tf.data.Dataset.from_tensor_slices(
-            self._test_images)
+        dataset = tf.data.Dataset.from_tensor_slices(self._test_images)
         dataset = dataset.repeat(count=count)
         dataset = dataset.map(self._normalize_inputs)
         dataset = dataset.batch(self._batch_size)
@@ -200,10 +226,22 @@ class Dataset():
 
     def synth_fn(self):
         """Synthetic data function for testing"""
-        inputs = tf.truncated_normal((572, 572, 1), dtype=tf.float32, mean=127.5, stddev=1, seed=self._seed,
-                                     name='synth_inputs')
-        masks = tf.truncated_normal((388, 388, 2), dtype=tf.float32, mean=0.01, stddev=0.1, seed=self._seed,
-                                    name='synth_masks')
+        inputs = tf.truncated_normal(
+            (572, 572, 1),
+            dtype=tf.float32,
+            mean=127.5,
+            stddev=1,
+            seed=self._seed,
+            name="synth_inputs",
+        )
+        masks = tf.truncated_normal(
+            (388, 388, 2),
+            dtype=tf.float32,
+            mean=0.01,
+            stddev=0.1,
+            seed=self._seed,
+            name="synth_masks",
+        )
 
         dataset = tf.data.Dataset.from_tensors((inputs, masks))
 

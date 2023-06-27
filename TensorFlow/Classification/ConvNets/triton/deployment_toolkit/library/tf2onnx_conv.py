@@ -20,16 +20,20 @@ import onnx.shape_inference
 import tensorflow as tf
 from tf2onnx import optimizer, tfonnx
 
-# pytype: enable=import-error
-
 from ..core import BaseConverter, Format, Model
 from ..extensions import converters
 from .tf import create_session_config
 
+# pytype: enable=import-error
+
+
 
 def _replace_io_names(graph_proto, io_type, name2tensor):
     tensor2name = {v: k for k, v in name2tensor.items()}
-    tensor_value_info_list = {"inputs": graph_proto.input, "outputs": graph_proto.output}[io_type]
+    tensor_value_info_list = {
+        "inputs": graph_proto.input,
+        "outputs": graph_proto.output,
+    }[io_type]
     for tensor_value_info in tensor_value_info_list:
         old_name = tensor_value_info.name
         new_name = tensor2name.get(old_name)
@@ -45,7 +49,14 @@ def _replace_io_names(graph_proto, io_type, name2tensor):
                     node.output[idx] = new_name
 
 
-def tfgraph2onnx(graph_def, inputnames2tensornames, outputnames2tensornames, *, onnx_opset, onnx_optimized=True):
+def tfgraph2onnx(
+    graph_def,
+    inputnames2tensornames,
+    outputnames2tensornames,
+    *,
+    onnx_opset,
+    onnx_optimized=True,
+):
     with tf.Graph().as_default() as tf_graph:
         tf.import_graph_def(graph_def, name="")
     session_config = create_session_config(allow_growth=True)
@@ -83,7 +94,9 @@ class TFGraphDef2ONNXConverter(BaseConverter):
         assert isinstance(model.handle, tf.compat.v1.GraphDef)
 
         inputnames2tensorname = {name: spec.name for name, spec in model.inputs.items()}
-        outputnames2tensorname = {name: spec.name for name, spec in model.outputs.items()}
+        outputnames2tensorname = {
+            name: spec.name for name, spec in model.outputs.items()
+        }
         onnx_model = tfgraph2onnx(
             model.handle,
             inputnames2tensorname,
@@ -98,6 +111,12 @@ class TFGraphDef2ONNXConverter(BaseConverter):
         return model._replace(handle=onnx_model)
 
 
-converters.register_extension(f"{Format.TF_ESTIMATOR.value}--{Format.ONNX.value}", TFGraphDef2ONNXConverter)
-converters.register_extension(f"{Format.TF_KERAS.value}--{Format.ONNX.value}", TFGraphDef2ONNXConverter)
-converters.register_extension(f"{Format.TF_SAVEDMODEL.value}--{Format.ONNX.value}", TFGraphDef2ONNXConverter)
+converters.register_extension(
+    f"{Format.TF_ESTIMATOR.value}--{Format.ONNX.value}", TFGraphDef2ONNXConverter
+)
+converters.register_extension(
+    f"{Format.TF_KERAS.value}--{Format.ONNX.value}", TFGraphDef2ONNXConverter
+)
+converters.register_extension(
+    f"{Format.TF_SAVEDMODEL.value}--{Format.ONNX.value}", TFGraphDef2ONNXConverter
+)

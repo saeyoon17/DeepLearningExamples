@@ -13,10 +13,12 @@
 # limitations under the License.
 
 import time
-import torch.distributed as dist
-import torch
 
-class PerformanceMeter():
+import torch
+import torch.distributed as dist
+
+
+class PerformanceMeter:
     def __init__(self, benchmark_mode=True):
         self.benchmark_mode = benchmark_mode
         self.reset()
@@ -41,7 +43,7 @@ class PerformanceMeter():
             self.avg = self.count / self.total_time
         self.last_update_time = time.time()
 
-        return n/delta
+        return n / delta
 
     def reset_current_lap(self):
         if self.benchmark_mode:
@@ -53,7 +55,7 @@ class PerformanceMeter():
         idx = int(len(self.intervals) * i / 100)
         return sorted(self.intervals)[idx]
 
+
 def print_once(*args, **kwargs):
     if not dist.is_initialized() or dist.get_rank() == 0:
         print(*args, **kwargs)
-

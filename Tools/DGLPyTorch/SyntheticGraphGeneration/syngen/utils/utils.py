@@ -12,16 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
-import logging
 import importlib
+import logging
+import time
 from typing import Optional
 
 import cudf
 import cupy
 import dask_cudf
 import pandas as pd
-
 from syngen.utils.types import DataFrameType
 
 logger = logging.getLogger(__name__)
@@ -70,17 +69,15 @@ def current_ms_time():
 
 
 def df_to_pandas(df):
-    """ Converts `DataFrameType` to `pandas.DataFrame`
+    """Converts `DataFrameType` to `pandas.DataFrame`
 
-        Args:
-            df (DataFrameType): the DataFrame to be converted
+    Args:
+        df (DataFrameType): the DataFrame to be converted
     """
     if isinstance(df, cudf.DataFrame):
         pddf = df.to_pandas()
     elif isinstance(df, dask_cudf.DataFrame):
-        pddf = pd.DataFrame(
-            cupy.asnumpy(df.values.compute()), columns=df.columns
-        )
+        pddf = pd.DataFrame(cupy.asnumpy(df.values.compute()), columns=df.columns)
     elif isinstance(df, pd.DataFrame):
         pddf = df
     else:
@@ -89,17 +86,15 @@ def df_to_pandas(df):
 
 
 def df_to_cudf(df: DataFrameType):
-    """ Converts `DataFrameType` to `cudf.DataFrame`
+    """Converts `DataFrameType` to `cudf.DataFrame`
 
-        Args:
-            df (DataFrameType): the DataFrame to be converted
+    Args:
+        df (DataFrameType): the DataFrame to be converted
     """
     if isinstance(df, cudf.DataFrame):
         pass
     elif isinstance(df, dask_cudf.DataFrame):
-        df = cudf.DataFrame(
-            cupy.asnumpy(df.values.compute()), columns=df.columns
-        )
+        df = cudf.DataFrame(cupy.asnumpy(df.values.compute()), columns=df.columns)
     elif isinstance(df, pd.DataFrame):
         df = cudf.from_pandas(df)
     else:
@@ -107,18 +102,15 @@ def df_to_cudf(df: DataFrameType):
     return df
 
 
-def df_to_dask_cudf(df: DataFrameType,
-                    chunksize: Optional[int]=None):
-    """ Converts `DataFrameType` to `dask_cudf.DataFrame`
+def df_to_dask_cudf(df: DataFrameType, chunksize: Optional[int] = None):
+    """Converts `DataFrameType` to `dask_cudf.DataFrame`
 
-        Args:
-            df (DataFrameType): the DataFrame to be converted
-            chunksize (int): dask chunk size. (default: min(1e6, len(df) // num_devices))
+    Args:
+        df (DataFrameType): the DataFrame to be converted
+        chunksize (int): dask chunk size. (default: min(1e6, len(df) // num_devices))
     """
     if chunksize is None:
-        chunksize = min(
-            int(1e6), len(df) // cupy.cuda.runtime.getDeviceCount()
-        )
+        chunksize = min(int(1e6), len(df) // cupy.cuda.runtime.getDeviceCount())
     if isinstance(df, cudf.DataFrame):
         df = dask_cudf.from_cudf(df, chunksize=chunksize)
     elif isinstance(df, dask_cudf.DataFrame):
@@ -146,4 +138,4 @@ def dynamic_import(object_path):
 
 
 def get_object_path(obj):
-    return obj.__class__.__module__ + '.' + obj.__class__.__name__
+    return obj.__class__.__module__ + "." + obj.__class__.__name__

@@ -12,28 +12,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import pandas as pd
-import numpy as np
-import pickle
 import argparse
+import os
+import pickle
+
 import hydra
+import numpy as np
+import pandas as pd
 import torch
-from triton.deployment_toolkit.core import BaseMetricsCalculator
 from omegaconf import OmegaConf
+from triton.deployment_toolkit.core import BaseMetricsCalculator
+
 
 def update_argparser(parser):
-    parser.add_argument("--model-dir", type=str, help="Path to the model directory you would like to use (likely in outputs)", required=True)
-
-
-
+    parser.add_argument(
+        "--model-dir",
+        type=str,
+        help="Path to the model directory you would like to use (likely in outputs)",
+        required=True,
+    )
 
 
 class MetricsCalculator(BaseMetricsCalculator):
     def __init__(self, model_dir):
         with open(os.path.join(model_dir, ".hydra/config_merged.yaml"), "rb") as f:
             self.config = OmegaConf.load(f)
-        
+
         train, valid, test = hydra.utils.call(self.config.dataset)
         del train, valid
         self.evaluator = hydra.utils.call(self.config.evaluator, test_data=test)
@@ -41,7 +45,6 @@ class MetricsCalculator(BaseMetricsCalculator):
         self.targets = []
         self.ids = []
         self.weights = []
-
 
     @property
     def metrics(self):
@@ -60,8 +63,8 @@ class MetricsCalculator(BaseMetricsCalculator):
         x,
         y_real,
     ):
-        #can probably just pass all of this to the evaluator main class
-        self.targets.append(y_real['target__0'][:,:,0][:,:,np.newaxis])
+        # can probably just pass all of this to the evaluator main class
+        self.targets.append(y_real["target__0"][:, :, 0][:, :, np.newaxis])
         self.ids.append(ids)
         self.weights.append(x["weight__9"])
         preds = y_pred["target__0"]

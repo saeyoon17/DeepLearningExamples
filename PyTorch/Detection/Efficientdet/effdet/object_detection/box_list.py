@@ -47,13 +47,15 @@ Some other notes:
         and correspondingly, y,x (or ymin, xmin, ymax, xmax) ordering
     * Tensors are always provided as (flat) [N, 4] tensors.
 """
+from typing import Dict, List, Optional
+
 import torch
-from typing import Optional, List, Dict
 
 
 @torch.jit.script
 class BoxList(object):
     """Box collection."""
+
     data: Dict[str, torch.Tensor]
 
     def __init__(self, boxes):
@@ -66,10 +68,10 @@ class BoxList(object):
             ValueError: if invalid dimensions for bbox data or if bbox data is not in float32 format.
         """
         if len(boxes.shape) != 2 or boxes.shape[-1] != 4:
-            raise ValueError('Invalid dimensions for box data.')
+            raise ValueError("Invalid dimensions for box data.")
         if boxes.dtype != torch.float32:
-            raise ValueError('Invalid tensor type: should be tf.float32')
-        self.data = {'boxes': boxes}
+            raise ValueError("Invalid tensor type: should be tf.float32")
+        self.data = {"boxes": boxes}
 
     def num_boxes(self):
         """Returns number of boxes held in collection.
@@ -77,7 +79,7 @@ class BoxList(object):
         Returns:
           a tensor representing the number of boxes held in the collection.
         """
-        return self.data['boxes'].shape[0]
+        return self.data["boxes"].shape[0]
 
     def get_all_fields(self):
         """Returns all fields."""
@@ -88,7 +90,7 @@ class BoxList(object):
         # return [k for k in self.data.keys() if k != 'boxes']  # FIXME torscript doesn't support comprehensions yet
         extra: List[str] = []
         for k in self.data.keys():
-            if k != 'boxes':
+            if k != "boxes":
                 extra.append(k)
         return extra
 
@@ -106,16 +108,16 @@ class BoxList(object):
     def has_field(self, field: str):
         return field in self.data
 
-    #@property  # FIXME for torchscript compat
+    # @property  # FIXME for torchscript compat
     def boxes(self):
         """Convenience function for accessing box coordinates.
 
         Returns:
             a tensor with shape [N, 4] representing box coordinates.
         """
-        return self.get_field('boxes')
+        return self.get_field("boxes")
 
-    #@boxes.setter  # FIXME for torchscript compat
+    # @boxes.setter  # FIXME for torchscript compat
     def set_boxes(self, boxes):
         """Convenience function for setting box coordinates.
 
@@ -126,8 +128,8 @@ class BoxList(object):
             ValueError: if invalid dimensions for bbox data
         """
         if len(boxes.shape) != 2 or boxes.shape[-1] != 4:
-            raise ValueError('Invalid dimensions for box data.')
-        self.data['boxes'] = boxes
+            raise ValueError("Invalid dimensions for box data.")
+        self.data["boxes"] = boxes
 
     def get_field(self, field: str):
         """Accesses a box collection and associated fields.
@@ -145,7 +147,7 @@ class BoxList(object):
             ValueError: if invalid field
         """
         if not self.has_field(field):
-            raise ValueError('field ' + str(field) + ' does not exist')
+            raise ValueError("field " + str(field) + " does not exist")
         return self.data[field]
 
     def set_field(self, field: str, value: torch.Tensor):
@@ -161,7 +163,7 @@ class BoxList(object):
             ValueError: if the box_list does not have specified field.
         """
         if not self.has_field(field):
-            raise ValueError('field ' + str(field) + ' does not exist')
+            raise ValueError("field " + str(field) + " does not exist")
         self.data[field] = value
 
     def get_center_coordinates_and_sizes(self):
@@ -174,14 +176,12 @@ class BoxList(object):
         ymin, xmin, ymax, xmax = box_corners.t().unbind()
         width = xmax - xmin
         height = ymax - ymin
-        ycenter = ymin + height / 2.
-        xcenter = xmin + width / 2.
+        ycenter = ymin + height / 2.0
+        xcenter = xmin + width / 2.0
         return [ycenter, xcenter, height, width]
 
     def transpose_coordinates(self):
-        """Transpose the coordinate representation in a boxlist.
-
-        """
+        """Transpose the coordinate representation in a boxlist."""
         y_min, x_min, y_max, x_max = self.boxes().chunk(4, dim=1)
         self.set_boxes(torch.cat([x_min, y_min, x_max, y_max], 1))
 
@@ -203,10 +203,10 @@ class BoxList(object):
             fields = self.get_all_fields()
         for field in fields:
             if not self.has_field(field):
-                raise ValueError('boxlist must contain all specified fields')
+                raise ValueError("boxlist must contain all specified fields")
             tensor_dict[field] = self.get_field(field)
         return tensor_dict
 
-    #@property
+    # @property
     def device(self):
-        return self.data['boxes'].device
+        return self.data["boxes"].device

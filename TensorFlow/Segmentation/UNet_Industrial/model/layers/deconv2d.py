@@ -20,34 +20,36 @@
 # ==============================================================================
 
 import tensorflow as tf
-
 from model import layers
-
 from model.layers.utils import _log_hparams
 
-__all__ = ['deconv2d']
+__all__ = ["deconv2d"]
 
 
 def deconv2d(
     inputs,
     n_channels=8,
     kernel_size=(3, 3),
-    padding='VALID',
-    data_format='NHWC',
+    padding="VALID",
+    data_format="NHWC",
     use_bias=True,
     kernel_initializer=tf.variance_scaling_initializer(),
     bias_initializer=tf.zeros_initializer(),
     trainable=True,
-    use_upscale_conv=True
+    use_upscale_conv=True,
 ):
 
     padding = padding.upper()  # Enforce capital letters for the padding mode
 
-    if data_format not in ['NHWC', 'NCHW']:
-        raise ValueError("Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format)
+    if data_format not in ["NHWC", "NCHW"]:
+        raise ValueError(
+            "Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format
+        )
 
-    if padding not in ['SAME', 'VALID']:
-        raise ValueError("Unknown padding: `%s` (accepted: ['SAME', 'VALID'])" % padding)
+    if padding not in ["SAME", "VALID"]:
+        raise ValueError(
+            "Unknown padding: `%s` (accepted: ['SAME', 'VALID'])" % padding
+        )
 
     with tf.variable_scope("deconv2d"):
 
@@ -59,7 +61,7 @@ def deconv2d(
                 method=tf.image.ResizeMethod.NEAREST_NEIGHBOR,  # [BILINEAR, NEAREST_NEIGHBOR, BICUBIC, AREA]
                 align_corners=True,
                 is_scale=True,
-                data_format=data_format
+                data_format=data_format,
             )
 
             layer = layers.conv2d(
@@ -72,7 +74,7 @@ def deconv2d(
                 use_bias=use_bias,
                 trainable=trainable,
                 kernel_initializer=kernel_initializer,
-                bias_initializer=bias_initializer
+                bias_initializer=bias_initializer,
             )
 
         else:
@@ -85,15 +87,17 @@ def deconv2d(
                 kernel_size=kernel_size,
                 strides=(2, 2),
                 padding=padding,
-                data_format='channels_first' if data_format == "NCHW" else "channels_last",
+                data_format="channels_first"
+                if data_format == "NCHW"
+                else "channels_last",
                 use_bias=use_bias,
                 trainable=trainable,
                 kernel_initializer=kernel_initializer,
-                bias_initializer=bias_initializer
+                bias_initializer=bias_initializer,
             )
 
             _log_hparams(
-                classname='Conv2DTranspose',
+                classname="Conv2DTranspose",
                 layername=layer.name,
                 n_channels=n_channels,
                 kernel_size=kernel_size,
@@ -104,7 +108,7 @@ def deconv2d(
                 trainable=trainable,
                 input_shape=str(input_shape),
                 out_shape=str(layer.get_shape()),
-                out_dtype=layer.dtype
+                out_dtype=layer.dtype,
             )
 
     return layer

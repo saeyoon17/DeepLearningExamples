@@ -26,13 +26,17 @@ def warmup(
     input_shapes: Optional[List[str]] = None,
     server_url: str = "localhost",
     measurement_window: int = 10000,
-    shared_memory: bool = False
+    shared_memory: bool = False,
 ):
     print("\n")
     print(f"==== Warmup start ====")
     print("\n")
 
-    input_shapes = " ".join(map(lambda shape: f" --shape {shape}", input_shapes)) if input_shapes else ""
+    input_shapes = (
+        " ".join(map(lambda shape: f" --shape {shape}", input_shapes))
+        if input_shapes
+        else ""
+    )
 
     measurement_window = 6 * measurement_window
 
@@ -59,7 +63,9 @@ def warmup(
 
     result = os.system(f"perf_client {exec_args}")
     if result != 0:
-        print(f"Failed running performance tests. Perf client failed with exit code {result}")
+        print(
+            f"Failed running performance tests. Perf client failed with exit code {result}"
+        )
         sys.exit(1)
 
     print("\n")

@@ -25,7 +25,9 @@ def infer_precision(
     output_names: List[str],
     get_node_dtype_fn: Callable,
 ):
-    node_dtypes = [nx_graph.nodes[node_name].get("dtype", None) for node_name in nx_graph.nodes]
+    node_dtypes = [
+        nx_graph.nodes[node_name].get("dtype", None) for node_name in nx_graph.nodes
+    ]
     node_dtypes = [dt for dt in node_dtypes if dt is None or dt.kind not in ["i", "b"]]
     dtypes_counter = Counter(node_dtypes)
     return dtypes_counter.most_common()[0][0]
@@ -68,14 +70,22 @@ def get_shapes_with_dynamic_axes(dataloader, batch_size_dim: Optional[int] = Non
         _set_dynamic_shapes(y, output_shapes)
 
     if batch_size_dim is not None:
-        input_shapes = {name: _mark_batch_axis(shape, batch_size_dim) for name, shape in input_shapes.items()}
-        output_shapes = {name: _mark_batch_axis(shape, batch_size_dim) for name, shape in output_shapes.items()}
+        input_shapes = {
+            name: _mark_batch_axis(shape, batch_size_dim)
+            for name, shape in input_shapes.items()
+        }
+        output_shapes = {
+            name: _mark_batch_axis(shape, batch_size_dim)
+            for name, shape in output_shapes.items()
+        }
 
     return input_shapes, output_shapes
 
 
 def get_dynamic_axes(dataloader, batch_size_dim: Optional[int] = None):
-    input_shapes, output_shapes = get_shapes_with_dynamic_axes(dataloader, batch_size_dim=batch_size_dim)
+    input_shapes, output_shapes = get_shapes_with_dynamic_axes(
+        dataloader, batch_size_dim=batch_size_dim
+    )
     all_shapes = {**input_shapes, **output_shapes}
     dynamic_axes = {}
 
@@ -86,7 +96,9 @@ def get_dynamic_axes(dataloader, batch_size_dim: Optional[int] = None):
 
     for k in all_shapes:
         if k in dynamic_axes:
-            dynamic_axes[k].update({batch_size_dim: "batch_size_" + str(batch_size_dim)})
+            dynamic_axes[k].update(
+                {batch_size_dim: "batch_size_" + str(batch_size_dim)}
+            )
         elif batch_size_dim is not None:
             dynamic_axes[k] = {batch_size_dim: "batch_size_" + str(batch_size_dim)}
 

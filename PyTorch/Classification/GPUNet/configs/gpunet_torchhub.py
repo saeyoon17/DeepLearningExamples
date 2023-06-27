@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import os
+
 import torch
+
 
 def nvidia_gpunet(pretrained=True, **kwargs):
     """Constructs a gpunet model (nn.module with additional infer(input) method).
@@ -25,11 +27,12 @@ def nvidia_gpunet(pretrained=True, **kwargs):
         model_type (str, 'GPUNet-0'): loads selected model type GPUNet-1.... or GPUNet-P0/P1 or GPUNet-D1/D2. Defaults to GPUNet-0
     """
 
-    from ..models.gpunet_builder import GPUNet_Builder
-    from .model_hub import get_configs, MODEL_ZOO_NAME2TYPE_B1
     from timm.models.helpers import load_checkpoint
 
-    modelType = kwargs.get('model_type', 'GPUNet-0')
+    from ..models.gpunet_builder import GPUNet_Builder
+    from .model_hub import MODEL_ZOO_NAME2TYPE_B1, get_configs
+
+    modelType = kwargs.get("model_type", "GPUNet-0")
     print("model_type=", modelType)
 
     errMsg = "model_type {} not found, available models are {}".format(
@@ -38,12 +41,18 @@ def nvidia_gpunet(pretrained=True, **kwargs):
     assert modelType in MODEL_ZOO_NAME2TYPE_B1.keys(), errMsg
 
     is_prunet = False
-    if "GPUNet-P0" in modelType or "GPUNet-P1" in modelType: 
+    if "GPUNet-P0" in modelType or "GPUNet-P1" in modelType:
         is_prunet = True
 
     modelLatency = MODEL_ZOO_NAME2TYPE_B1[modelType]
     print("mapped model latency=", modelLatency)
-    modelJSON, cpkPath = get_configs(batch=1, latency=modelLatency, gpuType="GV100", download=pretrained, config_root_dir=os.path.dirname(__file__))
+    modelJSON, cpkPath = get_configs(
+        batch=1,
+        latency=modelLatency,
+        gpuType="GV100",
+        download=pretrained,
+        config_root_dir=os.path.dirname(__file__),
+    )
 
     builder = GPUNet_Builder()
     model = builder.get_model(modelJSON)
@@ -57,8 +66,8 @@ def nvidia_gpunet(pretrained=True, **kwargs):
         else:
             load_checkpoint(model, cpkPath, use_ema=True)
 
-    modelMath = kwargs.get('model_math', 'fp32')
+    modelMath = kwargs.get("model_math", "fp32")
     if modelMath == "fp16":
         model.half()
-    
+
     return model

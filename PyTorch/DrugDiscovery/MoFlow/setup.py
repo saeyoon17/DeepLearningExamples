@@ -16,13 +16,8 @@
 from setuptools import setup
 
 setup(
-    name='moflow_pyt',
-    packages=[
-        'moflow',
-        'moflow.data',
-        'moflow.model',
-        'moflow.runtime'
-    ],
-    version='0.0.1',
-    description='MoFlow: an invertible flow model for generating molecular graphs',
+    name="moflow_pyt",
+    packages=["moflow", "moflow.data", "moflow.model", "moflow.runtime"],
+    version="0.0.1",
+    description="MoFlow: an invertible flow model for generating molecular graphs",
 )

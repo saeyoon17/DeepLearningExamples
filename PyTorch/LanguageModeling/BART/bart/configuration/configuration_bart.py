@@ -20,7 +20,6 @@ import logging
 
 from bart.configuration.configuration_utils import PretrainedConfig
 
-
 logger = logging.getLogger(__name__)
 
 BART_PRETRAINED_CONFIG_ARCHIVE_MAP = {
@@ -101,7 +100,7 @@ BART_CONFIG_ARGS_DOC = r"""
 
 class BartConfig(PretrainedConfig):
     r"""
-        Configuration class for Bart. Parameters are renamed from the fairseq implementation
+    Configuration class for Bart. Parameters are renamed from the fairseq implementation
     """
     model_type = "bart"
 
@@ -140,14 +139,14 @@ class BartConfig(PretrainedConfig):
         **common_kwargs
     ):
         r"""
-            :class:`~transformers.BartConfig` is the configuration class for `BartModel`.
+        :class:`~transformers.BartConfig` is the configuration class for `BartModel`.
 
-            Examples::
+        Examples::
 
-                >>> from transformers import BartConfig, BartModel
+            >>> from transformers import BartConfig, BartModel
 
-                >>> config = BartConfig.from_pretrained('facebook/bart-large')
-                >>> model = BartModel(config)
+            >>> config = BartConfig.from_pretrained('facebook/bart-large')
+            >>> model = BartModel(config)
 
         """
         if "hidden_size" in common_kwargs:
@@ -175,9 +174,15 @@ class BartConfig(PretrainedConfig):
         self.activation_function = activation_function
 
         # Params introduced for Mbart
-        self.scale_embedding = scale_embedding  # scale factor will be sqrt(d_model) if True
-        self.normalize_embedding = normalize_embedding  # True for mbart, False otherwise
-        self.normalize_before = normalize_before  # combo of fairseq's encoder_ and decoder_normalize_before
+        self.scale_embedding = (
+            scale_embedding  # scale factor will be sqrt(d_model) if True
+        )
+        self.normalize_embedding = (
+            normalize_embedding  # True for mbart, False otherwise
+        )
+        self.normalize_before = (
+            normalize_before  # combo of fairseq's encoder_ and decoder_normalize_before
+        )
         self.add_final_layer_norm = add_final_layer_norm
 
         # Params introduced for Marian

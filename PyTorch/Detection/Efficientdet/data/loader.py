@@ -3,6 +3,8 @@
 Hacked together by Ross Wightman
 """
 
+from functools import partial
+
 # Copyright (c) 2021, NVIDIA CORPORATION. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,10 +20,9 @@ Hacked together by Ross Wightman
 # limitations under the License.
 import torch
 import torch.utils.data
-from .transforms import *
 from utils.distributed_sampler import OrderedDistributedSampler
-from functools import partial
 
+from .transforms import *
 
 MAX_NUM_INSTANCES = 100
 
@@ -47,18 +48,18 @@ def fast_collate(memory_format, batch):
             target_shape = (batch_size,) + tuple(v.size())
         else:
             # scalar, assume per batch
-            target_shape = batch_size,
+            target_shape = (batch_size,)
             target_dtype = torch.float32 if isinstance(v, float) else torch.int64
         target[k] = torch.zeros(target_shape, dtype=target_dtype)
 
-    tensor = torch.zeros((batch_size, *batch[0][0].shape), dtype=torch.uint8).contiguous(
-        memory_format=memory_format
-    )
+    tensor = torch.zeros(
+        (batch_size, *batch[0][0].shape), dtype=torch.uint8
+    ).contiguous(memory_format=memory_format)
     for i in range(batch_size):
         tensor[i] += torch.from_numpy(batch[i][0])
         for tk, tv in batch[i][1].items():
             if isinstance(tv, np.ndarray) and len(tv.shape):
-                target[tk][i, 0:tv.shape[0]] = torch.from_numpy(tv)
+                target[tk][i, 0 : tv.shape[0]] = torch.from_numpy(tv)
             elif isinstance(tv, torch.Tensor):
                 target[tk][i] = tv
             else:
@@ -68,11 +69,7 @@ def fast_collate(memory_format, batch):
 
 
 class PrefetchLoader:
-
-    def __init__(self,
-            loader,
-            mean=IMAGENET_DEFAULT_MEAN,
-            std=IMAGENET_DEFAULT_STD):
+    def __init__(self, loader, mean=IMAGENET_DEFAULT_MEAN, std=IMAGENET_DEFAULT_STD):
         self.loader = loader
         self.mean = torch.tensor([x * 255 for x in mean]).cuda().view(1, 3, 1, 1)
         self.std = torch.tensor([x * 255 for x in std]).cuda().view(1, 3, 1, 1)
@@ -85,7 +82,9 @@ class PrefetchLoader:
             with torch.cuda.stream(stream):
                 next_input = next_input.cuda(non_blocking=True)
                 next_input = next_input.float().sub_(self.mean).div_(self.std)
-                next_target = {k: v.cuda(non_blocking=True) for k, v in next_target.items()}
+                next_target = {
+                    k: v.cuda(non_blocking=True) for k, v in next_target.items()
+                }
 
             if not first:
                 yield input, target
@@ -104,6 +103,7 @@ class PrefetchLoader:
     @property
     def sampler(self):
         return self.loader.batch_sampler
+
 
 class IterationBasedBatchSampler(torch.utils.data.sampler.BatchSampler):
     """
@@ -128,19 +128,19 @@ class IterationBasedBatchSampler(torch.utils.data.sampler.BatchSampler):
 
 
 def create_loader(
-        dataset,
-        input_size,
-        batch_size,
-        is_training=False,
-        use_prefetcher=True,
-        interpolation='bilinear',
-        fill_color='mean',
-        mean=IMAGENET_DEFAULT_MEAN,
-        std=IMAGENET_DEFAULT_STD,
-        num_workers=1,
-        distributed=False,
-        pin_mem=False,
-        memory_format=torch.contiguous_format
+    dataset,
+    input_size,
+    batch_size,
+    is_training=False,
+    use_prefetcher=True,
+    interpolation="bilinear",
+    fill_color="mean",
+    mean=IMAGENET_DEFAULT_MEAN,
+    std=IMAGENET_DEFAULT_STD,
+    num_workers=1,
+    distributed=False,
+    pin_mem=False,
+    memory_format=torch.contiguous_format,
 ):
     if isinstance(input_size, tuple):
         img_size = input_size[-2:]
@@ -154,7 +154,8 @@ def create_loader(
             use_prefetcher=use_prefetcher,
             fill_color=fill_color,
             mean=mean,
-            std=std)
+            std=std,
+        )
     else:
         transform = transforms_coco_eval(
             img_size,
@@ -162,7 +163,8 @@ def create_loader(
             use_prefetcher=use_prefetcher,
             fill_color=fill_color,
             mean=mean,
-            std=std)
+            std=std,
+        )
 
     dataset.transform = transform
 
@@ -177,7 +179,8 @@ def create_loader(
     else:
         sampler = torch.utils.data.RandomSampler(dataset)
     batch_sampler = torch.utils.data.sampler.BatchSampler(
-            sampler, batch_size, drop_last=False)
+        sampler, batch_size, drop_last=False
+    )
     if is_training:
         batch_sampler = IterationBasedBatchSampler(batch_sampler)
         loader = torch.utils.data.DataLoader(
@@ -186,7 +189,9 @@ def create_loader(
             num_workers=num_workers,
             batch_sampler=batch_sampler,
             pin_memory=pin_mem,
-            collate_fn=partial(fast_collate, memory_format) if use_prefetcher else torch.utils.data.dataloader.default_collate,
+            collate_fn=partial(fast_collate, memory_format)
+            if use_prefetcher
+            else torch.utils.data.dataloader.default_collate,
         )
     else:
         loader = torch.utils.data.DataLoader(
@@ -196,7 +201,9 @@ def create_loader(
             num_workers=num_workers,
             sampler=sampler,
             pin_memory=pin_mem,
-            collate_fn=partial(fast_collate, memory_format) if use_prefetcher else torch.utils.data.dataloader.default_collate,
+            collate_fn=partial(fast_collate, memory_format)
+            if use_prefetcher
+            else torch.utils.data.dataloader.default_collate,
         )
     if use_prefetcher:
         loader = PrefetchLoader(loader, mean=mean, std=std)

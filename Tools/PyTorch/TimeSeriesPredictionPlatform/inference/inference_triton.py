@@ -16,13 +16,14 @@
 import os
 import shutil
 import subprocess
+
+import dllogger
 import hydra
+from data.data_utils import Preprocessor
+from loggers.log_helper import setup_logger
 from omegaconf import OmegaConf
 from triton.dataloader import get_dataloader_fn
 
-from loggers.log_helper import setup_logger
-import dllogger
-from data.data_utils import Preprocessor
 
 def run_inference_triton(config):
     cfg = config
@@ -41,21 +42,30 @@ def run_inference_triton(config):
     tspp_main_dir = os.path.sep + os.path.join(*(os.getcwd().split(os.path.sep)[:-3]))
 
     # get the actual model name
-    if not os.path.isdir(os.path.join(output_path, "navigator_workspace")) or not os.path.isdir(
+    if not os.path.isdir(
+        os.path.join(output_path, "navigator_workspace")
+    ) or not os.path.isdir(
         os.path.join(output_path, "navigator_workspace/model-store")
     ):
-        if os.path.isdir(os.path.join(output_path, "navigator_workspace/final-model-store")):
-            shutil.copytree(os.path.join(output_path, "navigator_workspace/final-model-store"), os.path.join(output_path, "navigator_workspace/model-store"))
+        if os.path.isdir(
+            os.path.join(output_path, "navigator_workspace/final-model-store")
+        ):
+            shutil.copytree(
+                os.path.join(output_path, "navigator_workspace/final-model-store"),
+                os.path.join(output_path, "navigator_workspace/model-store"),
+            )
         else:
             assert (
                 False
             ), "This checkpoint directory is not configured correctly, there should be a dir/deployment/navigator_workspace/model-store/ directory"
-    files_in_store = list(os.listdir(os.path.join(output_path, "navigator_workspace/model-store")))
+    files_in_store = list(
+        os.listdir(os.path.join(output_path, "navigator_workspace/model-store"))
+    )
     if len(files_in_store) < 1:
         assert False, "There needs to be exactly 1 model in the model-store directory"
 
     evaluator = hydra.utils.call(config.evaluator)
-    if config.dataset.config.get('xgb', False):
+    if config.dataset.config.get("xgb", False):
         if cfg.get("dataset_path", None):
             preprocessor = Preprocessor(config.dataset.config)
             if cfg.get("preproc_state_path", None):
@@ -70,18 +80,32 @@ def run_inference_triton(config):
         else:
             train, valid, test = hydra.utils.call(config.dataset)
         del train, valid
-        preds_full, labels_full, ids_full, weights_full = evaluator.predict_xgboost(test, max_batch_size=cfg.batch_size)
-    elif config.dataset.config.get('stat', False):
+        preds_full, labels_full, ids_full, weights_full = evaluator.predict_xgboost(
+            test, max_batch_size=cfg.batch_size
+        )
+    elif config.dataset.config.get("stat", False):
         raise ValueError("Stat models not supported on triton")
     else:
-        model_name = cfg.get("model_name") if cfg.get("model_name", None) else files_in_store[0]
+        model_name = (
+            cfg.get("model_name") if cfg.get("model_name", None) else files_in_store[0]
+        )
         dataloader = get_dataloader_fn(cfg.checkpoint, cfg.batch_size)
-        preds_full, labels_full, ids_full, weights_full = evaluator.predict(dataloader, model_name)
+        preds_full, labels_full, ids_full, weights_full = evaluator.predict(
+            dataloader, model_name
+        )
 
-    #Need to merge the eval configs here
-    
+    # Need to merge the eval configs here
+
     metrics = evaluator.evaluate(preds_full, labels_full, ids_full, weights_full)
     logger = setup_logger(cfg)
-    logger.log(step=[], data={k: float(v) for k, v in metrics.items()}, verbosity=dllogger.Verbosity.VERBOSE)
-    logger.log(step='event', data={"String": "Evaluation Metrics: {}".format(metrics)}, verbosity=dllogger.Verbosity.DEFAULT)
+    logger.log(
+        step=[],
+        data={k: float(v) for k, v in metrics.items()},
+        verbosity=dllogger.Verbosity.VERBOSE,
+    )
+    logger.log(
+        step="event",
+        data={"String": "Evaluation Metrics: {}".format(metrics)},
+        verbosity=dllogger.Verbosity.DEFAULT,
+    )
     print(metrics)

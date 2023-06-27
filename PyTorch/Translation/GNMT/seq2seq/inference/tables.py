@@ -39,27 +39,27 @@ class AccuracyTable:
 
     def write(self, title, write_math):
         writer = MarkdownTableWriter()
-        writer.table_name = f'{title}'
-        main_header = ['**Batch Size**', '**Beam Size**']
+        writer.table_name = f"{title}"
+        main_header = ["**Batch Size**", "**Beam Size**"]
         data_header = []
-        if 'fp32' in write_math:
-            data_header += [f'**Accuracy - FP32 ({self.unit})**']
-        if 'tf32' in write_math:
-            data_header += [f'**Accuracy - TF32 ({self.unit})**']
-        if 'fp16' in write_math:
-            data_header += [f'**Accuracy - FP16 ({self.unit})**']
+        if "fp32" in write_math:
+            data_header += [f"**Accuracy - FP32 ({self.unit})**"]
+        if "tf32" in write_math:
+            data_header += [f"**Accuracy - TF32 ({self.unit})**"]
+        if "fp16" in write_math:
+            data_header += [f"**Accuracy - FP16 ({self.unit})**"]
         writer.headers = main_header + data_header
 
         writer.value_matrix = []
         for k, v in self.data.items():
             batch_size, beam_size = k
             row = [batch_size, beam_size]
-            if 'fp32' in write_math:
-                row.append(v['fp32'])
-            if 'tf32' in write_math:
-                row.append(v['tf32'])
-            if 'fp16' in write_math:
-                row.append(v['fp16'])
+            if "fp32" in write_math:
+                row.append(v["fp32"])
+            if "tf32" in write_math:
+                row.append(v["tf32"])
+            if "fp16" in write_math:
+                row.append(v["fp16"])
             writer.value_matrix.append(row)
         writer.write_table()
 
@@ -91,13 +91,13 @@ class PerformanceTable:
 
     def write(self, title, math, relative=None, reverse_speedup=False):
         writer = MarkdownTableWriter()
-        writer.table_name = f'{title} - {math.upper()}'
-        main_header = ['**Batch Size**', '**Beam Size**']
-        data_header = [f'**Avg ({self.unit})**']
-        data_header += [f'**{p}% ({self.unit})**' for p in self.percentiles]
+        writer.table_name = f"{title} - {math.upper()}"
+        main_header = ["**Batch Size**", "**Beam Size**"]
+        data_header = [f"**Avg ({self.unit})**"]
+        data_header += [f"**{p}% ({self.unit})**" for p in self.percentiles]
 
         if relative:
-            speedup_header = ['**Speedup**'] * len(data_header)
+            speedup_header = ["**Speedup**"] * len(data_header)
             data_header = interleave(data_header, speedup_header)
 
         writer.headers = main_header + data_header
@@ -123,12 +123,12 @@ class PerformanceTable:
 
 
 class LatencyTable(PerformanceTable):
-    def __init__(self, percentiles, unit='ms'):
+    def __init__(self, percentiles, unit="ms"):
         super().__init__(percentiles, unit)
-        self.unit_convert = {'s': 1, 'ms': 1e3, 'us': 1e6}
+        self.unit_convert = {"s": 1, "ms": 1e3, "us": 1e6}
 
 
 class ThroughputTable(PerformanceTable):
-    def __init__(self, percentiles, unit='tok/s', reverse_percentiles=True):
+    def __init__(self, percentiles, unit="tok/s", reverse_percentiles=True):
         super().__init__(percentiles, unit, reverse_percentiles)
-        self.unit_convert = {'tok/s': 1}
+        self.unit_convert = {"tok/s": 1}

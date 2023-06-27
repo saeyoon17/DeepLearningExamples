@@ -53,7 +53,13 @@ class ModelAnalyzer:
         self._log = None
         self._timeout = timeout
 
-    def run(self, mode: str, verbose: bool = False, quiet: bool = False, report_mode: str = None):
+    def run(
+        self,
+        mode: str,
+        verbose: bool = False,
+        quiet: bool = False,
+        report_mode: str = None,
+    ):
         """
         Starts the model analyzer locally
         """

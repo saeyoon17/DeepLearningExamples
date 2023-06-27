@@ -22,12 +22,11 @@ import os
 from functools import lru_cache
 
 import regex as re
-from tokenizers import ByteLevelBPETokenizer
-
-from bart.tokenization.tokenization_utils import AddedToken, PreTrainedTokenizer
+from bart.tokenization.tokenization_utils import (AddedToken,
+                                                  PreTrainedTokenizer)
 from bart.tokenization.tokenization_utils_base import BatchEncoding
 from bart.tokenization.tokenization_utils_fast import PreTrainedTokenizerFast
-
+from tokenizers import ByteLevelBPETokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -75,14 +74,16 @@ def bytes_to_unicode():
     To avoid that, we want lookup tables between utf-8 bytes and unicode strings.
     """
     bs = (
-        list(range(ord("!"), ord("~") + 1)) + list(range(ord("¡"), ord("¬") + 1)) + list(range(ord("®"), ord("ÿ") + 1))
+        list(range(ord("!"), ord("~") + 1))
+        + list(range(ord("¡"), ord("¬") + 1))
+        + list(range(ord("®"), ord("ÿ") + 1))
     )
     cs = bs[:]
     n = 0
-    for b in range(2 ** 8):
+    for b in range(2**8):
         if b not in bs:
             bs.append(b)
-            cs.append(2 ** 8 + n)
+            cs.append(2**8 + n)
             n += 1
     cs = [chr(n) for n in cs]
     return dict(zip(bs, cs))
@@ -158,12 +159,26 @@ class GPT2Tokenizer(PreTrainedTokenizer):
         bos_token="<|endoftext|>",
         eos_token="<|endoftext|>",
         add_prefix_space=False,
-        **kwargs
+        **kwargs,
     ):
-        bos_token = AddedToken(bos_token, lstrip=False, rstrip=False) if isinstance(bos_token, str) else bos_token
-        eos_token = AddedToken(eos_token, lstrip=False, rstrip=False) if isinstance(eos_token, str) else eos_token
-        unk_token = AddedToken(unk_token, lstrip=False, rstrip=False) if isinstance(unk_token, str) else unk_token
-        super().__init__(bos_token=bos_token, eos_token=eos_token, unk_token=unk_token, **kwargs)
+        bos_token = (
+            AddedToken(bos_token, lstrip=False, rstrip=False)
+            if isinstance(bos_token, str)
+            else bos_token
+        )
+        eos_token = (
+            AddedToken(eos_token, lstrip=False, rstrip=False)
+            if isinstance(eos_token, str)
+            else eos_token
+        )
+        unk_token = (
+            AddedToken(unk_token, lstrip=False, rstrip=False)
+            if isinstance(unk_token, str)
+            else unk_token
+        )
+        super().__init__(
+            bos_token=bos_token, eos_token=eos_token, unk_token=unk_token, **kwargs
+        )
 
         with open(vocab_file, encoding="utf-8") as vocab_handle:
             self.encoder = json.load(vocab_handle)
@@ -179,7 +194,9 @@ class GPT2Tokenizer(PreTrainedTokenizer):
         self.add_prefix_space = add_prefix_space
 
         # Should haved added re.IGNORECASE so BPE merges can happen for capitalized versions of contractions
-        self.pat = re.compile(r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+""")
+        self.pat = re.compile(
+            r"""'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
+        )
 
     @property
     def vocab_size(self):
@@ -231,7 +248,7 @@ class GPT2Tokenizer(PreTrainedTokenizer):
         return word
 
     def _tokenize(self, text):
-        """ Tokenize a string. """
+        """Tokenize a string."""
         bpe_tokens = []
         for token in re.findall(self.pat, text):
             token = "".join(
@@ -241,7 +258,7 @@ class GPT2Tokenizer(PreTrainedTokenizer):
         return bpe_tokens
 
     def _convert_token_to_id(self, token):
-        """ Converts a token (str) in an id using the vocab. """
+        """Converts a token (str) in an id using the vocab."""
         return self.encoder.get(token, self.encoder.get(self.unk_token))
 
     def _convert_id_to_token(self, index):
@@ -249,9 +266,11 @@ class GPT2Tokenizer(PreTrainedTokenizer):
         return self.decoder.get(index)
 
     def convert_tokens_to_string(self, tokens):
-        """ Converts a sequence of tokens (string) in a single string. """
+        """Converts a sequence of tokens (string) in a single string."""
         text = "".join(tokens)
-        text = bytearray([self.byte_decoder[c] for c in text]).decode("utf-8", errors=self.errors)
+        text = bytearray([self.byte_decoder[c] for c in text]).decode(
+            "utf-8", errors=self.errors
+        )
         return text
 
     def save_vocabulary(self, save_directory):
@@ -266,7 +285,9 @@ class GPT2Tokenizer(PreTrainedTokenizer):
             :obj:`Tuple(str)`: Paths to the files saved.
         """
         if not os.path.isdir(save_directory):
-            logger.error("Vocabulary path ({}) should be a directory".format(save_directory))
+            logger.error(
+                "Vocabulary path ({}) should be a directory".format(save_directory)
+            )
             return
         vocab_file = os.path.join(save_directory, VOCAB_FILES_NAMES["vocab_file"])
         merge_file = os.path.join(save_directory, VOCAB_FILES_NAMES["merges_file"])
@@ -277,11 +298,15 @@ class GPT2Tokenizer(PreTrainedTokenizer):
         index = 0
         with open(merge_file, "w", encoding="utf-8") as writer:
             writer.write("#version: 0.2\n")
-            for bpe_tokens, token_index in sorted(self.bpe_ranks.items(), key=lambda kv: kv[1]):
+            for bpe_tokens, token_index in sorted(
+                self.bpe_ranks.items(), key=lambda kv: kv[1]
+            ):
                 if index != token_index:
                     logger.warning(
                         "Saving vocabulary to {}: BPE merge indices are not consecutive."
-                        " Please check that the tokenizer is not corrupted!".format(merge_file)
+                        " Please check that the tokenizer is not corrupted!".format(
+                            merge_file
+                        )
                     )
                     index = token_index
                 writer.write(" ".join(bpe_tokens) + "\n")
@@ -361,7 +386,7 @@ class GPT2TokenizerFast(PreTrainedTokenizerFast):
         eos_token="<|endoftext|>",
         add_prefix_space=False,
         trim_offsets=True,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
             ByteLevelBPETokenizer(

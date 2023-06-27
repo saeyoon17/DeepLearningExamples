@@ -1,14 +1,13 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 import cv2
 import torch
-from torchvision import transforms as T
-
-from maskrcnn_benchmark.modeling.detector import build_detection_model
-from maskrcnn_benchmark.utils.checkpoint import DetectronCheckpointer
-from maskrcnn_benchmark.structures.image_list import to_image_list
-from maskrcnn_benchmark.modeling.roi_heads.mask_head.inference import Masker
 from maskrcnn_benchmark import layers as L
+from maskrcnn_benchmark.modeling.detector import build_detection_model
+from maskrcnn_benchmark.modeling.roi_heads.mask_head.inference import Masker
+from maskrcnn_benchmark.structures.image_list import to_image_list
 from maskrcnn_benchmark.utils import cv2_util
+from maskrcnn_benchmark.utils.checkpoint import DetectronCheckpointer
+from torchvision import transforms as T
 
 
 class COCODemo(object):
@@ -122,7 +121,7 @@ class COCODemo(object):
         self.masker = Masker(threshold=mask_threshold, padding=1)
 
         # used to make colors for each class
-        self.palette = torch.tensor([2 ** 25 - 1, 2 ** 15 - 1, 2 ** 21 - 1])
+        self.palette = torch.tensor([2**25 - 1, 2**15 - 1, 2**21 - 1])
 
         self.cpu_device = torch.device("cpu")
         self.confidence_threshold = confidence_threshold
@@ -309,11 +308,9 @@ class COCODemo(object):
         """
         masks = predictions.get_field("mask")
         masks_per_dim = self.masks_per_dim
-        masks = L.interpolate(
-            masks.float(), scale_factor=1 / masks_per_dim
-        ).byte()
+        masks = L.interpolate(masks.float(), scale_factor=1 / masks_per_dim).byte()
         height, width = masks.shape[-2:]
-        max_masks = masks_per_dim ** 2
+        max_masks = masks_per_dim**2
         masks = masks[:max_masks]
         # handle case where we have less detections than max_masks
         if len(masks) < max_masks:
@@ -353,7 +350,7 @@ class COCODemo(object):
             x, y = box[:2]
             s = template.format(label, score)
             cv2.putText(
-                image, s, (x, y), cv2.FONT_HERSHEY_SIMPLEX, .5, (255, 255, 255), 1
+                image, s, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1
             )
 
         return image

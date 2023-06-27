@@ -18,20 +18,21 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from apex.normalization.fused_layer_norm import FusedLayerNorm
-from torch import Tensor
-
 from models.tft_pyt.modeling import *
+from torch import Tensor
 
 
 class LSTM(nn.Module):
-    """ 
-    Implementation from LSTM portion of https://arxiv.org/abs/1912.09363 
+    """
+    Implementation from LSTM portion of https://arxiv.org/abs/1912.09363
     """
 
     def __init__(self, config):
         super().__init__()
 
-        self.encoder_steps = config.encoder_length  # this determines from how distant past we want to use data from
+        self.encoder_steps = (
+            config.encoder_length
+        )  # this determines from how distant past we want to use data from
 
         self.mask_nans = config.missing_data_strategy == "mask"
 
@@ -39,9 +40,13 @@ class LSTM(nn.Module):
         self.static_encoder = StaticCovariateEncoder(config)
 
         self.history_vsn = VariableSelectionNetwork(config, config.num_historic_vars)
-        self.history_encoder = nn.LSTM(config.hidden_size, config.hidden_size, batch_first=True)
+        self.history_encoder = nn.LSTM(
+            config.hidden_size, config.hidden_size, batch_first=True
+        )
         self.future_vsn = VariableSelectionNetwork(config, config.num_future_vars)
-        self.future_encoder = nn.LSTM(config.hidden_size, config.hidden_size, batch_first=True)
+        self.future_encoder = nn.LSTM(
+            config.hidden_size, config.hidden_size, batch_first=True
+        )
 
         self.output_proj = nn.Linear(config.hidden_size, 1)
 
@@ -53,7 +58,10 @@ class LSTM(nn.Module):
         ch, cc = ch.unsqueeze(0), cc.unsqueeze(0)  # lstm initial states
 
         # Temporal input
-        _historical_inputs = [t_known_inp[:, : self.encoder_steps, :], t_observed_tgt[:, : self.encoder_steps, :]]
+        _historical_inputs = [
+            t_known_inp[:, : self.encoder_steps, :],
+            t_observed_tgt[:, : self.encoder_steps, :],
+        ]
         if t_observed_inp is not None:
             _historical_inputs.insert(0, t_observed_inp[:, : self.encoder_steps, :])
 

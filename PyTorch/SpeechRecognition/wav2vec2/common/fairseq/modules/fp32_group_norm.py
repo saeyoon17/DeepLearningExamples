@@ -47,24 +47,32 @@ class MaskedGroupNorm(nn.Module):
 
     Ready for TorchScript, favors composition over inheritance.
     """
-    def __init__(self, num_groups, num_channels, eps=1e-05, affine=True,
-                 device=None, dtype=None):
-        assert num_groups == num_channels, (
-            "num_groups != num_channels not yet supported in MaskedGroupNorm")
+
+    def __init__(
+        self, num_groups, num_channels, eps=1e-05, affine=True, device=None, dtype=None
+    ):
+        assert (
+            num_groups == num_channels
+        ), "num_groups != num_channels not yet supported in MaskedGroupNorm"
         super().__init__()
-        self._group_norm = nn.GroupNorm(num_groups, num_channels, eps=eps,
-                                        affine=affine, device=device,
-                                        dtype=dtype)
+        self._group_norm = nn.GroupNorm(
+            num_groups, num_channels, eps=eps, affine=affine, device=device, dtype=dtype
+        )
 
     def forward(self, x, x_lens):
         var = torch.zeros_like(x[:, :, 0])
         mean = torch.zeros_like(x[:, :, 0])
         for i in range(x.size(0)):
-            mean[i] = torch.mean(x[i, :, :x_lens[i]], dim=1)
-            var[i] = torch.var(x[i, :, :x_lens[i]], dim=1, unbiased=False)
-        out = (x - mean[:, :, None]) / torch.sqrt(var[:, :, None] + self._group_norm.eps)
+            mean[i] = torch.mean(x[i, :, : x_lens[i]], dim=1)
+            var[i] = torch.var(x[i, :, : x_lens[i]], dim=1, unbiased=False)
+        out = (x - mean[:, :, None]) / torch.sqrt(
+            var[:, :, None] + self._group_norm.eps
+        )
         if self._group_norm.affine:
-            return out * self._group_norm.weight[None, :, None] + self._group_norm.bias[None, :, None]
+            return (
+                out * self._group_norm.weight[None, :, None]
+                + self._group_norm.bias[None, :, None]
+            )
         else:
             return out
 
@@ -77,14 +85,17 @@ class Fp32MaskedGroupNorm(nn.Module):
 
     Ready for TorchScript, favors composition over inheritance.
     """
-    def __init__(self, num_groups, num_channels, eps=1e-05, affine=True,
-                 device=None, dtype=None):
-        assert num_groups == num_channels, (
-            "num_groups != num_channels not yet supported in MaskedGroupNorm")
+
+    def __init__(
+        self, num_groups, num_channels, eps=1e-05, affine=True, device=None, dtype=None
+    ):
+        assert (
+            num_groups == num_channels
+        ), "num_groups != num_channels not yet supported in MaskedGroupNorm"
         super().__init__()
-        self._group_norm = nn.GroupNorm(num_groups, num_channels, eps=eps,
-                                        affine=affine, device=device,
-                                        dtype=dtype)
+        self._group_norm = nn.GroupNorm(
+            num_groups, num_channels, eps=eps, affine=affine, device=device, dtype=dtype
+        )
 
         def hook(state_dict, prefix, *args, **kwargs):
             """Renames keys from layers which used inheritance."""
@@ -105,17 +116,23 @@ class Fp32MaskedGroupNorm(nn.Module):
         return self._forward(
             x.float(),
             x_lens,
-            self._group_norm.weight.float() if self._group_norm.weight is not None else None,
-            self._group_norm.bias.float() if self._group_norm.bias is not None else None,
+            self._group_norm.weight.float()
+            if self._group_norm.weight is not None
+            else None,
+            self._group_norm.bias.float()
+            if self._group_norm.bias is not None
+            else None,
         ).type_as(x)
 
     def _forward(self, x, x_lens, weight, bias):
         var = torch.zeros_like(x[:, :, 0])
         mean = torch.zeros_like(x[:, :, 0])
         for i in range(x.size(0)):
-            mean[i] = torch.mean(x[i, :, :x_lens[i]], dim=1)
-            var[i] = torch.var(x[i, :, :x_lens[i]], dim=1, unbiased=False)
-        out = (x - mean[:, :, None]) / torch.sqrt(var[:, :, None] + self._group_norm.eps)
+            mean[i] = torch.mean(x[i, :, : x_lens[i]], dim=1)
+            var[i] = torch.var(x[i, :, : x_lens[i]], dim=1, unbiased=False)
+        out = (x - mean[:, :, None]) / torch.sqrt(
+            var[:, :, None] + self._group_norm.eps
+        )
         if self._group_norm.affine:
             return out * weight[None, :, None] + bias[None, :, None]
         else:

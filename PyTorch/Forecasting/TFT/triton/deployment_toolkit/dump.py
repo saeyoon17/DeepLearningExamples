@@ -20,27 +20,40 @@ from typing import Dict, Iterator, List, Union
 
 import numpy as np
 
-MB2B = 2 ** 20
+MB2B = 2**20
 B2MB = 1 / MB2B
 FLUSH_THRESHOLD_B = 256 * MB2B
 
 
 def _validate_batch(name: str, value: Union[list, np.ndarray]):
     if not isinstance(value, (list, np.ndarray)):
-        raise ValueError(f"Values shall be lists or np.ndarrays; current type {type(value)}")
+        raise ValueError(
+            f"Values shall be lists or np.ndarrays; current type {type(value)}"
+        )
 
 
 def _validate_prefix_data(prefix_data: Dict[str, List[np.ndarray]]):
-    batch_sizes_per_io_name = {name: [len(batch) for batch in batches] for name, batches in prefix_data.items()}
+    batch_sizes_per_io_name = {
+        name: [len(batch) for batch in batches] for name, batches in prefix_data.items()
+    }
     names = list(batch_sizes_per_io_name)
     for io_name in names:
         for batch_idx, batch_size in enumerate(batch_sizes_per_io_name[io_name]):
-            if not all([batch_sizes_per_io_name[other_name][batch_idx] == batch_size for other_name in names]):
+            if not all(
+                [
+                    batch_sizes_per_io_name[other_name][batch_idx] == batch_size
+                    for other_name in names
+                ]
+            ):
                 non_equal_batch_sizes = {
-                    other_name: batch_sizes_per_io_name[other_name][batch_idx] for other_name in names
+                    other_name: batch_sizes_per_io_name[other_name][batch_idx]
+                    for other_name in names
                 }
                 non_equal_batch_sizes_str = ", ".join(
-                    [f"{name}={batch_size}" for name, batch_size in non_equal_batch_sizes.items()]
+                    [
+                        f"{name}={batch_size}"
+                        for name, batch_size in non_equal_batch_sizes.items()
+                    ]
                 )
                 raise ValueError(
                     "All inputs/outputs should have same number of batches with equal batch_size. "
@@ -54,8 +67,13 @@ def _get_nitems_and_batches(prefix_data: Dict[str, List[np.ndarray]]):
     nbatches = 0
 
     if prefix_data:
-        nitems_per_io_name = {name: sum(len(batch) for batch in batches) for name, batches in prefix_data.items()}
-        nbatches_per_io_name = {name: len(batches) for name, batches in prefix_data.items()}
+        nitems_per_io_name = {
+            name: sum(len(batch) for batch in batches)
+            for name, batches in prefix_data.items()
+        }
+        nbatches_per_io_name = {
+            name: len(batches) for name, batches in prefix_data.items()
+        }
         nitems = list(nitems_per_io_name.values())[0]
         nbatches = list(nbatches_per_io_name.values())[0]
     return nitems, nbatches
@@ -85,7 +103,11 @@ class BaseDumpWriter(abc.ABC):
 
         with self._cache_lock:
             return {
-                prefix: sum(_get_bytes_size(name, batch) for name, batches in data.items() for batch in batches)
+                prefix: sum(
+                    _get_bytes_size(name, batch)
+                    for name, batches in data.items()
+                    for batch in batches
+                )
                 for prefix, data in self._items_cache.items()
             }
 
@@ -175,7 +197,9 @@ class JsonDumpWriter(BaseDumpWriter):
         batches = [{} for _ in range(nbatches)]
         for io_name, batches_per_io in prefix_data.items():
             for batch_idx, batch in enumerate(batches_per_io):
-                batches[batch_idx][io_name] = _format_batch_for_perf_analyzer_json_format(batch)
+                batches[batch_idx][
+                    io_name
+                ] = _format_batch_for_perf_analyzer_json_format(batch)
 
         return {"data": batches}
 
@@ -192,7 +216,9 @@ class BaseDumpReader(abc.ABC):
             prefix_data = self._load_file(dump_file_path)
             nitems, nbatches = _get_nitems_and_batches(prefix_data)
             for batch_idx in range(nbatches):
-                yield {io_name: prefix_data[io_name][batch_idx] for io_name in prefix_data}
+                yield {
+                    io_name: prefix_data[io_name][batch_idx] for io_name in prefix_data
+                }
 
     @abc.abstractmethod
     def _load_file(self, dump_file_path: Path) -> Dict[str, List[np.ndarray]]:

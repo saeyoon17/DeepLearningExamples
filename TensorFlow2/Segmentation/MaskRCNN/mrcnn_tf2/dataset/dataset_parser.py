@@ -20,7 +20,6 @@ positive examples to normalize the loss during training.
 """
 
 import tensorflow as tf
-
 from mrcnn_tf2.model import anchors
 from mrcnn_tf2.object_detection import tf_example_decoder
 from mrcnn_tf2.ops import preprocess_ops
@@ -45,11 +44,13 @@ __all__ = [
     "process_boxes_classes_indices_for_training",
     "process_gt_masks_for_training",
     "process_labels_for_training",
-    "process_targets_for_training"
+    "process_targets_for_training",
 ]
 
 
-def dataset_parser(value, mode, params, use_instance_mask, seed=None, regenerate_source_id=False):
+def dataset_parser(
+    value, mode, params, use_instance_mask, seed=None, regenerate_source_id=False
+):
     """Parse data to a fixed dimension input image and learning targets.
 
     Args:
@@ -88,33 +89,33 @@ def dataset_parser(value, mode, params, use_instance_mask, seed=None, regenerate
       regenerate_source_id: `bool`, if True TFExampleParser will use hashed
         value of `image/encoded` for `image/source_id`.
     """
-    if mode not in ['train', 'eval']:
+    if mode not in ["train", "eval"]:
         raise ValueError("Unknown execution mode received: %s" % mode)
 
     def create_example_decoder():
         return tf_example_decoder.TfExampleDecoder(
             use_instance_mask=use_instance_mask,
-            regenerate_source_id=regenerate_source_id
-    )
+            regenerate_source_id=regenerate_source_id,
+        )
 
     example_decoder = create_example_decoder()
 
     with tf.xla.experimental.jit_scope(compile_ops=True):
 
-        with tf.name_scope('parser'):
+        with tf.name_scope("parser"):
 
             data = example_decoder.decode(value)
 
-            data['groundtruth_is_crowd'] = process_groundtruth_is_crowd(data)
+            data["groundtruth_is_crowd"] = process_groundtruth_is_crowd(data)
 
-            image = tf.image.convert_image_dtype(data['image'], dtype=tf.float32)
+            image = tf.image.convert_image_dtype(data["image"], dtype=tf.float32)
 
-            source_id = process_source_id(data['source_id'])
+            source_id = process_source_id(data["source_id"])
 
-            if mode == 'eval':
+            if mode == "eval":
 
                 features = {
-                    'source_ids': source_id,
+                    "source_ids": source_id,
                 }
 
                 features["images"], features["image_info"], _, _ = preprocess_image(
@@ -124,22 +125,25 @@ def dataset_parser(value, mode, params, use_instance_mask, seed=None, regenerate
                     image_size=params.image_size,
                     max_level=params.max_level,
                     augment_input_data=False,
-                    seed=seed
+                    seed=seed,
                 )
 
                 return features, {}
 
-            elif mode == 'train':
+            elif mode == "train":
 
-                features = {
-                    'source_ids': source_id
-                }
+                features = {"source_ids": source_id}
 
-                boxes, classes, indices, instance_masks = process_boxes_classes_indices_for_training(
+                (
+                    boxes,
+                    classes,
+                    indices,
+                    instance_masks,
+                ) = process_boxes_classes_indices_for_training(
                     data,
                     skip_crowd_during_training=params.skip_crowd_during_training,
                     use_category=params.use_category,
-                    use_instance_mask=use_instance_mask
+                    use_instance_mask=use_instance_mask,
                 )
 
                 image, image_info, boxes, instance_masks = preprocess_image(
@@ -149,38 +153,51 @@ def dataset_parser(value, mode, params, use_instance_mask, seed=None, regenerate
                     image_size=params.image_size,
                     max_level=params.max_level,
                     augment_input_data=params.augment_input_data,
-                    seed=seed
+                    seed=seed,
                 )
 
-                features.update({
-                    'images': image,
-                    'image_info': image_info,
-                })
+                features.update(
+                    {
+                        "images": image,
+                        "image_info": image_info,
+                    }
+                )
 
                 padded_image_size = image.get_shape().as_list()[:2]
 
                 if use_instance_mask:
-                    features['cropped_gt_masks'] = process_gt_masks_for_training(
+                    features["cropped_gt_masks"] = process_gt_masks_for_training(
                         instance_masks,
                         boxes,
                         gt_mask_size=params.gt_mask_size,
                         padded_image_size=padded_image_size,
-                        max_num_instances=MAX_NUM_INSTANCES
+                        max_num_instances=MAX_NUM_INSTANCES,
                     )
 
                 with tf.xla.experimental.jit_scope(compile_ops=False):
-                    (score_targets, box_targets), input_anchor = process_targets_for_training(
+                    (
+                        score_targets,
+                        box_targets,
+                    ), input_anchor = process_targets_for_training(
                         padded_image_size=padded_image_size,
                         boxes=boxes,
                         classes=classes,
-                        params=params
+                        params=params,
                     )
 
-                features['gt_boxes'], features['gt_classes'], additional_labels = process_labels_for_training(
-                    image_info, boxes, classes, score_targets, box_targets,
+                (
+                    features["gt_boxes"],
+                    features["gt_classes"],
+                    additional_labels,
+                ) = process_labels_for_training(
+                    image_info,
+                    boxes,
+                    classes,
+                    score_targets,
+                    box_targets,
                     max_num_instances=MAX_NUM_INSTANCES,
                     min_level=params.min_level,
-                    max_level=params.max_level
+                    max_level=params.max_level,
                 )
 
                 features.update(additional_labels)
@@ -214,28 +231,38 @@ def dataset_parser(value, mode, params, use_instance_mask, seed=None, regenerate
                 return features, {}
 
 
-def preprocess_image(image, boxes, instance_masks, image_size, max_level, augment_input_data=False, seed=None):
+def preprocess_image(
+    image,
+    boxes,
+    instance_masks,
+    image_size,
+    max_level,
+    augment_input_data=False,
+    seed=None,
+):
     image = preprocess_ops.normalize_image(image)
 
     if augment_input_data:
-        image, boxes, instance_masks = augment_image(image=image, boxes=boxes, instance_masks=instance_masks, seed=seed)
+        image, boxes, instance_masks = augment_image(
+            image=image, boxes=boxes, instance_masks=instance_masks, seed=seed
+        )
 
     # Scaling and padding.
     image, image_info, boxes, instance_masks = preprocess_ops.resize_and_pad(
         image=image,
         target_size=image_size,
-        stride=2 ** max_level,
+        stride=2**max_level,
         boxes=boxes,
-        masks=instance_masks
+        masks=instance_masks,
     )
     return image, image_info, boxes, instance_masks
 
 
 def process_groundtruth_is_crowd(data):
     return tf.cond(
-        pred=tf.greater(tf.size(input=data['groundtruth_is_crowd']), 0),
-        true_fn=lambda: data['groundtruth_is_crowd'],
-        false_fn=lambda: tf.zeros_like(data['groundtruth_classes'], dtype=tf.bool)
+        pred=tf.greater(tf.size(input=data["groundtruth_is_crowd"]), 0),
+        true_fn=lambda: data["groundtruth_is_crowd"],
+        false_fn=lambda: tf.zeros_like(data["groundtruth_classes"], dtype=tf.bool),
     )
 
 
@@ -248,7 +275,7 @@ def process_source_id(source_id):
         source_id = tf.cond(
             pred=tf.equal(tf.size(input=source_id), 0),
             true_fn=lambda: tf.cast(tf.constant(-1), tf.int64),
-            false_fn=lambda: tf.identity(source_id)
+            false_fn=lambda: tf.identity(source_id),
         )
 
     return source_id
@@ -256,50 +283,50 @@ def process_source_id(source_id):
 
 # eval
 def prepare_labels_for_eval(
-        data,
-        target_num_instances=MAX_NUM_INSTANCES,
-        target_polygon_list_len=MAX_NUM_POLYGON_LIST_LEN,
-        use_instance_mask=False
+    data,
+    target_num_instances=MAX_NUM_INSTANCES,
+    target_polygon_list_len=MAX_NUM_POLYGON_LIST_LEN,
+    use_instance_mask=False,
 ):
 
     """Create labels dict for infeed from data of tf.Example."""
-    image = data['image']
+    image = data["image"]
 
     height, width = tf.shape(input=image)[:2]
 
-    boxes = data['groundtruth_boxes']
+    boxes = data["groundtruth_boxes"]
 
-    classes = tf.cast(data['groundtruth_classes'], dtype=tf.float32)
+    classes = tf.cast(data["groundtruth_classes"], dtype=tf.float32)
 
     num_labels = tf.shape(input=classes)[0]
 
     boxes = preprocess_ops.pad_to_fixed_size(boxes, -1, [target_num_instances, 4])
     classes = preprocess_ops.pad_to_fixed_size(classes, -1, [target_num_instances, 1])
 
-    is_crowd = tf.cast(data['groundtruth_is_crowd'], dtype=tf.float32)
+    is_crowd = tf.cast(data["groundtruth_is_crowd"], dtype=tf.float32)
     is_crowd = preprocess_ops.pad_to_fixed_size(is_crowd, 0, [target_num_instances, 1])
 
     labels = dict()
 
-    labels['width'] = width
-    labels['height'] = height
-    labels['groundtruth_boxes'] = boxes
-    labels['groundtruth_classes'] = classes
-    labels['num_groundtruth_labels'] = num_labels
-    labels['groundtruth_is_crowd'] = is_crowd
+    labels["width"] = width
+    labels["height"] = height
+    labels["groundtruth_boxes"] = boxes
+    labels["groundtruth_classes"] = classes
+    labels["num_groundtruth_labels"] = num_labels
+    labels["groundtruth_is_crowd"] = is_crowd
 
     if use_instance_mask:
-        data['groundtruth_polygons'] = preprocess_ops.pad_to_fixed_size(
-            data=data['groundtruth_polygons'],
+        data["groundtruth_polygons"] = preprocess_ops.pad_to_fixed_size(
+            data=data["groundtruth_polygons"],
             pad_value=POLYGON_PAD_VALUE,
-            output_shape=[target_polygon_list_len, 1]
+            output_shape=[target_polygon_list_len, 1],
         )
 
-        if 'groundtruth_area' in data:
-            labels['groundtruth_area'] = preprocess_ops.pad_to_fixed_size(
-                data=labels['groundtruth_area'],
+        if "groundtruth_area" in data:
+            labels["groundtruth_area"] = preprocess_ops.pad_to_fixed_size(
+                data=labels["groundtruth_area"],
                 pad_value=0,
-                output_shape=[target_num_instances, 1]
+                output_shape=[target_num_instances, 1],
             )
 
     return labels
@@ -308,10 +335,7 @@ def prepare_labels_for_eval(
 # training
 def augment_image(image, boxes, instance_masks, seed):
     flipped_results = preprocess_ops.random_horizontal_flip(
-        image,
-        boxes=boxes,
-        masks=instance_masks,
-        seed=seed
+        image, boxes=boxes, masks=instance_masks, seed=seed
     )
 
     if instance_masks is not None:
@@ -328,9 +352,11 @@ def augment_image(image, boxes, instance_masks, seed):
     return image, boxes, instance_masks
 
 
-def process_boxes_classes_indices_for_training(data, skip_crowd_during_training, use_category, use_instance_mask):
-    boxes = data['groundtruth_boxes']
-    classes = data['groundtruth_classes']
+def process_boxes_classes_indices_for_training(
+    data, skip_crowd_during_training, use_category, use_instance_mask
+):
+    boxes = data["groundtruth_boxes"]
+    classes = data["groundtruth_classes"]
     classes = tf.reshape(tf.cast(classes, dtype=tf.float32), [-1, 1])
     indices = None
     instance_masks = None
@@ -339,22 +365,24 @@ def process_boxes_classes_indices_for_training(data, skip_crowd_during_training,
         classes = tf.cast(tf.greater(classes, 0), dtype=tf.float32)
 
     if skip_crowd_during_training:
-        indices = tf.where(tf.logical_not(data['groundtruth_is_crowd']))
+        indices = tf.where(tf.logical_not(data["groundtruth_is_crowd"]))
         classes = tf.gather_nd(classes, indices)
         boxes = tf.gather_nd(boxes, indices)
 
         if use_instance_mask:
-            instance_masks = tf.gather_nd(data['groundtruth_instance_masks'], indices)
+            instance_masks = tf.gather_nd(data["groundtruth_instance_masks"], indices)
 
     return boxes, classes, indices, instance_masks
 
 
-def process_gt_masks_for_training(instance_masks, boxes, gt_mask_size, padded_image_size, max_num_instances):
+def process_gt_masks_for_training(
+    instance_masks, boxes, gt_mask_size, padded_image_size, max_num_instances
+):
     cropped_gt_masks = preprocess_ops.crop_gt_masks(
         instance_masks=instance_masks,
         boxes=boxes,
         gt_mask_size=gt_mask_size,
-        image_size=padded_image_size
+        image_size=padded_image_size,
     )
 
     # cropped_gt_masks = tf.reshape(cropped_gt_masks, [max_num_instances, -1])
@@ -362,16 +390,23 @@ def process_gt_masks_for_training(instance_masks, boxes, gt_mask_size, padded_im
     cropped_gt_masks = preprocess_ops.pad_to_fixed_size(
         data=cropped_gt_masks,
         pad_value=-1,
-        output_shape=[max_num_instances, (gt_mask_size + 4) ** 2]
+        output_shape=[max_num_instances, (gt_mask_size + 4) ** 2],
     )
 
-    return tf.reshape(cropped_gt_masks, [max_num_instances, gt_mask_size + 4, gt_mask_size + 4])
+    return tf.reshape(
+        cropped_gt_masks, [max_num_instances, gt_mask_size + 4, gt_mask_size + 4]
+    )
 
 
 def process_labels_for_training(
-    image_info, boxes, classes,
-    score_targets, box_targets,
-    max_num_instances, min_level, max_level
+    image_info,
+    boxes,
+    classes,
+    score_targets,
+    box_targets,
+    max_num_instances,
+    min_level,
+    max_level,
 ):
     labels = {}
 
@@ -382,8 +417,8 @@ def process_labels_for_training(
     classes = preprocess_ops.pad_to_fixed_size(classes, -1, [max_num_instances, 1])
 
     for level in range(min_level, max_level + 1):
-        labels['score_targets_%d' % level] = score_targets[level]
-        labels['box_targets_%d' % level] = box_targets[level]
+        labels["score_targets_%d" % level] = score_targets[level]
+        labels["box_targets_%d" % level] = box_targets[level]
 
     return boxes, classes, labels
 
@@ -395,7 +430,7 @@ def process_targets_for_training(padded_image_size, boxes, classes, params):
         params.num_scales,
         params.aspect_ratios,
         params.anchor_scale,
-        padded_image_size
+        padded_image_size,
     )
 
     anchor_labeler = anchors.AnchorLabeler(
@@ -404,7 +439,7 @@ def process_targets_for_training(padded_image_size, boxes, classes, params):
         params.rpn_positive_overlap,
         params.rpn_negative_overlap,
         params.rpn_batch_size_per_im,
-        params.rpn_fg_fraction
+        params.rpn_fg_fraction,
     )
 
     return anchor_labeler.label_anchors(boxes, classes), input_anchors

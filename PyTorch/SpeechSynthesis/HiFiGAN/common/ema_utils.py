@@ -6,10 +6,10 @@ def apply_ema_decay(model, ema_model, decay):
     if not decay:
         return
     st = model.state_dict()
-    add_module = hasattr(model, 'module') and not hasattr(ema_model, 'module')
+    add_module = hasattr(model, "module") and not hasattr(ema_model, "module")
     for k, v in ema_model.state_dict().items():
-        if add_module and not k.startswith('module.'):
-            k = 'module.' + k
+        if add_module and not k.startswith("module."):
+            k = "module." + k
         v.copy_(decay * v + (1 - decay) * st[k])
 
 
@@ -22,5 +22,10 @@ def init_multi_tensor_ema(model, ema_model):
 
 def apply_multi_tensor_ema(decay, model_weights, ema_weights, overflow_buf):
     amp_C.multi_tensor_axpby(
-        65536, overflow_buf, [ema_weights, model_weights, ema_weights],
-        decay, 1-decay, -1)
+        65536,
+        overflow_buf,
+        [ema_weights, model_weights, ema_weights],
+        decay,
+        1 - decay,
+        -1,
+    )

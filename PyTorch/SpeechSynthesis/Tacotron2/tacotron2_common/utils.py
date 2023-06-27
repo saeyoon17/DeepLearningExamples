@@ -25,27 +25,34 @@
 #
 # *****************************************************************************
 
-import numpy as np
-from scipy.io.wavfile import read
-import torch
-import os
-
 import argparse
 import json
+import os
+
+import numpy as np
+import torch
+from scipy.io.wavfile import read
+
 
 class ParseFromConfigFile(argparse.Action):
-
     def __init__(self, option_strings, type, dest, help=None, required=False):
-        super(ParseFromConfigFile, self).__init__(option_strings=option_strings, type=type, dest=dest, help=help, required=required)
+        super(ParseFromConfigFile, self).__init__(
+            option_strings=option_strings,
+            type=type,
+            dest=dest,
+            help=help,
+            required=required,
+        )
 
     def __call__(self, parser, namespace, values, option_string):
-        with open(values, 'r') as f:
+        with open(values, "r") as f:
             data = json.load(f)
 
         for group in data.keys():
-            for k,v in data[group].items():
-                underscore_k = k.replace('-', '_')
+            for k, v in data[group].items():
+                underscore_k = k.replace("-", "_")
                 setattr(namespace, underscore_k, v)
+
 
 def get_mask_from_lengths(lengths):
     max_len = torch.max(lengths).item()
@@ -61,15 +68,16 @@ def load_wav_to_torch(full_path):
 
 
 def load_filepaths_and_text(dataset_path, filename, split="|"):
-    with open(filename, encoding='utf-8') as f:
+    with open(filename, encoding="utf-8") as f:
+
         def split_line(root, line):
             parts = line.strip().split(split)
             if len(parts) > 2:
-                raise Exception(
-                    "incorrect line format for file: {}".format(filename))
+                raise Exception("incorrect line format for file: {}".format(filename))
             path = os.path.join(root, parts[0])
             text = parts[1]
-            return path,text
+            return path, text
+
         filepaths_and_text = [split_line(dataset_path, line) for line in f]
     return filepaths_and_text
 

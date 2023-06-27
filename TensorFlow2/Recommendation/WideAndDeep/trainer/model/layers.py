@@ -17,7 +17,6 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.python.feature_column import feature_column_v2 as fc
 
-
 # pylint has issues with TF array ops, so disable checks until fixed:
 # https://github.com/PyCQA/pylint/issues/3613
 # pylint: disable=no-value-for-parameter, unexpected-keyword-arg

@@ -44,7 +44,9 @@ def format_step(step):
 
 
 def init_dllogger(log_dir):
-    Logger.init([
-        Logger.StdOutBackend(Logger.Verbosity.DEFAULT, step_format=format_step),
-        Logger.JSONStreamBackend(Logger.Verbosity.VERBOSE, log_dir)
-    ])
+    Logger.init(
+        [
+            Logger.StdOutBackend(Logger.Verbosity.DEFAULT, step_format=format_step),
+            Logger.JSONStreamBackend(Logger.Verbosity.VERBOSE, log_dir),
+        ]
+    )

@@ -55,10 +55,11 @@ class Match:
             integer int32 scalar tensor
         """
         if match_results.shape.ndims != 1:
-            raise ValueError('match_results should have rank 1')
+            raise ValueError("match_results should have rank 1")
         if match_results.dtype != tf.int32:
-            raise ValueError('match_results should be an int32 or int64 scalar '
-                             'tensor')
+            raise ValueError(
+                "match_results should be an int32 or int64 scalar " "tensor"
+            )
         self._match_results = match_results
 
     @property
@@ -160,13 +161,13 @@ class Match:
           row_indices: int32 tensor of shape [K] with row indices.
         """
         return self._reshape_and_cast(
-            tf.gather(self._match_results, self.matched_column_indices()))
+            tf.gather(self._match_results, self.matched_column_indices())
+        )
 
     def _reshape_and_cast(self, t):
         return tf.cast(tf.reshape(t, [-1]), tf.int32)
 
-    def gather_based_on_match(self, input_tensor, unmatched_value,
-                              ignored_value):
+    def gather_based_on_match(self, input_tensor, unmatched_value, ignored_value):
         """Gathers elements from `input_tensor` based on match results.
 
         For columns that are matched to a row, gathered_tensor[col] is set to
@@ -187,16 +188,17 @@ class Match:
             The shape of the gathered tensor is [match_results.shape[0]] +
             input_tensor.shape[1:].
         """
-        input_tensor = tf.concat([tf.stack([ignored_value, unmatched_value]),
-                                  input_tensor], axis=0)
+        input_tensor = tf.concat(
+            [tf.stack([ignored_value, unmatched_value]), input_tensor], axis=0
+        )
         gather_indices = tf.maximum(self.match_results + 2, 0)
         gathered_tensor = tf.gather(input_tensor, gather_indices)
         return gathered_tensor
 
 
 class Matcher:
-    """Abstract base class for matcher.
-    """
+    """Abstract base class for matcher."""
+
     __metaclass__ = ABCMeta
 
     def match(self, similarity_matrix, scope=None, **params):

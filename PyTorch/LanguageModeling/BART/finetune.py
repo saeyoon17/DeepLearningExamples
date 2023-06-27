@@ -15,50 +15,36 @@
 
 import argparse
 import glob
+import json
 import logging
 import os
+import random
 import time
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple
-import json
-import random
 
+import dllogger
 import numpy as np
 import torch
+from bart.configuration.configuration_bart import BartConfig
+from bart.modeling.modeling_bart import (BartForConditionalGeneration,
+                                         shift_tokens_right)
+from bart.modeling.modeling_t5 import T5ForConditionalGeneration
+from bart.tokenization.tokenization_bart import BartTokenizer
+from bart.tokenization.tokenization_mbart import MBartTokenizer
 from torch import nn
 from torch.utils.data import DataLoader
-
-from training_base import BaseTransformer, add_generic_args, generic_test, generic_train
-from bart.tokenization.tokenization_mbart import MBartTokenizer
-from bart.modeling.modeling_t5 import T5ForConditionalGeneration
-
-from bart.configuration.configuration_bart import BartConfig
-from bart.tokenization.tokenization_bart import BartTokenizer
-from bart.modeling.modeling_bart import BartForConditionalGeneration, shift_tokens_right
-
-from utils.utils import (
-    ROUGE_KEYS,
-    LegacySeq2SeqDataset,
-    Seq2SeqDataset,
-    assert_all_frozen,
-    calculate_bleu,
-    calculate_rouge,
-    flatten_list,
-    freeze_params,
-    get_git_info,
-    label_smoothed_nll_loss,
-    lmap,
-    pickle_save,
-    save_git_info,
-    save_json,
-    use_task_specific_params,
-    format_step
-)
+from training_base import (BaseTransformer, add_generic_args, generic_test,
+                           generic_train)
+from utils.distributed_utils import get_device_count, get_rank, get_world_size
 from utils.gpu_affinity import set_affinity
-from utils.distributed_utils import get_rank, get_device_count, get_world_size
-import dllogger
-import time
+from utils.utils import (ROUGE_KEYS, LegacySeq2SeqDataset, Seq2SeqDataset,
+                         assert_all_frozen, calculate_bleu, calculate_rouge,
+                         flatten_list, format_step, freeze_params,
+                         get_git_info, label_smoothed_nll_loss, lmap,
+                         pickle_save, save_git_info, save_json,
+                         use_task_specific_params)
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +60,13 @@ class SummarizationModule(BaseTransformer):
             hparams.replace_sampler_ddp = False
         elif hparams.max_tokens_per_batch is not None:
             if hparams.gpus > 1:
-                raise NotImplementedError("Dynamic Batch size does not work for multi-gpu training")
+                raise NotImplementedError(
+                    "Dynamic Batch size does not work for multi-gpu training"
+                )
             if hparams.sortish_sampler:
-                raise ValueError("--sortish_sampler and --max_tokens_per_batch may not be used simultaneously")
+                raise ValueError(
+                    "--sortish_sampler and --max_tokens_per_batch may not be used simultaneously"
+                )
 
         super().__init__(hparams, num_labels=None, mode=self.mode, **kwargs)
         use_task_specific_params(self.model, "summarization")
@@ -97,15 +87,21 @@ class SummarizationModule(BaseTransformer):
             "val": self.hparams.n_val,
             "test": self.hparams.n_test,
         }
-        self.n_obs = {k: v if v >= 0 else None for k, v in n_observations_per_split.items()}
+        self.n_obs = {
+            k: v if v >= 0 else None for k, v in n_observations_per_split.items()
+        }
 
         self.target_lens = {
             "train": self.hparams.max_target_length,
             "val": self.hparams.val_max_target_length,
             "test": self.hparams.test_max_target_length,
         }
-        assert self.target_lens["train"] <= self.target_lens["val"], f"target_lens: {self.target_lens}"
-        assert self.target_lens["train"] <= self.target_lens["test"], f"target_lens: {self.target_lens}"
+        assert (
+            self.target_lens["train"] <= self.target_lens["val"]
+        ), f"target_lens: {self.target_lens}"
+        assert (
+            self.target_lens["train"] <= self.target_lens["test"]
+        ), f"target_lens: {self.target_lens}"
         if self.hparams.freeze_embeds:
             self.freeze_embeds()
         if self.hparams.freeze_encoder:
@@ -116,19 +112,31 @@ class SummarizationModule(BaseTransformer):
         self.num_workers = hparams.num_workers
         self.sync_dist = True if hparams.gpus > 1 else False
         self.decoder_start_token_id = None  # default to config
-        if self.model.config.decoder_start_token_id is None and isinstance(self.tokenizer, MBartTokenizer):
-            self.decoder_start_token_id = self.tokenizer.lang_code_to_id[hparams.tgt_lang]
+        if self.model.config.decoder_start_token_id is None and isinstance(
+            self.tokenizer, MBartTokenizer
+        ):
+            self.decoder_start_token_id = self.tokenizer.lang_code_to_id[
+                hparams.tgt_lang
+            ]
             self.model.config.decoder_start_token_id = self.decoder_start_token_id
-        self.dataset_class = (
-            LegacySeq2SeqDataset
+        self.dataset_class = LegacySeq2SeqDataset
+        self.eval_beams = (
+            self.model.config.num_beams
+            if self.hparams.eval_beams is None
+            else self.hparams.eval_beams
         )
-        self.eval_beams = self.model.config.num_beams if self.hparams.eval_beams is None else self.hparams.eval_beams
-        assert self.eval_beams >= 0, f"got self.eval_beams={self.eval_beams}. Need an integer >= 0"
+        assert (
+            self.eval_beams >= 0
+        ), f"got self.eval_beams={self.eval_beams}. Need an integer >= 0"
         if self.hparams.eval_max_gen_length is not None:
             self.eval_max_length = self.hparams.eval_max_gen_length
         else:
             self.eval_max_length = self.model.config.max_length
-        self.val_metric = self.default_val_metric if self.hparams.val_metric is None else self.hparams.val_metric
+        self.val_metric = (
+            self.default_val_metric
+            if self.hparams.val_metric is None
+            else self.hparams.val_metric
+        )
 
         self.config = self.model.config
 
@@ -160,16 +168,25 @@ class SummarizationModule(BaseTransformer):
         if isinstance(self.model, T5ForConditionalGeneration):
             decoder_input_ids = self.model._shift_right(tgt_ids)
         else:
-            decoder_input_ids = shift_tokens_right(tgt_ids, pad_token_id, self.config.decoder_start_token_id)
+            decoder_input_ids = shift_tokens_right(
+                tgt_ids, pad_token_id, self.config.decoder_start_token_id
+            )
 
-        outputs = self(src_ids, attention_mask=src_mask, decoder_input_ids=decoder_input_ids, use_cache=False)
+        outputs = self(
+            src_ids,
+            attention_mask=src_mask,
+            decoder_input_ids=decoder_input_ids,
+            use_cache=False,
+        )
         lm_logits = outputs[0]
         if self.hparams.label_smoothing == 0:
             # Same behavior as modeling_bart.py, besides ignoring pad_token_id
             ce_loss_fct = torch.nn.CrossEntropyLoss(ignore_index=pad_token_id)
 
             assert lm_logits.shape[-1] == self.config.vocab_size
-            loss = ce_loss_fct(lm_logits.view(-1, lm_logits.shape[-1]), tgt_ids.view(-1))
+            loss = ce_loss_fct(
+                lm_logits.view(-1, lm_logits.shape[-1]), tgt_ids.view(-1)
+            )
         else:
             lprobs = torch.nn.functional.log_softmax(lm_logits, dim=-1)
             loss, nll_loss = label_smoothed_nll_loss(
@@ -187,7 +204,9 @@ class SummarizationModule(BaseTransformer):
         # tokens per batch
         logs["ip_tpb"] = batch["input_ids"].numel()
         logs["op_tpb"] = batch["labels"].numel()
-        logs["tpb"] = batch["input_ids"].ne(self.pad).sum() + batch["labels"].ne(self.pad).sum()
+        logs["tpb"] = (
+            batch["input_ids"].ne(self.pad).sum() + batch["labels"].ne(self.pad).sum()
+        )
         logs["bs"] = batch["input_ids"].shape[0]
         logs["src_pad_tok"] = batch["input_ids"].eq(self.pad).sum()
         logs["src_pad_frac"] = batch["input_ids"].eq(self.pad).float().mean()
@@ -205,13 +224,18 @@ class SummarizationModule(BaseTransformer):
 
     def validation_epoch_end(self, outputs, prefix="val") -> Dict:
         self.step_count += 1
-        losses = {k: torch.stack([x[k] for x in outputs]).mean() for k in self.loss_names}
+        losses = {
+            k: torch.stack([x[k] for x in outputs]).mean() for k in self.loss_names
+        }
         loss = losses["loss"]
         generative_metrics = {
-            k: np.array([x[k] for x in outputs]).mean() for k in self.metric_names + ["gen_time", "gen_len"]
+            k: np.array([x[k] for x in outputs]).mean()
+            for k in self.metric_names + ["gen_time", "gen_len"]
         }
         metric_val = (
-            generative_metrics[self.val_metric] if self.val_metric in generative_metrics else losses[self.val_metric]
+            generative_metrics[self.val_metric]
+            if self.val_metric in generative_metrics
+            else losses[self.val_metric]
         )
         metric_tensor: torch.FloatTensor = torch.tensor(metric_val).type_as(loss)
         generative_metrics.update({k: v.item() for k, v in losses.items()})
@@ -221,7 +245,13 @@ class SummarizationModule(BaseTransformer):
         self.save_metrics(all_metrics, prefix)  # writes to self.metrics_save_path
         preds = flatten_list([x["preds"] for x in outputs])
 
-        self.log(f"{prefix}_{self.val_metric}", metric_tensor, prog_bar=True, logger=True, sync_dist=self.sync_dist)
+        self.log(
+            f"{prefix}_{self.val_metric}",
+            metric_tensor,
+            prog_bar=True,
+            logger=True,
+            sync_dist=self.sync_dist,
+        )
         return {
             "log": all_metrics,
             "preds": preds,
@@ -250,18 +280,23 @@ class SummarizationModule(BaseTransformer):
                 decoder_start_token_id=self.decoder_start_token_id,
                 num_beams=self.eval_beams,
                 max_length=self.eval_max_length,
-                num_beam_groups=1, output_scores=False,
+                num_beam_groups=1,
+                output_scores=False,
                 return_dict_in_generate=False,
                 encoder_no_repeat_ngram_size=0,
-                diversity_penalty=0.0
+                diversity_penalty=0.0,
             )
         gen_time = (time.time() - t0) / batch["input_ids"].shape[0]
         preds: List[str] = self.ids_to_clean_text(generated_ids)
         target: List[str] = self.ids_to_clean_text(batch["labels"])
-        base_metrics = {name: loss.detach() for name, loss in zip(self.loss_names, loss_tensors)}
+        base_metrics = {
+            name: loss.detach() for name, loss in zip(self.loss_names, loss_tensors)
+        }
         rouge: Dict = self.calc_generative_metrics(preds, target)
         summ_len = np.mean(lmap(len, generated_ids))
-        base_metrics.update(gen_time=gen_time, gen_len=summ_len, preds=preds, target=target, **rouge)
+        base_metrics.update(
+            gen_time=gen_time, gen_len=summ_len, preds=preds, target=target, **rouge
+        )
         return base_metrics
 
     def test_step(self, batch):
@@ -282,11 +317,15 @@ class SummarizationModule(BaseTransformer):
         )
         return dataset
 
-    def get_dataloader(self, type_path: str, batch_size: int, shuffle: bool = False) -> DataLoader:
+    def get_dataloader(
+        self, type_path: str, batch_size: int, shuffle: bool = False
+    ) -> DataLoader:
         dataset = self.get_dataset(type_path)
 
         if self.hparams.sortish_sampler and type_path != "test":
-            sampler = dataset.make_sortish_sampler(batch_size, distributed=self.hparams.gpus > 1)
+            sampler = dataset.make_sortish_sampler(
+                batch_size, distributed=self.hparams.gpus > 1
+            )
             return DataLoader(
                 dataset,
                 batch_size=batch_size,
@@ -320,7 +359,9 @@ class SummarizationModule(BaseTransformer):
             )
 
     def train_dataloader(self) -> DataLoader:
-        dataloader = self.get_dataloader("train", batch_size=self.hparams.train_batch_size, shuffle=True)
+        dataloader = self.get_dataloader(
+            "train", batch_size=self.hparams.train_batch_size, shuffle=True
+        )
         return dataloader
 
     def val_dataloader(self) -> DataLoader:
@@ -365,22 +406,72 @@ class SummarizationModule(BaseTransformer):
         parser.add_argument("--freeze_embeds", action="store_true")
         parser.add_argument("--sortish_sampler", action="store_true", default=False)
         parser.add_argument("--max_tokens_per_batch", type=int, default=None)
-        parser.add_argument("--logger_name", type=str, choices=["default", "wandb", "wandb_shared"], default="default")
-        parser.add_argument("--n_train", type=int, default=-1, required=False, help="# examples. -1 means use all.")
-        parser.add_argument("--n_val", type=int, default=500, required=False, help="# examples. -1 means use all.")
-        parser.add_argument("--n_test", type=int, default=-1, required=False, help="# examples. -1 means use all.")
         parser.add_argument(
-            "--task", type=str, default="summarization", required=False, help="# examples. -1 means use all."
+            "--logger_name",
+            type=str,
+            choices=["default", "wandb", "wandb_shared"],
+            default="default",
         )
-        parser.add_argument("--label_smoothing", type=float, default=0.0, required=False)
+        parser.add_argument(
+            "--n_train",
+            type=int,
+            default=-1,
+            required=False,
+            help="# examples. -1 means use all.",
+        )
+        parser.add_argument(
+            "--n_val",
+            type=int,
+            default=500,
+            required=False,
+            help="# examples. -1 means use all.",
+        )
+        parser.add_argument(
+            "--n_test",
+            type=int,
+            default=-1,
+            required=False,
+            help="# examples. -1 means use all.",
+        )
+        parser.add_argument(
+            "--task",
+            type=str,
+            default="summarization",
+            required=False,
+            help="# examples. -1 means use all.",
+        )
+        parser.add_argument(
+            "--label_smoothing", type=float, default=0.0, required=False
+        )
         parser.add_argument("--src_lang", type=str, default="", required=False)
         parser.add_argument("--tgt_lang", type=str, default="", required=False)
-        parser.add_argument("--eval_beams", type=int, default=None, required=False, help="# beams to use. 0 corresponds to not using beam search.")
         parser.add_argument(
-            "--val_metric", type=str, default=None, required=False, choices=["bleu", "rouge2", "loss", None]
+            "--eval_beams",
+            type=int,
+            default=None,
+            required=False,
+            help="# beams to use. 0 corresponds to not using beam search.",
         )
-        parser.add_argument("--eval_max_gen_length", type=int, default=None, help="never generate more than n tokens")
-        parser.add_argument("--save_top_k", type=int, default=1, required=False, help="How many checkpoints to save")
+        parser.add_argument(
+            "--val_metric",
+            type=str,
+            default=None,
+            required=False,
+            choices=["bleu", "rouge2", "loss", None],
+        )
+        parser.add_argument(
+            "--eval_max_gen_length",
+            type=int,
+            default=None,
+            help="never generate more than n tokens",
+        )
+        parser.add_argument(
+            "--save_top_k",
+            type=int,
+            default=1,
+            required=False,
+            help="How many checkpoints to save",
+        )
         parser.add_argument(
             "--early_stopping_patience",
             type=int,
@@ -388,16 +479,55 @@ class SummarizationModule(BaseTransformer):
             required=False,
             help="-1 means never early stop. early_stopping_patience is measured in validation checks, not epochs. So val_check_interval will effect it.",
         )
-        parser.add_argument('--json-summary', type=str, default="results/dllogger.json",
-                            help='If provided, the json summary will be written to'
-                                 'the specified file.')
-        parser.add_argument('--distill', type=str, default=None, help="string indicating distillation to perform, only sft supported", choices=["sft", None])
-        parser.add_argument('--layers', type=str, default=None, help="string indicating which layers to distill for SFT, split by '-' (ex. 0-6-11)")
-        parser.add_argument('--do_encoder', action="store_true", default=False, help="if true distills the encoder")
-        parser.add_argument('--do_decoder', action="store_true", default=False, help="if true distills the decoder")
-        parser.add_argument("--local_rank", type=int, default=os.getenv('LOCAL_RANK', 0), help="local_rank for distributed training on gpus")
-        parser.add_argument("--gpus", type=int, default=1, help="number of gpus to train on applied per node")
-        parser.add_argument("--load_model_weights_only", action="store_true", help="Only load model weights, ignoring other ckpt states. useful at the start of phase2 training")
+        parser.add_argument(
+            "--json-summary",
+            type=str,
+            default="results/dllogger.json",
+            help="If provided, the json summary will be written to"
+            "the specified file.",
+        )
+        parser.add_argument(
+            "--distill",
+            type=str,
+            default=None,
+            help="string indicating distillation to perform, only sft supported",
+            choices=["sft", None],
+        )
+        parser.add_argument(
+            "--layers",
+            type=str,
+            default=None,
+            help="string indicating which layers to distill for SFT, split by '-' (ex. 0-6-11)",
+        )
+        parser.add_argument(
+            "--do_encoder",
+            action="store_true",
+            default=False,
+            help="if true distills the encoder",
+        )
+        parser.add_argument(
+            "--do_decoder",
+            action="store_true",
+            default=False,
+            help="if true distills the decoder",
+        )
+        parser.add_argument(
+            "--local_rank",
+            type=int,
+            default=os.getenv("LOCAL_RANK", 0),
+            help="local_rank for distributed training on gpus",
+        )
+        parser.add_argument(
+            "--gpus",
+            type=int,
+            default=1,
+            help="number of gpus to train on applied per node",
+        )
+        parser.add_argument(
+            "--load_model_weights_only",
+            action="store_true",
+            help="Only load model weights, ignoring other ckpt states. useful at the start of phase2 training",
+        )
 
         return parser
 
@@ -416,28 +546,31 @@ class TranslationModule(SummarizationModule):
     def calc_generative_metrics(self, preds, target) -> dict:
         return calculate_bleu(preds, target)
 
+
 def set_seed(args):
     random.seed(args.seed + get_rank())
     np.random.seed(args.seed + get_rank())
     torch.manual_seed(args.seed + get_rank())
+
 
 def save_final_checkpoint(args, model):
     output_filename = os.path.join(args.output_dir, "final_step.ckpt")
 
     if get_rank() == 0:
         model_to_save = model.module if hasattr(model, "module") else model
-        torch.save(model_to_save.state_dict(),
-                   output_filename)
+        torch.save(model_to_save.state_dict(), output_filename)
+
 
 def load_checkpoint(args, path, model, optimizer, scaler):
     checkpoint = torch.load(path, map_location=args.device)
     model.load_state_dict(checkpoint["model"])
 
     if not args.load_model_weights_only:
-        if 'optimizer' in checkpoint:
+        if "optimizer" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer"])
-        if 'scaler' in checkpoint:
+        if "scaler" in checkpoint:
             scaler.load_state_dict(checkpoint["scaler"])
+
 
 def distill(layers, pick_layers):
     sft_layers = nn.ModuleList()
@@ -454,8 +587,9 @@ def distill(layers, pick_layers):
 
     return sft_layers
 
+
 def distill_sft(model):
-    pick_layers = [int(s) for s in args.layers.split('-')]
+    pick_layers = [int(s) for s in args.layers.split("-")]
 
     # if distilling encoder
     if args.do_encoder:
@@ -471,6 +605,7 @@ def distill_sft(model):
 
     return model
 
+
 def main(args, model=None) -> SummarizationModule:
     print(args)
     Path(args.output_dir).mkdir(exist_ok=True)
@@ -482,13 +617,9 @@ def main(args, model=None) -> SummarizationModule:
     args.device = device
 
     # Set GPU affinity
-    if args.affinity != 'disabled':
-        affinity = set_affinity(
-            get_rank(),
-            get_device_count(),
-            args.affinity
-        )
-        logger.warning(f'{get_rank()}: thread affinity: {affinity}')
+    if args.affinity != "disabled":
+        affinity = set_affinity(get_rank(), get_device_count(), args.affinity)
+        logger.warning(f"{get_rank()}: thread affinity: {affinity}")
 
     # Set seed
     set_seed(args)
@@ -507,8 +638,12 @@ def main(args, model=None) -> SummarizationModule:
         (args.fp16 or args.bf16),
     )
 
-    checkpoints = list(sorted(glob.glob(os.path.join(args.output_dir, "_step*.ckpt"), recursive=True),
-                        key=lambda x:int(x.split("step")[1].split(".")[0])))
+    checkpoints = list(
+        sorted(
+            glob.glob(os.path.join(args.output_dir, "_step*.ckpt"), recursive=True),
+            key=lambda x: int(x.split("step")[1].split(".")[0]),
+        )
+    )
 
     if model is None:
         if "summarization" in args.task:
@@ -524,33 +659,43 @@ def main(args, model=None) -> SummarizationModule:
                 config.dtype = None
             config.pre_ln = args.pre_ln
 
-            if args.distill: # if distilling, start from finetuned checkpoint
+            if args.distill:  # if distilling, start from finetuned checkpoint
                 if Path(args.data_dir).name == "cnn_dm":
-                    checkpoint = 'facebook/bart-large-cnn'
+                    checkpoint = "facebook/bart-large-cnn"
                 else:
-                    checkpoint = 'facebook/bart-large-xsum'
+                    checkpoint = "facebook/bart-large-xsum"
             else:
-                checkpoint = 'facebook/bart-large' #Start from pretrained checkpoint otherwise
+                checkpoint = (
+                    "facebook/bart-large"  # Start from pretrained checkpoint otherwise
+                )
 
             if args.resume_from_checkpoint:
-                print("Resuming from checkpoint, make sure checkpoint is finetuned for best results")
+                print(
+                    "Resuming from checkpoint, make sure checkpoint is finetuned for best results"
+                )
                 if ".ckpt" in args.resume_from_checkpoint:
                     checkpoint = args.resume_from_checkpoint
-                    if args.distill: # set resume from checkpoint to None (state dict is different)
+                    if (
+                        args.distill
+                    ):  # set resume from checkpoint to None (state dict is different)
                         args.resume_from_checkpoint = None
                     model = BartForConditionalGeneration(config=config)
                 else:
-                    if len(checkpoints) > 0: #No checkpoints available
+                    if len(checkpoints) > 0:  # No checkpoints available
                         checkpoint = checkpoints[-1]
                         args.resume_from_checkpoint = checkpoint
                         model = BartForConditionalGeneration(config=config)
                     else:
                         args.resume_from_checkpoint = None
                         print("No valid checkpoint to resume from. Using ", checkpoint)
-                        model = BartForConditionalGeneration.from_pretrained(checkpoint, config=config)
+                        model = BartForConditionalGeneration.from_pretrained(
+                            checkpoint, config=config
+                        )
 
             else:
-                model = BartForConditionalGeneration.from_pretrained(checkpoint, config=config)
+                model = BartForConditionalGeneration.from_pretrained(
+                    checkpoint, config=config
+                )
 
             print("Loading BART model checkpoint using ", checkpoint)
 
@@ -558,8 +703,11 @@ def main(args, model=None) -> SummarizationModule:
                 model = distill_sft(model)
 
             tokenizer = BartTokenizer.from_pretrained(
-                'facebook/bart-large')  # Downloads vocab and merges file automatically
-            trainer: SummarizationModule = SummarizationModule(args, model=model, config=config, tokenizer=tokenizer)
+                "facebook/bart-large"
+            )  # Downloads vocab and merges file automatically
+            trainer: SummarizationModule = SummarizationModule(
+                args, model=model, config=config, tokenizer=tokenizer
+            )
         else:
             raise ValueError("Translation not supported at this time")
             model: SummarizationModule = TranslationModule(args)
@@ -569,15 +717,15 @@ def main(args, model=None) -> SummarizationModule:
     # Set up optimizer and scheduler
     optimizer, scheduler = trainer.configure_optimizers()
     optimizer = optimizer[0]
-    scheduler = scheduler[0]['scheduler']
+    scheduler = scheduler[0]["scheduler"]
     scaler = torch.cuda.amp.GradScaler(enabled=args.fp16)
 
     step = 0
     if args.resume_from_checkpoint:
-            logger.info("Loading BART model checkpoint using %s", checkpoint)
-            checkpoint_suffix = checkpoint.split("step")[-1].split(".")[0]
-            step = int(checkpoint_suffix) + 1
-            load_checkpoint(args, checkpoint, trainer.model, optimizer, scaler)
+        logger.info("Loading BART model checkpoint using %s", checkpoint)
+        checkpoint_suffix = checkpoint.split("step")[-1].split(".")[0]
+        step = int(checkpoint_suffix) + 1
+        load_checkpoint(args, checkpoint, trainer.model, optimizer, scaler)
 
     if args.distill or args.load_model_weights_only:
         args.resume_from_checkpoint = None
@@ -586,7 +734,10 @@ def main(args, model=None) -> SummarizationModule:
     # Distributed training (should be after apex fp16 initialization)
     if args.local_rank != -1:
         trainer.model = torch.nn.parallel.DistributedDataParallel(
-            trainer.model, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=True
+            trainer.model,
+            device_ids=[args.local_rank],
+            output_device=args.local_rank,
+            find_unused_parameters=True,
         )
 
     generic_train(args, trainer, optimizer, scheduler, scaler, checkpoints, step)
@@ -607,9 +758,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if get_rank() == 0:
-        dllogger.init(backends=[dllogger.JSONStreamBackend(verbosity=dllogger.Verbosity.VERBOSE,
-                                                           filename=args.json_summary),
-                                dllogger.StdOutBackend(verbosity=dllogger.Verbosity.VERBOSE, step_format=format_step)])
+        dllogger.init(
+            backends=[
+                dllogger.JSONStreamBackend(
+                    verbosity=dllogger.Verbosity.VERBOSE, filename=args.json_summary
+                ),
+                dllogger.StdOutBackend(
+                    verbosity=dllogger.Verbosity.VERBOSE, step_format=format_step
+                ),
+            ]
+        )
 
     main(args)
 

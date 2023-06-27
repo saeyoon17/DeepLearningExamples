@@ -49,6 +49,4 @@ class Graph:
 
     @safeSNAP
     def get_edges(self):
-        return [
-            (EI.GetSrcNId(), EI.GetDstNId()) for EI in self.snapGraph.Edges()
-        ]
+        return [(EI.GetSrcNId(), EI.GetDstNId()) for EI in self.snapGraph.Edges()]

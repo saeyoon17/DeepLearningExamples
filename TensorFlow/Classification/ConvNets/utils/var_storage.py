@@ -19,7 +19,7 @@
 
 import tensorflow as tf
 
-__all__ = ['model_variable_scope']
+__all__ = ["model_variable_scope"]
 
 
 def model_variable_scope(name, reuse=False, dtype=tf.float32, *args, **kwargs):
@@ -30,7 +30,16 @@ def model_variable_scope(name, reuse=False, dtype=tf.float32, *args, **kwargs):
       A variable scope for the model.
     """
 
-    def _custom_dtype_getter(getter, name, shape=None, dtype=None, trainable=True, regularizer=None, *args, **kwargs):
+    def _custom_dtype_getter(
+        getter,
+        name,
+        shape=None,
+        dtype=None,
+        trainable=True,
+        regularizer=None,
+        *args,
+        **kwargs
+    ):
         """Creates variables in fp32, then casts to fp16 if necessary.
         This function is a custom getter. A custom getter is a function with the
         same signature as tf.get_variable, except it has an additional getter
@@ -65,19 +74,27 @@ def model_variable_scope(name, reuse=False, dtype=tf.float32, *args, **kwargs):
             dtype=storage_dtype,
             trainable=trainable,
             regularizer=(
-                regularizer if
-                (trainable and not any(l_name.lower() in name.lower()
-                                       for l_name in ['batchnorm', 'batch_norm'])) else None
+                regularizer
+                if (
+                    trainable
+                    and not any(
+                        l_name.lower() in name.lower()
+                        for l_name in ["batchnorm", "batch_norm"]
+                    )
+                )
+                else None
             ),
             *args,
             **kwargs
         )
 
         if dtype != tf.float32:
-            cast_name = name + '/fp16_cast'
+            cast_name = name + "/fp16_cast"
 
             try:
-                cast_variable = tf.get_default_graph().get_tensor_by_name(cast_name + ':0')
+                cast_variable = tf.get_default_graph().get_tensor_by_name(
+                    cast_name + ":0"
+                )
 
             except KeyError:
                 cast_variable = tf.cast(variable, dtype, name=cast_name)
@@ -87,4 +104,11 @@ def model_variable_scope(name, reuse=False, dtype=tf.float32, *args, **kwargs):
 
         return variable
 
-    return tf.variable_scope(name, reuse=reuse, dtype=dtype, custom_getter=_custom_dtype_getter, *args, **kwargs)
+    return tf.variable_scope(
+        name,
+        reuse=reuse,
+        dtype=dtype,
+        custom_getter=_custom_dtype_getter,
+        *args,
+        **kwargs
+    )

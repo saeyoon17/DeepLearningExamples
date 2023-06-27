@@ -12,7 +12,7 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limitations under the License. 
+# limitations under the License.
 
 import argparse
 import logging
@@ -26,36 +26,53 @@ os.environ["TF_ENABLE_DEPRECATION_WARNINGS"] = "1"
 if __name__ == "__main__" and __package__ is None:
     __package__ = Path(__file__).parent.name
 
-from .deployment_toolkit.args import ArgParserGenerator  # noqa: E402  module level import not at top of file
+from .deployment_toolkit.args import \
+    ArgParserGenerator  # noqa: E402  module level import not at top of file
 from .deployment_toolkit.core import (  # noqa: E402  module level import not at top of file
-    DATALOADER_FN_NAME,
-    BaseLoader,
-    BaseSaver,
-    Format,
-    load_from_file,
-)
-from .deployment_toolkit.extensions import loaders, savers  # noqa: E402  module level import not at top of file
+    DATALOADER_FN_NAME, BaseLoader, BaseSaver, Format, load_from_file)
+from .deployment_toolkit.extensions import (  # noqa: E402  module level import not at top of file
+    loaders, savers)
 
 LOGGER = logging.getLogger("export_model")
 
 INPUT_MODEL_TYPES = [Format.TF_ESTIMATOR, Format.TF_KERAS, Format.PYT]
-OUTPUT_MODEL_TYPES = [Format.TF_SAVEDMODEL, Format.TS_TRACE, Format.TS_SCRIPT, Format.ONNX]
+OUTPUT_MODEL_TYPES = [
+    Format.TF_SAVEDMODEL,
+    Format.TS_TRACE,
+    Format.TS_SCRIPT,
+    Format.ONNX,
+]
 
 
 def _get_args():
     parser = argparse.ArgumentParser(
-        description="Script for exporting models from supported frameworks.", allow_abbrev=False
+        description="Script for exporting models from supported frameworks.",
+        allow_abbrev=False,
     )
-    parser.add_argument("--input-path", help="Path to input python module", required=True)
     parser.add_argument(
-        "--input-type", help="Input model type", choices=[f.value for f in INPUT_MODEL_TYPES], required=True
+        "--input-path", help="Path to input python module", required=True
     )
-    parser.add_argument("--output-path", help="Path to output model file", required=True)
     parser.add_argument(
-        "--output-type", help="Output model type", choices=[f.value for f in OUTPUT_MODEL_TYPES], required=True
+        "--input-type",
+        help="Input model type",
+        choices=[f.value for f in INPUT_MODEL_TYPES],
+        required=True,
     )
-    parser.add_argument("--dataloader", help="Path to python module containing data loader")
-    parser.add_argument("-v", "--verbose", help="Verbose logs", action="store_true", default=False)
+    parser.add_argument(
+        "--output-path", help="Path to output model file", required=True
+    )
+    parser.add_argument(
+        "--output-type",
+        help="Output model type",
+        choices=[f.value for f in OUTPUT_MODEL_TYPES],
+        required=True,
+    )
+    parser.add_argument(
+        "--dataloader", help="Path to python module containing data loader"
+    )
+    parser.add_argument(
+        "-v", "--verbose", help="Verbose logs", action="store_true", default=False
+    )
     parser.add_argument(
         "--ignore-unknown-parameters",
         help="Ignore unknown parameters (argument often used in CI where set of arguments is constant)",
@@ -76,7 +93,9 @@ def _get_args():
     ArgParserGenerator(Saver).update_argparser(parser)
 
     if args.dataloader is not None:
-        get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+        get_dataloader_fn = load_from_file(
+            args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+        )
         ArgParserGenerator(get_dataloader_fn).update_argparser(parser)
 
     if args.ignore_unknown_parameters:
@@ -100,12 +119,16 @@ def main():
 
     dataloader_fn = None
     if args.dataloader is not None:
-        get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+        get_dataloader_fn = load_from_file(
+            args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+        )
         dataloader_fn = ArgParserGenerator(get_dataloader_fn).from_args(args)
 
     Loader: BaseLoader = loaders.get(args.input_type)
     loader = ArgParserGenerator(Loader, module_path=args.input_path).from_args(args)
-    model = loader.load(args.input_path, dataloader_fn=dataloader_fn, output_type=args.output_type)
+    model = loader.load(
+        args.input_path, dataloader_fn=dataloader_fn, output_type=args.output_type
+    )
 
     LOGGER.info("inputs: %s", model.inputs)
     LOGGER.info("outputs: %s", model.outputs)

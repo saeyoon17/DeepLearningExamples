@@ -16,24 +16,19 @@ from copy import deepcopy
 from operator import itemgetter
 
 import numpy as np
-
 from syngen.analyzer.graph.graph import safeSNAP
 
 
 def get_normalised_cdf(nodes, cdf_points=100, debug=False):
     unique_nodes, unique_nodes_counts = np.unique(nodes, return_counts=True)
-    node_degree, node_degree_counts = np.unique(
-        unique_nodes_counts, return_counts=True
-    )
+    node_degree, node_degree_counts = np.unique(unique_nodes_counts, return_counts=True)
     if debug:
         print(
             "unique_nodes,unique_nodes_counts",
             unique_nodes,
             unique_nodes_counts,
         )
-        print(
-            "node_degree,node_degree_counts", node_degree, node_degree_counts
-        )
+        print("node_degree,node_degree_counts", node_degree, node_degree_counts)
     node_degree_normalized = (
         node_degree / node_degree[-1]
     )  # they are sorted, so [-1] is max
@@ -138,9 +133,7 @@ def get_connectivity(G, *args, **kwargs):
 
     if is_directed:
         # Strongly connected components
-        number_of_strong_components, percent_of_strong = get_stats(
-            G.GetSccSzCnt()
-        )
+        number_of_strong_components, percent_of_strong = get_stats(G.GetSccSzCnt())
         is_strongly_connected = number_of_strong_components == 1
 
         result = {
@@ -217,9 +210,7 @@ def get_dd_simmilarity_score(edges_original, edges_synthetic, cdf_points=1000):
     abs_F = np.abs(F_normalized_original[:, 1] - F_normalized_synthetic[:, 1])
     where_non_zero = F_normalized_original[:, 1] != 0
     error = np.average(
-        np.divide(
-            abs_F[where_non_zero], F_normalized_original[:, 1][where_non_zero]
-        )
+        np.divide(abs_F[where_non_zero], F_normalized_original[:, 1][where_non_zero])
     )  # average error of normalized CDFs
     error = min(error, 1)
     if error < 0:

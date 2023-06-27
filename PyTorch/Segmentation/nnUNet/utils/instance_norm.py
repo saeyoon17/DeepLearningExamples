@@ -10,14 +10,26 @@ instance_norm_nvfuser_cuda = None
 
 class InstanceNormNVFuserFunction(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, input, weight, bias, running_mean, running_var, use_input_stats, momentum, eps):
+    def forward(
+        ctx,
+        input,
+        weight,
+        bias,
+        running_mean,
+        running_var,
+        use_input_stats,
+        momentum,
+        eps,
+    ):
         global instance_norm_nvfuser_cuda
         if instance_norm_nvfuser_cuda is None:
-            instance_norm_nvfuser_cuda = importlib.import_module("instance_norm_nvfuser_cuda")
+            instance_norm_nvfuser_cuda = importlib.import_module(
+                "instance_norm_nvfuser_cuda"
+            )
 
-        channels_last = input.is_contiguous(memory_format=torch.channels_last) or input.is_contiguous(
-            memory_format=torch.channels_last_3d
-        )
+        channels_last = input.is_contiguous(
+            memory_format=torch.channels_last
+        ) or input.is_contiguous(memory_format=torch.channels_last_3d)
         if channels_last:
             order = [0] + [i for i in range(2, len(input.shape))] + [1]
             _input = input.permute(order)
@@ -25,7 +37,15 @@ class InstanceNormNVFuserFunction(torch.autograd.Function):
             _input = input
         assert _input.is_contiguous()
         result = instance_norm_nvfuser_cuda.forward(
-            _input, weight, bias, running_mean, running_var, use_input_stats, momentum, eps, channels_last
+            _input,
+            weight,
+            bias,
+            running_mean,
+            running_var,
+            use_input_stats,
+            momentum,
+            eps,
+            channels_last,
         )
         if len(result) == 3:
             out, mean, invstd = result
@@ -37,7 +57,9 @@ class InstanceNormNVFuserFunction(torch.autograd.Function):
         # saving for backward in "explicit channels-last format"
         ctx.save_for_backward(_input, weight, running_mean, running_var, mean, invstd)
         if channels_last:
-            order = [0, len(_input.shape) - 1] + [i for i in range(1, len(_input.shape) - 1)]
+            order = [0, len(_input.shape) - 1] + [
+                i for i in range(1, len(_input.shape) - 1)
+            ]
             out = out.permute(order)
             if len(out.shape) == 4:
                 assert out.is_contiguous(memory_format=torch.channels_last)
@@ -53,7 +75,9 @@ class InstanceNormNVFuserFunction(torch.autograd.Function):
     def backward(ctx, grad_output):
         global instance_norm_nvfuser_cuda
         if instance_norm_nvfuser_cuda is None:
-            instance_norm_nvfuser_cuda = importlib.import_module("instance_norm_nvfuser_cuda")
+            instance_norm_nvfuser_cuda = importlib.import_module(
+                "instance_norm_nvfuser_cuda"
+            )
 
         if ctx.channels_last:
             order = [0] + [i for i in range(2, len(grad_output.shape))] + [1]
@@ -71,7 +95,9 @@ class InstanceNormNVFuserFunction(torch.autograd.Function):
             *saved, ctx.use_input_stats, ctx.eps, ctx.channels_last
         )
         if ctx.channels_last:
-            order = [0, len(grad_input.shape) - 1] + [i for i in range(1, len(grad_input.shape) - 1)]
+            order = [0, len(grad_input.shape) - 1] + [
+                i for i in range(1, len(grad_input.shape) - 1)
+            ]
             grad_input = grad_input.permute(order)
             if len(grad_input.shape) == 4:
                 assert grad_input.is_contiguous(memory_format=torch.channels_last)
@@ -103,7 +129,14 @@ class _InstanceNormNVFuser(_NormBase):
         raise NotImplementedError
 
     def _load_from_state_dict(
-        self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
     ):
         version = local_metadata.get("version", None)
         # at version 1: removed running_mean and running_var when
@@ -124,14 +157,23 @@ class _InstanceNormNVFuser(_NormBase):
                     "the running stats are actually needed, instead set "
                     "track_running_stats=True in {klass} to enable them. See "
                     "the documentation of {klass} for details.".format(
-                        names=" and ".join('"{}"'.format(k) for k in running_stats_keys), klass=self.__class__.__name__
+                        names=" and ".join(
+                            '"{}"'.format(k) for k in running_stats_keys
+                        ),
+                        klass=self.__class__.__name__,
                     )
                 )
                 for key in running_stats_keys:
                     state_dict.pop(key)
 
         super(_InstanceNormNVFuser, self)._load_from_state_dict(
-            state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
         )
 
     def forward(self, input: Tensor) -> Tensor:

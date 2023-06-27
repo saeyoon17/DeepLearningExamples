@@ -12,28 +12,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pickle
 from collections import OrderedDict
 from functools import partial
 
 import cupy
-import pickle
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import OrdinalEncoder
 
 
 class RandomMVGenerator:
-    """Random Multivariate Gaussian generator
-    """
+    """Random Multivariate Gaussian generator"""
 
     def __init__(self, **kwargs):
         pass
 
     def fit(self, ndims):
         self.mu = np.random.randn(ndims)
-        self.cov = np.eye(ndims) * np.abs(
-            np.random.randn(ndims).reshape(-1, 1)
-        )
+        self.cov = np.eye(ndims) * np.abs(np.random.randn(ndims).reshape(-1, 1))
 
     def sample(self, n):
         samples = cupy.random.multivariate_normal(self.mu, self.cov, size=n)
@@ -45,11 +42,11 @@ class RandomMVGenerator:
         ...
 
     def save(self, path):
-        with open(path, 'wb') as file_handler:
+        with open(path, "wb") as file_handler:
             pickle.dump(self, file_handler, protocol=pickle.HIGHEST_PROTOCOL)
 
     @classmethod
     def load(cls, path):
-        with open(path, 'rb') as file_handler:
+        with open(path, "rb") as file_handler:
             model = pickle.load(file_handler)
         return model

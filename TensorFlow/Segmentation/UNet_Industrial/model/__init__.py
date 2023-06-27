@@ -19,7 +19,4 @@
 #
 # ==============================================================================
 
-from model import layers
-from model import blocks
-
-from model import unet
+from model import blocks, layers, unet

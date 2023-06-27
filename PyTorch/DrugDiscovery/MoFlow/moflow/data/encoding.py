@@ -35,10 +35,10 @@
 
 
 from typing import Tuple
-import numpy as np
-from rdkit import Chem
 
+import numpy as np
 from moflow.config import BOND_TO_CODE, DUMMY_CODE
+from rdkit import Chem
 
 
 class MolEncoder:
@@ -71,8 +71,7 @@ class MolEncoder:
         return atom_array, adj_array
 
     def _standardize_mol(self, mol: Chem.Mol) -> Chem.Mol:
-        canonical_smiles = Chem.MolToSmiles(mol, isomericSmiles=False,
-                                            canonical=True)
+        canonical_smiles = Chem.MolToSmiles(mol, isomericSmiles=False, canonical=True)
         mol = Chem.MolFromSmiles(canonical_smiles)
         Chem.Kekulize(mol)
         return mol
@@ -81,8 +80,9 @@ class MolEncoder:
         """Check number of atoms in `mol` does not exceed `out_size`"""
         num_atoms = mol.GetNumAtoms()
         if num_atoms > self.out_size:
-            raise EncodingError(f'Number of atoms in mol {num_atoms} exceeds num_max_atoms {self.out_size}')
-
+            raise EncodingError(
+                f"Number of atoms in mol {num_atoms} exceeds num_max_atoms {self.out_size}"
+            )
 
     def construct_atomic_number_array(self, mol: Chem.Mol) -> np.ndarray:
         """Returns atomic numbers of atoms consisting a molecule.
@@ -98,12 +98,13 @@ class MolEncoder:
         atom_list = [a.GetAtomicNum() for a in mol.GetAtoms()]
         n_atom = len(atom_list)
         if self.out_size < n_atom:
-            raise EncodingError(f'out_size {self.out_size} is smaller than number of atoms in mol {n_atom}')
+            raise EncodingError(
+                f"out_size {self.out_size} is smaller than number of atoms in mol {n_atom}"
+            )
         atom_array = np.full(self.out_size, DUMMY_CODE, dtype=np.uint8)
         atom_array[:n_atom] = atom_list
         return atom_array
 
-        
     def construct_discrete_edge_matrix(self, mol: Chem.Mol) -> np.ndarray:
         """Returns the edge-type dependent adjacency matrix of the given molecule.
 
@@ -117,11 +118,13 @@ class MolEncoder:
                 conncted, DUMMY_CODE is used instead.
         """
         if mol is None:
-            raise EncodingError('mol is None')
+            raise EncodingError("mol is None")
         n_atom = mol.GetNumAtoms()
 
         if self.out_size < n_atom:
-            raise EncodingError(f'out_size {self.out_size} is smaller than number of atoms in mol {n_atom}')
+            raise EncodingError(
+                f"out_size {self.out_size} is smaller than number of atoms in mol {n_atom}"
+            )
 
         adjs = np.full((self.out_size, self.out_size), DUMMY_CODE, dtype=np.uint8)
 

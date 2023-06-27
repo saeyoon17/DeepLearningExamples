@@ -11,5 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from .model_analyzer import ModelAnalyzer, ModelAnalyzerMode, ModelAnalyzerReportMode  # noqa: F401
+from .model_analyzer import (ModelAnalyzer, ModelAnalyzerMode,  # noqa: F401
+                             ModelAnalyzerReportMode)
 from .model_analyzer_config import ModelAnalyzerConfig  # noqa: F401

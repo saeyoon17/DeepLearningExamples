@@ -10,7 +10,6 @@ import os
 
 from .fairseq_lr_scheduler import FairseqLRScheduler
 
-
 LR_SCHEDULER_REGISTRY = {}
 
 
@@ -23,9 +22,13 @@ def register_lr_scheduler(name):
 
     def register_lr_scheduler_cls(cls):
         if name in LR_SCHEDULER_REGISTRY:
-            raise ValueError('Cannot register duplicate LR scheduler ({})'.format(name))
+            raise ValueError("Cannot register duplicate LR scheduler ({})".format(name))
         if not issubclass(cls, FairseqLRScheduler):
-            raise ValueError('LR Scheduler ({}: {}) must extend FairseqLRScheduler'.format(name, cls.__name__))
+            raise ValueError(
+                "LR Scheduler ({}: {}) must extend FairseqLRScheduler".format(
+                    name, cls.__name__
+                )
+            )
         LR_SCHEDULER_REGISTRY[name] = cls
         return cls
 
@@ -34,6 +37,6 @@ def register_lr_scheduler(name):
 
 # automatically import any Python files in the optim/lr_scheduler/ directory
 for file in os.listdir(os.path.dirname(__file__)):
-    if file.endswith('.py') and not file.startswith('_'):
-        module = file[:file.find('.py')]
-        importlib.import_module('fairseq.optim.lr_scheduler.' + module)
+    if file.endswith(".py") and not file.startswith("_"):
+        module = file[: file.find(".py")]
+        importlib.import_module("fairseq.optim.lr_scheduler." + module)

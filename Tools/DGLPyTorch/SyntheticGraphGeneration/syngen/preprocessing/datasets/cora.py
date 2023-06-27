@@ -21,7 +21,6 @@ from typing import List, Union
 import cudf
 import dask_cudf
 import pandas as pd
-
 from syngen.preprocessing.base_preprocessing import BasePreprocessing
 from syngen.utils.types import MetaData
 
@@ -67,12 +66,12 @@ class CORAPreprocessing(BasePreprocessing):
 
     def load_data(self, data_path: str, transform_name=None, **kwargs):
         """
-            load the cora dataset
-            files -
-                cora.content
-                cora.cites
-            Args:
-                data_path (str) : path to the directory containing cora dataset files
+        load the cora dataset
+        files -
+            cora.content
+            cora.cites
+        Args:
+            data_path (str) : path to the directory containing cora dataset files
         """
         reader = kwargs.get("reader", pd)
         data_path = Path(data_path)
@@ -92,19 +91,19 @@ class CORAPreprocessing(BasePreprocessing):
 
     def parse_cora_content(self, in_file, train_test_ratio=1.0, reader=pd):
         """
-            This function parses Cora content (in TSV), converts string labels to integer
-            label IDs, randomly splits the data into training and test sets, and returns
-            the training and test sets as outputs.
+        This function parses Cora content (in TSV), converts string labels to integer
+        label IDs, randomly splits the data into training and test sets, and returns
+        the training and test sets as outputs.
 
-            Args:
-                in_file: A string indicating the input file path.
-                train_percentage: A float indicating the percentage of training examples
-                over the dataset.
-            Returns:
-                train_examples: A dict with keys being example IDs (string) and values being
-                `dict` instances.
-                test_examples: A dict with keys being example IDs (string) and values being
-                `dict` instances.
+        Args:
+            in_file: A string indicating the input file path.
+            train_percentage: A float indicating the percentage of training examples
+            over the dataset.
+        Returns:
+            train_examples: A dict with keys being example IDs (string) and values being
+            `dict` instances.
+            test_examples: A dict with keys being example IDs (string) and values being
+            `dict` instances.
         """
         random.seed(1)
         train_examples = {}
@@ -122,30 +121,28 @@ class CORAPreprocessing(BasePreprocessing):
                 }
                 for i, w in enumerate(words):
                     features[f"w_{i}"] = w
-                if (
-                    random.uniform(0, 1) <= train_test_ratio
-                ):  # for train/test split.
+                if random.uniform(0, 1) <= train_test_ratio:  # for train/test split.
                     train_examples[example_id] = features
                 else:
                     test_examples[example_id] = features
 
-            self.graph_info[MetaData.NODE_DATA][
-                MetaData.CATEGORICAL_COLUMNS
-            ].extend([f"w_{i}" for i in range(len(words))])
-            self.graph_info[MetaData.NODE_DATA][
-                MetaData.CATEGORICAL_COLUMNS
-            ].extend(["id", "label"])
+            self.graph_info[MetaData.NODE_DATA][MetaData.CATEGORICAL_COLUMNS].extend(
+                [f"w_{i}" for i in range(len(words))]
+            )
+            self.graph_info[MetaData.NODE_DATA][MetaData.CATEGORICAL_COLUMNS].extend(
+                ["id", "label"]
+            )
 
         # TODO replace with reader.Dataframe after cudf 22.12 will be stable
-        train = pd.DataFrame.from_dict(
-            train_examples, orient="index"
-        ).reset_index(drop=True)
+        train = pd.DataFrame.from_dict(train_examples, orient="index").reset_index(
+            drop=True
+        )
         if reader != pd:
             train = reader.from_pandas(train)
 
-        test = pd.DataFrame.from_dict(
-            test_examples, orient="index"
-        ).reset_index(drop=True)
+        test = pd.DataFrame.from_dict(test_examples, orient="index").reset_index(
+            drop=True
+        )
 
         if reader != pd:
             test = reader.from_pandas(test)
@@ -155,11 +152,11 @@ class CORAPreprocessing(BasePreprocessing):
     def download(self, data_path: Union[PosixPath, str]):
         log.info("downloading CORA dataset...")
         cmds = [
-            fr"mkdir -p {data_path}",
-            fr"wget 'https://linqs-data.soe.ucsc.edu/public/lbc/cora.tgz' -P {data_path}",
-            fr"tar -xf {data_path}/cora.tgz -C {data_path}",
-            fr"sed -i 's/\t/,/g' {data_path}/cora/cora.cites",
-            fr"sed -i '1s/^/src,dst\n/' {data_path}/cora/cora.cites",
+            rf"mkdir -p {data_path}",
+            rf"wget 'https://linqs-data.soe.ucsc.edu/public/lbc/cora.tgz' -P {data_path}",
+            rf"tar -xf {data_path}/cora.tgz -C {data_path}",
+            rf"sed -i 's/\t/,/g' {data_path}/cora/cora.cites",
+            rf"sed -i '1s/^/src,dst\n/' {data_path}/cora/cora.cites",
         ]
         for cmd in cmds:
             try:
@@ -186,23 +183,17 @@ class CORAPreprocessing(BasePreprocessing):
         ]
 
         continuous_columns = [
-            c
-            for c in data[MetaData.EDGE_DATA].columns
-            if c in continuous_columns
+            c for c in data[MetaData.EDGE_DATA].columns if c in continuous_columns
         ]
         categorical_columns = [
-            c
-            for c in data[MetaData.EDGE_DATA].columns
-            if c in categorical_columns
+            c for c in data[MetaData.EDGE_DATA].columns if c in categorical_columns
         ]
 
         for col in categorical_columns:
             data[MetaData.EDGE_DATA][col] = (
                 data[MetaData.EDGE_DATA][col].astype("category").cat.codes
             )
-            data[MetaData.EDGE_DATA][col] = data[MetaData.EDGE_DATA][
-                col
-            ].astype(int)
+            data[MetaData.EDGE_DATA][col] = data[MetaData.EDGE_DATA][col].astype(int)
         columns_to_select = categorical_columns + continuous_columns
         data[MetaData.EDGE_DATA] = data[MetaData.EDGE_DATA][columns_to_select]
 
@@ -214,23 +205,17 @@ class CORAPreprocessing(BasePreprocessing):
         ]
 
         continuous_columns = [
-            c
-            for c in data[MetaData.NODE_DATA].columns
-            if c in continuous_columns
+            c for c in data[MetaData.NODE_DATA].columns if c in continuous_columns
         ]
         categorical_columns = [
-            c
-            for c in data[MetaData.NODE_DATA].columns
-            if c in categorical_columns
+            c for c in data[MetaData.NODE_DATA].columns if c in categorical_columns
         ]
 
         for col in categorical_columns:
             data[MetaData.NODE_DATA][col] = (
                 data[MetaData.NODE_DATA][col].astype("category").cat.codes
             )
-            data[MetaData.NODE_DATA][col] = data[MetaData.NODE_DATA][
-                col
-            ].astype(int)
+            data[MetaData.NODE_DATA][col] = data[MetaData.NODE_DATA][col].astype(int)
         columns_to_select = categorical_columns + continuous_columns
         data[MetaData.NODE_DATA] = data[MetaData.NODE_DATA][columns_to_select]
         return data

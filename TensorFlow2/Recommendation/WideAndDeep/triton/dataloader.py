@@ -21,13 +21,13 @@ from triton.tf_dataloader import eval_input_fn
 
 
 def get_dataloader_fn(
-        *,
-        data_pattern: str,
-        batch_size: int,
+    *,
+    data_pattern: str,
+    batch_size: int,
 ):
-    files_path = (glob.glob(data_pattern))
+    files_path = glob.glob(data_pattern)
     assert len(files_path), "Expected at least 1 parquet file, found 0"
-    with tf.device('/cpu:0'):
+    with tf.device("/cpu:0"):
         input_fn = eval_input_fn(
             files_path=files_path,
             records_batch_size=batch_size,
@@ -37,7 +37,7 @@ def get_dataloader_fn(
         for x, y, ids in input_fn:
             ids = ids.numpy()
             x = {name: tensor.numpy() for name, tensor in x.items()}
-            y = {'wide_deep_model': y.numpy()}
+            y = {"wide_deep_model": y.numpy()}
 
             yield ids, x, y
 
@@ -52,8 +52,9 @@ def main():
     parser.add_argument("--batch_size", type=int, required=True)
     args = parser.parse_args()
 
-    dataloader_fn = get_dataloader_fn(data_pattern=args.data_pattern,
-                                      batch_size=args.batch_size)
+    dataloader_fn = get_dataloader_fn(
+        data_pattern=args.data_pattern, batch_size=args.batch_size
+    )
 
     for i, (ids, x, y) in enumerate(dataloader_fn()):
         print(x, y)

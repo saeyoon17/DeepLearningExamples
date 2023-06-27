@@ -11,55 +11,54 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from GooglePretrainedWeightDownloader import GooglePretrainedWeightDownloader
-from NVIDIAPretrainedWeightDownloader import NVIDIAPretrainedWeightDownloader
-from WikiDownloader import WikiDownloader
 from BooksDownloader import BooksDownloader
 from GLUEDownloader import GLUEDownloader
+from GooglePretrainedWeightDownloader import GooglePretrainedWeightDownloader
+from NVIDIAPretrainedWeightDownloader import NVIDIAPretrainedWeightDownloader
 from SquadDownloader import SquadDownloader
+from WikiDownloader import WikiDownloader
 
 
 class Downloader:
-
     def __init__(self, dataset_name, save_path):
         self.dataset_name = dataset_name
         self.save_path = save_path
 
     def download(self):
-        if self.dataset_name == 'bookscorpus':
+        if self.dataset_name == "bookscorpus":
             self.download_bookscorpus()
 
-        elif self.dataset_name == 'wikicorpus_en':
-            self.download_wikicorpus('en')
+        elif self.dataset_name == "wikicorpus_en":
+            self.download_wikicorpus("en")
 
-        elif self.dataset_name == 'wikicorpus_zh':
-            self.download_wikicorpus('zh')
+        elif self.dataset_name == "wikicorpus_zh":
+            self.download_wikicorpus("zh")
 
-        elif self.dataset_name == 'google_pretrained_weights':
+        elif self.dataset_name == "google_pretrained_weights":
             self.download_google_pretrained_weights()
 
-        elif self.dataset_name == 'nvidia_pretrained_weights':
+        elif self.dataset_name == "nvidia_pretrained_weights":
             self.download_nvidia_pretrained_weights()
 
-        elif self.dataset_name in {'mrpc', 'sst-2'}:
+        elif self.dataset_name in {"mrpc", "sst-2"}:
             self.download_glue(self.dataset_name)
 
-        elif self.dataset_name == 'squad':
+        elif self.dataset_name == "squad":
             self.download_squad()
 
-        elif self.dataset_name == 'all':
+        elif self.dataset_name == "all":
             self.download_bookscorpus()
-            self.download_wikicorpus('en')
-            self.download_wikicorpus('zh')
+            self.download_wikicorpus("en")
+            self.download_wikicorpus("zh")
             self.download_google_pretrained_weights()
             self.download_nvidia_pretrained_weights()
-            self.download_glue('mrpc')
-            self.download_glue('sst-2')
+            self.download_glue("mrpc")
+            self.download_glue("sst-2")
             self.download_squad()
 
         else:
             print(self.dataset_name)
-            assert False, 'Unknown dataset_name provided to downloader'
+            assert False, "Unknown dataset_name provided to downloader"
 
     def download_bookscorpus(self):
         downloader = BooksDownloader(self.save_path)

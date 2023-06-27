@@ -19,11 +19,12 @@ based around UNet.
 
 """
 import tensorflow as tf
-from model.layers import output_block, upsample_block, bottleneck, downsample_block, input_block
+from model.layers import (bottleneck, downsample_block, input_block,
+                          output_block, upsample_block)
 
 
-def unet_v1(features,  mode):
-    """ U-Net: Convolutional Networks for Biomedical Image Segmentation
+def unet_v1(features, mode):
+    """U-Net: Convolutional Networks for Biomedical Image Segmentation
 
     Source:
         https://arxiv.org/pdf/1505.04597
@@ -43,8 +44,9 @@ def unet_v1(features,  mode):
     out = bottleneck(out, filters=1024, mode=mode)
 
     for idx, filters in enumerate([512, 256, 128]):
-        out = upsample_block(out,
-                             residual_input=skip_connections.pop(),
-                             filters=filters,
-                             idx=idx)
-    return output_block(out, residual_input=skip_connections.pop(), filters=64, n_classes=2)
+        out = upsample_block(
+            out, residual_input=skip_connections.pop(), filters=filters, idx=idx
+        )
+    return output_block(
+        out, residual_input=skip_connections.pop(), filters=64, n_classes=2
+    )

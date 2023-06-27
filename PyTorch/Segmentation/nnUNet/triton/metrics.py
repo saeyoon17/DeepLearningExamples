@@ -1,7 +1,6 @@
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-
 from triton.deployment_toolkit.core import BaseMetricsCalculator
 
 
@@ -16,7 +15,7 @@ class MetricsCalculator(BaseMetricsCalculator):
     ) -> Dict[str, float]:
         y_pred = y_pred["OUTPUT__0"]
         y_true = y_real["OUTPUT__0"]
-        
+
         n_examples = y_pred.shape[0]
         nclass = max(np.max(y_pred), np.max(y_true))
         dice = np.zeros((nclass,))
@@ -26,7 +25,9 @@ class MetricsCalculator(BaseMetricsCalculator):
                     # no foreground class
                     dice[c] += 1 if not (y_pred[i] == c).any() else 0
                     continue
-                true_pos, false_neg, false_pos = self.get_stats(y_pred[i], y_true[i], c + 1)
+                true_pos, false_neg, false_pos = self.get_stats(
+                    y_pred[i], y_true[i], c + 1
+                )
                 denom = 2 * true_pos + false_neg + false_pos
                 dice[c] += 2 * true_pos / denom if denom != 0 else 0.0
 

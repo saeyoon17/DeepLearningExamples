@@ -22,36 +22,35 @@ import logging
 import os
 from typing import Dict, Optional, Tuple
 
-from utils import log
 from file_utils import CONFIG_NAME, cached_path, hf_bucket_url, is_remote_url
-
+from utils import log
 
 logger = logging.getLogger(__name__)
 
 
 class PretrainedConfig(object):
-    r""" Base class for all configuration classes.
-        Handles a few parameters common to all models' configurations as well as methods for loading/downloading/saving configurations.
+    r"""Base class for all configuration classes.
+    Handles a few parameters common to all models' configurations as well as methods for loading/downloading/saving configurations.
 
-        Note:
-            A configuration file can be loaded and saved to disk. Loading the configuration file and using this file to initialize a model does **not** load the model weights.
-            It only affects the model's configuration.
+    Note:
+        A configuration file can be loaded and saved to disk. Loading the configuration file and using this file to initialize a model does **not** load the model weights.
+        It only affects the model's configuration.
 
-        Class attributes (overridden by derived classes):
-            - ``pretrained_config_archive_map``: a python ``dict`` with `shortcut names` (string) as keys and `url` (string) of associated pretrained model configurations as values.
-            - ``model_type``: a string that identifies the model type, that we serialize into the JSON file, and that we use to recreate the correct object in :class:`~transformers.AutoConfig`.
+    Class attributes (overridden by derived classes):
+        - ``pretrained_config_archive_map``: a python ``dict`` with `shortcut names` (string) as keys and `url` (string) of associated pretrained model configurations as values.
+        - ``model_type``: a string that identifies the model type, that we serialize into the JSON file, and that we use to recreate the correct object in :class:`~transformers.AutoConfig`.
 
-        Args:
-            finetuning_task (:obj:`string` or :obj:`None`, `optional`, defaults to :obj:`None`):
-                Name of the task used to fine-tune the model. This can be used when converting from an original (TensorFlow or PyTorch) checkpoint.
-            num_labels (:obj:`int`, `optional`, defaults to `2`):
-                Number of classes to use when the model is a classification model (sequences/tokens)
-            output_attentions (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Should the model returns attentions weights.
-            output_hidden_states (:obj:`string`, `optional`, defaults to :obj:`False`):
-                Should the model returns all hidden-states.
-            torchscript (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Is the model used with Torchscript (for PyTorch models).
+    Args:
+        finetuning_task (:obj:`string` or :obj:`None`, `optional`, defaults to :obj:`None`):
+            Name of the task used to fine-tune the model. This can be used when converting from an original (TensorFlow or PyTorch) checkpoint.
+        num_labels (:obj:`int`, `optional`, defaults to `2`):
+            Number of classes to use when the model is a classification model (sequences/tokens)
+        output_attentions (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            Should the model returns attentions weights.
+        output_hidden_states (:obj:`string`, `optional`, defaults to :obj:`False`):
+            Should the model returns all hidden-states.
+        torchscript (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            Is the model used with Torchscript (for PyTorch models).
     """
     pretrained_config_archive_map = {}  # type: Dict[str, str]
     model_type = ""  # type: str
@@ -61,7 +60,9 @@ class PretrainedConfig(object):
         self.output_attentions = kwargs.pop("output_attentions", False)
         self.output_hidden_states = kwargs.pop("output_hidden_states", False)
         self.output_past = kwargs.pop("output_past", True)  # Not used by all models
-        self.torchscript = kwargs.pop("torchscript", False)  # Only used by PyTorch models
+        self.torchscript = kwargs.pop(
+            "torchscript", False
+        )  # Only used by PyTorch models
         self.use_bfloat16 = kwargs.pop("use_bfloat16", False)
         self.pruned_heads = kwargs.pop("pruned_heads", {})
 
@@ -88,9 +89,13 @@ class PretrainedConfig(object):
         self.architectures = kwargs.pop("architectures", None)
         self.finetuning_task = kwargs.pop("finetuning_task", None)
         self.num_labels = kwargs.pop("num_labels", 2)
-        self.id2label = kwargs.pop("id2label", {i: "LABEL_{}".format(i) for i in range(self.num_labels)})
+        self.id2label = kwargs.pop(
+            "id2label", {i: "LABEL_{}".format(i) for i in range(self.num_labels)}
+        )
         self.id2label = dict((int(key), value) for key, value in self.id2label.items())
-        self.label2id = kwargs.pop("label2id", dict(zip(self.id2label.values(), self.id2label.keys())))
+        self.label2id = kwargs.pop(
+            "label2id", dict(zip(self.id2label.values(), self.id2label.keys()))
+        )
         self.label2id = dict((key, int(value)) for key, value in self.label2id.items())
 
         # Tokenizer arguments TODO: eventually tokenizer and models should share the same config
@@ -146,7 +151,9 @@ class PretrainedConfig(object):
         log("Configuration saved in {}".format(output_config_file))
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path, **kwargs) -> "PretrainedConfig":
+    def from_pretrained(
+        cls, pretrained_model_name_or_path, **kwargs
+    ) -> "PretrainedConfig":
         r"""
 
         Instantiate a :class:`~transformers.PretrainedConfig` (or a derived class) from a pre-trained model configuration.
@@ -201,12 +208,17 @@ class PretrainedConfig(object):
             assert unused_kwargs == {'foo': False}
 
         """
-        config_dict, kwargs = cls.get_config_dict(pretrained_model_name_or_path, **kwargs)
+        config_dict, kwargs = cls.get_config_dict(
+            pretrained_model_name_or_path, **kwargs
+        )
         return cls.from_dict(config_dict, **kwargs)
 
     @classmethod
     def get_config_dict(
-        cls, pretrained_model_name_or_path: str, pretrained_config_archive_map: Optional[Dict] = None, **kwargs
+        cls,
+        pretrained_model_name_or_path: str,
+        pretrained_config_archive_map: Optional[Dict] = None,
+        **kwargs
     ) -> Tuple[Dict, Dict]:
         """
         From a `pretrained_model_name_or_path`, resolve to a dictionary of parameters, to be used
@@ -235,10 +247,14 @@ class PretrainedConfig(object):
             config_file = pretrained_config_archive_map[pretrained_model_name_or_path]
         elif os.path.isdir(pretrained_model_name_or_path):
             config_file = os.path.join(pretrained_model_name_or_path, CONFIG_NAME)
-        elif os.path.isfile(pretrained_model_name_or_path) or is_remote_url(pretrained_model_name_or_path):
+        elif os.path.isfile(pretrained_model_name_or_path) or is_remote_url(
+            pretrained_model_name_or_path
+        ):
             config_file = pretrained_model_name_or_path
         else:
-            config_file = hf_bucket_url(pretrained_model_name_or_path, postfix=CONFIG_NAME)
+            config_file = hf_bucket_url(
+                pretrained_model_name_or_path, postfix=CONFIG_NAME
+            )
 
         try:
             # Load from URL or cache if already cached
@@ -277,14 +293,20 @@ class PretrainedConfig(object):
             msg = (
                 "Couldn't reach server at '{}' to download configuration file or "
                 "configuration file is not a valid JSON file. "
-                "Please check network or file content here: {}.".format(config_file, resolved_config_file)
+                "Please check network or file content here: {}.".format(
+                    config_file, resolved_config_file
+                )
             )
             raise EnvironmentError(msg)
 
         if resolved_config_file == config_file:
             log("loading configuration file {}".format(config_file))
         else:
-            log("loading configuration file {} from cache at {}".format(config_file, resolved_config_file))
+            log(
+                "loading configuration file {} from cache at {}".format(
+                    config_file, resolved_config_file
+                )
+            )
 
         return config_dict, kwargs
 
@@ -309,7 +331,9 @@ class PretrainedConfig(object):
         config = cls(**config_dict)
 
         if hasattr(config, "pruned_heads"):
-            config.pruned_heads = dict((int(key), value) for key, value in config.pruned_heads.items())
+            config.pruned_heads = dict(
+                (int(key), value) for key, value in config.pruned_heads.items()
+            )
 
         # Update config with kwargs if needed
         to_remove = []
@@ -426,61 +450,61 @@ BERT_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 
 class BertConfig(PretrainedConfig):
     r"""
-        This is the configuration class to store the configuration of a :class:`~transformers.BertModel`.
-        It is used to instantiate an BERT model according to the specified arguments, defining the model
-        architecture. Instantiating a configuration with the defaults will yield a similar configuration to that of
-        the BERT `bert-base-uncased <https://huggingface.co/bert-base-uncased>`__ architecture.
+    This is the configuration class to store the configuration of a :class:`~transformers.BertModel`.
+    It is used to instantiate an BERT model according to the specified arguments, defining the model
+    architecture. Instantiating a configuration with the defaults will yield a similar configuration to that of
+    the BERT `bert-base-uncased <https://huggingface.co/bert-base-uncased>`__ architecture.
 
-        Configuration objects inherit from  :class:`~transformers.PretrainedConfig` and can be used
-        to control the model outputs. Read the documentation from  :class:`~transformers.PretrainedConfig`
-        for more information.
+    Configuration objects inherit from  :class:`~transformers.PretrainedConfig` and can be used
+    to control the model outputs. Read the documentation from  :class:`~transformers.PretrainedConfig`
+    for more information.
 
 
-        Args:
-            vocab_size (:obj:`int`, optional, defaults to 30522):
-                Vocabulary size of the BERT model. Defines the different tokens that
-                can be represented by the `inputs_ids` passed to the forward method of :class:`~transformers.BertModel`.
-            hidden_size (:obj:`int`, optional, defaults to 768):
-                Dimensionality of the encoder layers and the pooler layer.
-            num_hidden_layers (:obj:`int`, optional, defaults to 12):
-                Number of hidden layers in the Transformer encoder.
-            num_attention_heads (:obj:`int`, optional, defaults to 12):
-                Number of attention heads for each attention layer in the Transformer encoder.
-            intermediate_size (:obj:`int`, optional, defaults to 3072):
-                Dimensionality of the "intermediate" (i.e., feed-forward) layer in the Transformer encoder.
-            hidden_act (:obj:`str` or :obj:`function`, optional, defaults to "gelu"):
-                The non-linear activation function (function or string) in the encoder and pooler.
-                If string, "gelu", "relu", "swish" and "gelu_new" are supported.
-            hidden_dropout_prob (:obj:`float`, optional, defaults to 0.1):
-                The dropout probabilitiy for all fully connected layers in the embeddings, encoder, and pooler.
-            attention_probs_dropout_prob (:obj:`float`, optional, defaults to 0.1):
-                The dropout ratio for the attention probabilities.
-            max_position_embeddings (:obj:`int`, optional, defaults to 512):
-                The maximum sequence length that this model might ever be used with.
-                Typically set this to something large just in case (e.g., 512 or 1024 or 2048).
-            type_vocab_size (:obj:`int`, optional, defaults to 2):
-                The vocabulary size of the `token_type_ids` passed into :class:`~transformers.BertModel`.
-            initializer_range (:obj:`float`, optional, defaults to 0.02):
-                The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
-            layer_norm_eps (:obj:`float`, optional, defaults to 1e-12):
-                The epsilon used by the layer normalization layers.
+    Args:
+        vocab_size (:obj:`int`, optional, defaults to 30522):
+            Vocabulary size of the BERT model. Defines the different tokens that
+            can be represented by the `inputs_ids` passed to the forward method of :class:`~transformers.BertModel`.
+        hidden_size (:obj:`int`, optional, defaults to 768):
+            Dimensionality of the encoder layers and the pooler layer.
+        num_hidden_layers (:obj:`int`, optional, defaults to 12):
+            Number of hidden layers in the Transformer encoder.
+        num_attention_heads (:obj:`int`, optional, defaults to 12):
+            Number of attention heads for each attention layer in the Transformer encoder.
+        intermediate_size (:obj:`int`, optional, defaults to 3072):
+            Dimensionality of the "intermediate" (i.e., feed-forward) layer in the Transformer encoder.
+        hidden_act (:obj:`str` or :obj:`function`, optional, defaults to "gelu"):
+            The non-linear activation function (function or string) in the encoder and pooler.
+            If string, "gelu", "relu", "swish" and "gelu_new" are supported.
+        hidden_dropout_prob (:obj:`float`, optional, defaults to 0.1):
+            The dropout probabilitiy for all fully connected layers in the embeddings, encoder, and pooler.
+        attention_probs_dropout_prob (:obj:`float`, optional, defaults to 0.1):
+            The dropout ratio for the attention probabilities.
+        max_position_embeddings (:obj:`int`, optional, defaults to 512):
+            The maximum sequence length that this model might ever be used with.
+            Typically set this to something large just in case (e.g., 512 or 1024 or 2048).
+        type_vocab_size (:obj:`int`, optional, defaults to 2):
+            The vocabulary size of the `token_type_ids` passed into :class:`~transformers.BertModel`.
+        initializer_range (:obj:`float`, optional, defaults to 0.02):
+            The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
+        layer_norm_eps (:obj:`float`, optional, defaults to 1e-12):
+            The epsilon used by the layer normalization layers.
 
-        Example::
+    Example::
 
-            from transformers import BertModel, BertConfig
+        from transformers import BertModel, BertConfig
 
-            # Initializing a BERT bert-base-uncased style configuration
-            configuration = BertConfig()
+        # Initializing a BERT bert-base-uncased style configuration
+        configuration = BertConfig()
 
-            # Initializing a model from the bert-base-uncased style configuration
-            model = BertModel(configuration)
+        # Initializing a model from the bert-base-uncased style configuration
+        model = BertModel(configuration)
 
-            # Accessing the model configuration
-            configuration = model.config
+        # Accessing the model configuration
+        configuration = model.config
 
-        Attributes:
-            pretrained_config_archive_map (Dict[str, str]):
-                A dictionary containing all the available pre-trained checkpoints.
+    Attributes:
+        pretrained_config_archive_map (Dict[str, str]):
+            A dictionary containing all the available pre-trained checkpoints.
     """
     pretrained_config_archive_map = BERT_PRETRAINED_CONFIG_ARCHIVE_MAP
     model_type = "bert"

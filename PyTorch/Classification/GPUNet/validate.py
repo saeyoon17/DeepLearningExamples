@@ -30,6 +30,7 @@
 import argparse
 import csv
 import glob
+import itertools
 import json
 import logging
 import os
@@ -37,36 +38,20 @@ import time
 from collections import OrderedDict
 from contextlib import suppress
 
-import itertools
 import dllogger
 import torch
 import torch.nn as nn
 import torch.nn.parallel
-from timm.data import (
-    RealLabelsImagenet,
-    create_dataset,
-    create_loader,
-    resolve_data_config,
-)
-from timm.models import (
-    apply_test_time_pool,
-    create_model,
-    is_model,
-    list_models,
-    load_checkpoint,
-)
-
-# GPUNet Integration
-from timm.models.registry import register_model
-from timm.utils import (  # , set_jit_fuser
-    AverageMeter,
-    accuracy,
-    natural_key,
-    setup_default_logging,
-)
-
 from configs.model_hub import get_configs, get_model_list
 from models.gpunet_builder import GPUNet_Builder
+from timm.data import (RealLabelsImagenet, create_dataset, create_loader,
+                       resolve_data_config)
+from timm.models import (apply_test_time_pool, create_model, is_model,
+                         list_models, load_checkpoint)
+# GPUNet Integration
+from timm.models.registry import register_model
+from timm.utils import (AverageMeter, accuracy, natural_key,  # , set_jit_fuser
+                        setup_default_logging)
 
 
 @register_model
@@ -519,8 +504,8 @@ def validate(args):
     original_log_path = log_path
     if os.path.exists(log_path):
         for i in itertools.count():
-            s_fname = original_log_path.split('.')
-            log_path = '.'.join(s_fname[:-1]) + f'_{i}.' + s_fname[-1]
+            s_fname = original_log_path.split(".")
+            log_path = ".".join(s_fname[:-1]) + f"_{i}." + s_fname[-1]
             if not os.path.exists(log_path):
                 break
     dllogger.init(
@@ -666,7 +651,7 @@ def validate(args):
         img_size=data_config["input_size"][-1],
         cropt_pct=crop_pct,
         interpolation=data_config["interpolation"],
-        average_ips = len(dataset)/batch_time.sum
+        average_ips=len(dataset) / batch_time.sum,
     )
 
     _logger.info(
@@ -756,8 +741,16 @@ def main():
             write_results(results_file, results)
     else:
         results = validate(args)
-    
-    dllogger.log(step=tuple(), data={"average_ips": results["average_ips"], "top1": results["top1"], "top5": results["top5"]}, verbosity=1)
+
+    dllogger.log(
+        step=tuple(),
+        data={
+            "average_ips": results["average_ips"],
+            "top1": results["top1"],
+            "top5": results["top5"],
+        },
+        verbosity=1,
+    )
     dllogger.flush()
     # output results in JSON to stdout w/ delimiter for runner script
     print(f"--result\n{json.dumps(results, indent=4)}")

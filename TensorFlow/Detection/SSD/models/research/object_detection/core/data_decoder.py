@@ -18,24 +18,24 @@
 Data decoders decode the input data and return a dictionary of tensors keyed by
 the entries in core.reader.Fields.
 """
-from abc import ABCMeta
-from abc import abstractmethod
+from abc import ABCMeta, abstractmethod
 
 
 class DataDecoder(object):
-  """Interface for data decoders."""
-  __metaclass__ = ABCMeta
+    """Interface for data decoders."""
 
-  @abstractmethod
-  def decode(self, data):
-    """Return a single image and associated labels.
+    __metaclass__ = ABCMeta
 
-    Args:
-      data: a string tensor holding a serialized protocol buffer corresponding
-        to data for a single image.
+    @abstractmethod
+    def decode(self, data):
+        """Return a single image and associated labels.
 
-    Returns:
-      tensor_dict: a dictionary containing tensors. Possible keys are defined in
-          reader.Fields.
-    """
-    pass
+        Args:
+          data: a string tensor holding a serialized protocol buffer corresponding
+            to data for a single image.
+
+        Returns:
+          tensor_dict: a dictionary containing tensors. Possible keys are defined in
+              reader.Fields.
+        """
+        pass

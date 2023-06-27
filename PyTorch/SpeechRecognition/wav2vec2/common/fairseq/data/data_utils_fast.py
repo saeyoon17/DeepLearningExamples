@@ -58,24 +58,30 @@ def batch_by_size_vec(indices, num_tokens_vec, max_tokens, max_sentences, bsz_mu
         #
         # Important: For the sake of performance try to avoid using function calls within this loop.
 
-        tail_max_tokens = tail_max_tokens \
-                            if tail_max_tokens > num_tokens_view[pos] \
-                            else num_tokens_view[pos]
+        tail_max_tokens = (
+            tail_max_tokens
+            if tail_max_tokens > num_tokens_view[pos]
+            else num_tokens_view[pos]
+        )
         new_batch_end = pos + 1
-        new_batch_max_tokens = batch_max_tokens \
-                                if batch_max_tokens > tail_max_tokens \
-                                else tail_max_tokens
+        new_batch_max_tokens = (
+            batch_max_tokens if batch_max_tokens > tail_max_tokens else tail_max_tokens
+        )
         new_batch_sentences = new_batch_end - batch_start
         new_batch_num_tokens = new_batch_sentences * new_batch_max_tokens
 
-        overflow = (new_batch_sentences > max_sentences > 0 or
-                    new_batch_num_tokens > max_tokens > 0)
-        size_matches_with_bsz_mult = (new_batch_sentences < bsz_mult or
-                                      new_batch_sentences % bsz_mult == 0)
+        overflow = (
+            new_batch_sentences > max_sentences > 0
+            or new_batch_num_tokens > max_tokens > 0
+        )
+        size_matches_with_bsz_mult = (
+            new_batch_sentences < bsz_mult or new_batch_sentences % bsz_mult == 0
+        )
 
         if overflow:
-            tail_num_tokens = tail_max_tokens * \
-                    (new_batch_end - batches_ends_view[batches_count])
+            tail_num_tokens = tail_max_tokens * (
+                new_batch_end - batches_ends_view[batches_count]
+            )
             tail_overflow = tail_num_tokens > max_tokens > 0
             # In case of a tail overflow finalize two batches
             if tail_overflow:

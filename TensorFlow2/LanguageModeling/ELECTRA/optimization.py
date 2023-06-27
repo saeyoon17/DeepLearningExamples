@@ -15,14 +15,12 @@
 # ==============================================================================
 """Functions and classes related to optimization (weight updates)."""
 
-import re
 import collections
+import re
+
 import tensorflow as tf
 import tensorflow_addons.optimizers as tfa_optimizers
-
-from tensorflow.python.ops import control_flow_ops
-from tensorflow.python.ops import math_ops
-from tensorflow.python.ops import state_ops
+from tensorflow.python.ops import control_flow_ops, math_ops, state_ops
 from tensorflow.python.training import training_ops
 from utils import log
 
@@ -30,7 +28,14 @@ from utils import log
 class WarmUp(tf.keras.optimizers.schedules.LearningRateSchedule):
     """Applys a warmup schedule on a given learning rate decay schedule."""
 
-    def __init__(self, initial_learning_rate, decay_schedule_fn, warmup_steps, power=1.0, name=None):
+    def __init__(
+        self,
+        initial_learning_rate,
+        decay_schedule_fn,
+        warmup_steps,
+        power=1.0,
+        name=None,
+    ):
         super().__init__()
         self.initial_learning_rate = initial_learning_rate
         self.warmup_steps = warmup_steps
@@ -45,7 +50,9 @@ class WarmUp(tf.keras.optimizers.schedules.LearningRateSchedule):
             global_step_float = tf.cast(step, tf.float32)
             warmup_steps_float = tf.cast(self.warmup_steps, tf.float32)
             warmup_percent_done = global_step_float / warmup_steps_float
-            warmup_learning_rate = self.initial_learning_rate * tf.math.pow(warmup_percent_done, self.power)
+            warmup_learning_rate = self.initial_learning_rate * tf.math.pow(
+                warmup_percent_done, self.power
+            )
             return tf.cond(
                 global_step_float < warmup_steps_float,
                 lambda: warmup_learning_rate,
@@ -63,17 +70,34 @@ class WarmUp(tf.keras.optimizers.schedules.LearningRateSchedule):
         }
 
 
-def create_optimizer(init_lr, num_train_steps, num_warmup_steps, weight_decay_rate=0.01,
-                     layerwise_lr_decay=-1, n_transformer_layers=None, clip_norm=1.0,
-                     optimizer="adam", skip_adaptive=False, power=1.0, beta_1=0.9, beta_2=0.999, end_lr=0.0):
+def create_optimizer(
+    init_lr,
+    num_train_steps,
+    num_warmup_steps,
+    weight_decay_rate=0.01,
+    layerwise_lr_decay=-1,
+    n_transformer_layers=None,
+    clip_norm=1.0,
+    optimizer="adam",
+    skip_adaptive=False,
+    power=1.0,
+    beta_1=0.9,
+    beta_2=0.999,
+    end_lr=0.0,
+):
     """Creates an optimizer with learning rate schedule."""
     # Implements linear decay of the learning rate.
     learning_rate_fn = tf.keras.optimizers.schedules.PolynomialDecay(
-        initial_learning_rate=init_lr, decay_steps=num_train_steps - num_warmup_steps, end_learning_rate=end_lr, power=power
+        initial_learning_rate=init_lr,
+        decay_steps=num_train_steps - num_warmup_steps,
+        end_learning_rate=end_lr,
+        power=power,
     )
     if num_warmup_steps:
         learning_rate_fn = WarmUp(
-            initial_learning_rate=init_lr, decay_schedule_fn=learning_rate_fn, warmup_steps=num_warmup_steps
+            initial_learning_rate=init_lr,
+            decay_schedule_fn=learning_rate_fn,
+            warmup_steps=num_warmup_steps,
         )
     layer_decay = None
     if layerwise_lr_decay > 0 and n_transformer_layers is not None:
@@ -96,7 +120,7 @@ def create_optimizer(init_lr, num_train_steps, num_warmup_steps, weight_decay_ra
         else:
             skip_list = ["None"]
         log("Skip list for LAMB {}".format(skip_list))
-        
+
         optimizer = tfa_optimizers.LAMB(
             learning_rate=learning_rate_fn,
             weight_decay_rate=weight_decay_rate,
@@ -113,31 +137,33 @@ def create_optimizer(init_lr, num_train_steps, num_warmup_steps, weight_decay_ra
 class AdamWeightDecay(tf.keras.optimizers.Adam):
     """Adam enables L2 weight decay and clip_by_global_norm on gradients.
 
-  Just adding the square of the weights to the loss function is *not* the
-  correct way of using L2 regularization/weight decay with Adam, since that will
-  interact with the m and v parameters in strange ways.
+    Just adding the square of the weights to the loss function is *not* the
+    correct way of using L2 regularization/weight decay with Adam, since that will
+    interact with the m and v parameters in strange ways.
 
-  Instead we want ot decay the weights in a manner that doesn't interact with
-  the m/v parameters. This is equivalent to adding the square of the weights to
-  the loss with plain (non-momentum) SGD.
-  """
+    Instead we want ot decay the weights in a manner that doesn't interact with
+    the m/v parameters. This is equivalent to adding the square of the weights to
+    the loss with plain (non-momentum) SGD.
+    """
 
     def __init__(
-            self,
-            learning_rate=0.001,
-            beta_1=0.9,
-            beta_2=0.999,
-            epsilon=1e-7,
-            amsgrad=False,
-            weight_decay_rate=0.0,
-            include_in_weight_decay=None,
-            exclude_from_weight_decay=None,
-            layer_decay=None,
-            clip_norm=1.0,
-            name="AdamWeightDecay",
-            **kwargs
+        self,
+        learning_rate=0.001,
+        beta_1=0.9,
+        beta_2=0.999,
+        epsilon=1e-7,
+        amsgrad=False,
+        weight_decay_rate=0.0,
+        include_in_weight_decay=None,
+        exclude_from_weight_decay=None,
+        layer_decay=None,
+        clip_norm=1.0,
+        name="AdamWeightDecay",
+        **kwargs
     ):
-        super().__init__(learning_rate, beta_1, beta_2, epsilon, amsgrad, name, **kwargs)
+        super().__init__(
+            learning_rate, beta_1, beta_2, epsilon, amsgrad, name, **kwargs
+        )
         self.weight_decay_rate = weight_decay_rate
         self._include_in_weight_decay = include_in_weight_decay
         self._exclude_from_weight_decay = exclude_from_weight_decay
@@ -152,22 +178,30 @@ class AdamWeightDecay(tf.keras.optimizers.Adam):
 
     def _prepare_local(self, var_device, var_dtype, apply_state):
         super()._prepare_local(var_device, var_dtype, apply_state)
-        apply_state["weight_decay_rate"] = tf.constant(self.weight_decay_rate, name="adam_weight_decay_rate")
+        apply_state["weight_decay_rate"] = tf.constant(
+            self.weight_decay_rate, name="adam_weight_decay_rate"
+        )
 
     def _decay_weights_op(self, var, learning_rate, apply_state):
         do_decay = self._do_use_weight_decay(var.name)
         if do_decay:
             return var.assign_sub(
-                learning_rate * var * apply_state["weight_decay_rate"], use_locking=self._use_locking
+                learning_rate * var * apply_state["weight_decay_rate"],
+                use_locking=self._use_locking,
             )
         return tf.no_op()
 
-    def apply_gradients(self, grads_and_vars, name=None, experimental_aggregate_gradients=True):
+    def apply_gradients(
+        self, grads_and_vars, name=None, experimental_aggregate_gradients=True
+    ):
         grads, tvars = list(zip(*grads_and_vars))
         # Being done in train_step
         ##(grads, _) = tf.clip_by_global_norm(grads, clip_norm=self.clip_norm)
-        return super().apply_gradients(zip(grads, tvars), name=name,
-                                       experimental_aggregate_gradients=experimental_aggregate_gradients)
+        return super().apply_gradients(
+            zip(grads, tvars),
+            name=name,
+            experimental_aggregate_gradients=experimental_aggregate_gradients,
+        )
 
     def _get_lr(self, var, apply_state):
         """Retrieves the learning rate with the given state."""
@@ -201,37 +235,39 @@ class AdamWeightDecay(tf.keras.optimizers.Adam):
         lr_t, _, coefficients, kwargs = self._get_lr(var, apply_state)
         decay = self._decay_weights_op(var, lr_t, apply_state)
         with tf.control_dependencies([decay]):
-            m = self.get_slot(var, 'm')
-            v = self.get_slot(var, 'v')
+            m = self.get_slot(var, "m")
+            v = self.get_slot(var, "v")
 
             if not self.amsgrad:
                 return training_ops.resource_apply_adam(
                     var.handle,
                     m.handle,
                     v.handle,
-                    coefficients['beta_1_power'],
-                    coefficients['beta_2_power'],
+                    coefficients["beta_1_power"],
+                    coefficients["beta_2_power"],
                     lr_t,
-                    coefficients['beta_1_t'],
-                    coefficients['beta_2_t'],
-                    coefficients['epsilon'],
+                    coefficients["beta_1_t"],
+                    coefficients["beta_2_t"],
+                    coefficients["epsilon"],
                     grad,
-                    use_locking=self._use_locking)
+                    use_locking=self._use_locking,
+                )
             else:
-                vhat = self.get_slot(var, 'vhat')
+                vhat = self.get_slot(var, "vhat")
                 return training_ops.resource_apply_adam_with_amsgrad(
                     var.handle,
                     m.handle,
                     v.handle,
                     vhat.handle,
-                    coefficients['beta_1_power'],
-                    coefficients['beta_2_power'],
+                    coefficients["beta_1_power"],
+                    coefficients["beta_2_power"],
                     lr_t,
-                    coefficients['beta_1_t'],
-                    coefficients['beta_2_t'],
-                    coefficients['epsilon'],
+                    coefficients["beta_1_t"],
+                    coefficients["beta_2_t"],
+                    coefficients["epsilon"],
                     grad,
-                    use_locking=self._use_locking)
+                    use_locking=self._use_locking,
+                )
 
     def _resource_apply_sparse(self, grad, var, indices, apply_state=None):
         # print("Sparse: {} {} {}".format(var.name, var.device, var.dtype.base_dtype))
@@ -239,38 +275,44 @@ class AdamWeightDecay(tf.keras.optimizers.Adam):
         decay = self._decay_weights_op(var, lr_t, apply_state)
         with tf.control_dependencies([decay]):
             # m_t = beta1 * m + (1 - beta1) * g_t
-            m = self.get_slot(var, 'm')
-            m_scaled_g_values = grad * coefficients['one_minus_beta_1_t']
-            m_t = state_ops.assign(m, m * coefficients['beta_1_t'],
-                                   use_locking=self._use_locking)
+            m = self.get_slot(var, "m")
+            m_scaled_g_values = grad * coefficients["one_minus_beta_1_t"]
+            m_t = state_ops.assign(
+                m, m * coefficients["beta_1_t"], use_locking=self._use_locking
+            )
             with tf.control_dependencies([m_t]):
                 m_t = self._resource_scatter_add(m, indices, m_scaled_g_values)
 
             # v_t = beta2 * v + (1 - beta2) * (g_t * g_t)
-            v = self.get_slot(var, 'v')
-            v_scaled_g_values = (grad * grad) * coefficients['one_minus_beta_2_t']
-            v_t = state_ops.assign(v, v * coefficients['beta_2_t'],
-                                   use_locking=self._use_locking)
+            v = self.get_slot(var, "v")
+            v_scaled_g_values = (grad * grad) * coefficients["one_minus_beta_2_t"]
+            v_t = state_ops.assign(
+                v, v * coefficients["beta_2_t"], use_locking=self._use_locking
+            )
             with tf.control_dependencies([v_t]):
                 v_t = self._resource_scatter_add(v, indices, v_scaled_g_values)
 
             if not self.amsgrad:
                 v_sqrt = math_ops.sqrt(v_t)
                 var_update = state_ops.assign_sub(
-                    var, lr * m_t / (v_sqrt + coefficients['epsilon']),
-                    use_locking=self._use_locking)
+                    var,
+                    lr * m_t / (v_sqrt + coefficients["epsilon"]),
+                    use_locking=self._use_locking,
+                )
                 return control_flow_ops.group(*[var_update, m_t, v_t])
             else:
-                v_hat = self.get_slot(var, 'vhat')
+                v_hat = self.get_slot(var, "vhat")
                 v_hat_t = math_ops.maximum(v_hat, v_t)
                 with tf.control_dependencies([v_hat_t]):
                     v_hat_t = state_ops.assign(
-                        v_hat, v_hat_t, use_locking=self._use_locking)
+                        v_hat, v_hat_t, use_locking=self._use_locking
+                    )
                 v_hat_sqrt = math_ops.sqrt(v_hat_t)
                 var_update = state_ops.assign_sub(
                     var,
-                    lr * m_t / (v_hat_sqrt + coefficients['epsilon']),
-                    use_locking=self._use_locking)
+                    lr * m_t / (v_hat_sqrt + coefficients["epsilon"]),
+                    use_locking=self._use_locking,
+                )
                 return control_flow_ops.group(*[var_update, m_t, v_t, v_hat_t])
 
     def get_config(self):
@@ -303,7 +345,10 @@ class GradientAccumulator(object):
         """Initializes the accumulator."""
         self._gradients = []
         self._accum_steps = tf.Variable(
-            initial_value=0, dtype=tf.int64, trainable=False, aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA
+            initial_value=0,
+            dtype=tf.int64,
+            trainable=False,
+            aggregation=tf.VariableAggregation.ONLY_FIRST_REPLICA,
         )
 
     @property
@@ -315,7 +360,8 @@ class GradientAccumulator(object):
     def gradients(self):
         """The accumulated gradients."""
         return list(
-            gradient.value() if gradient is not None else gradient for gradient in self._get_replica_gradients()
+            gradient.value() if gradient is not None else gradient
+            for gradient in self._get_replica_gradients()
         )
 
     def __call__(self, gradients):
@@ -323,13 +369,18 @@ class GradientAccumulator(object):
         if not self._gradients:
             self._gradients.extend(
                 [
-                    tf.Variable(tf.zeros_like(gradient), trainable=False) if gradient is not None else gradient
+                    tf.Variable(tf.zeros_like(gradient), trainable=False)
+                    if gradient is not None
+                    else gradient
                     for gradient in gradients
                 ]
             )
 
         if len(gradients) != len(self._gradients):
-            raise ValueError("Expected %s gradients, but got %d" % (len(self._gradients), len(gradients)))
+            raise ValueError(
+                "Expected %s gradients, but got %d"
+                % (len(self._gradients), len(gradients))
+            )
 
         for accum_gradient, gradient in zip(self._get_replica_gradients(), gradients):
             if accum_gradient is not None and gradient is not None:
@@ -353,11 +404,16 @@ class GradientAccumulator(object):
             # current replica.
             replica_context = tf.distribute.get_replica_context()
 
-            if replica_context is None or tf.distribute.get_strategy().num_replicas_in_sync == 1:
+            if (
+                replica_context is None
+                or tf.distribute.get_strategy().num_replicas_in_sync == 1
+            ):
                 return self._gradients
 
             return (
-                gradient.device_map.select_for_current_replica(gradient.values, replica_context)
+                gradient.device_map.select_for_current_replica(
+                    gradient.values, replica_context
+                )
                 for gradient in self._gradients
                 if gradient is not None
             )
@@ -367,14 +423,16 @@ class GradientAccumulator(object):
 
 def _get_layer_decay(layer_decay, n_layers):
     """Have lower learning rates for layers closer to the input."""
-    key_to_depths = collections.OrderedDict({
-        "/embeddings/": 0,
-        "/embeddings_project/": 0,
-        "/start_logits/": n_layers + 2,
-        "/end_logits/": n_layers + 2,
-        "/answer_class/": n_layers + 2,
-        "/qa_outputs/": n_layers + 2,
-    })
+    key_to_depths = collections.OrderedDict(
+        {
+            "/embeddings/": 0,
+            "/embeddings_project/": 0,
+            "/start_logits/": n_layers + 2,
+            "/end_logits/": n_layers + 2,
+            "/answer_class/": n_layers + 2,
+            "/qa_outputs/": n_layers + 2,
+        }
+    )
     for layer in range(n_layers):
         key_to_depths["encoder/layer_._" + str(layer) + "/"] = layer + 1
     return {

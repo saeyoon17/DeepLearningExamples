@@ -35,7 +35,8 @@ from .pipeline import Pipeline
 from .stages import Stage
 from .task import Experiment, Task
 from .triton import Triton
-from .utils import clean_directory, exec_command, format_env_key, format_env_value, get_result_path
+from .utils import (clean_directory, exec_command, format_env_key,
+                    format_env_value, get_result_path)
 
 
 class Executor:
@@ -96,7 +97,9 @@ class Executor:
             experiment.start()
 
             LOGGER.info("Running Triton Servers:")
-            log_file = self._workspace / task.logs_dir / f"triton-server-experiment-{idx}.log"
+            log_file = (
+                self._workspace / task.logs_dir / f"triton-server-experiment-{idx}.log"
+            )
             self._triton_container = self._triton_server_container(
                 triton_container_image=task.triton_container_image,
                 framework=task.framework,
@@ -144,7 +147,9 @@ class Executor:
                 f"{Fore.CYAN}================ Experiment: {idx}/{total_experiment} Finished ================{Fore.RESET}"
             )
             yield ExperimentResult(
-                status=Status(state=ExperimentStatus.SUCCEED, message="Experiment Succeed"),
+                status=Status(
+                    state=ExperimentStatus.SUCCEED, message="Experiment Succeed"
+                ),
                 experiment=experiment,
                 results=results,
             )
@@ -182,7 +187,9 @@ class Executor:
         checkpoint_variant = parameters.get("checkpoint_variant")
         if checkpoint_variant:
             del parameters["checkpoint_variant"]
-            environment["CHECKPOINT_DIR"] = task.checkpoints[checkpoint_variant].path.as_posix()
+            environment["CHECKPOINT_DIR"] = task.checkpoints[
+                checkpoint_variant
+            ].path.as_posix()
 
         if task.datasets_dir:
             environment["DATASETS_DIR"] = task.datasets_dir.as_posix()
@@ -222,7 +229,10 @@ class Executor:
             Container object
         """
         volumes = {
-            self._triton_models_repository_dir: {"bind": Paths.MODEL_REPOSITORY_PATH, "mode": "rw"},
+            self._triton_models_repository_dir: {
+                "bind": Paths.MODEL_REPOSITORY_PATH,
+                "mode": "rw",
+            },
             self._libraries_dir: {"bind": Paths.LIBRARIES_PATH, "mode": "rw"},
         }
 
@@ -259,7 +269,9 @@ class Executor:
 
         return container
 
-    def _save_results(self, task: Task, experiment: Experiment, stage_name: str, results: Dict) -> None:
+    def _save_results(
+        self, task: Task, experiment: Experiment, stage_name: str, results: Dict
+    ) -> None:
         """
         Update results for stage
 
@@ -313,10 +325,14 @@ class Executor:
         Returns:
             None
         """
-        LOGGER.info(f"{Fore.GREEN}================ Creating Artifacts Directories Started ================{Fore.RESET}")
+        LOGGER.info(
+            f"{Fore.GREEN}================ Creating Artifacts Directories Started ================{Fore.RESET}"
+        )
 
         if self._executor_workspace.is_dir():
-            LOGGER.info(f"Removing previous executor workspace: {self._executor_workspace}")
+            LOGGER.info(
+                f"Removing previous executor workspace: {self._executor_workspace}"
+            )
             shutil.rmtree(self._executor_workspace)
 
         for directory in [

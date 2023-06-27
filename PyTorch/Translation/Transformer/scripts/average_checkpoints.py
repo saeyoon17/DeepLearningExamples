@@ -2,9 +2,10 @@
 
 import argparse
 import collections
-import torch
 import os
 import re
+
+import torch
 
 
 def average_checkpoints(inputs):
@@ -25,22 +26,22 @@ def average_checkpoints(inputs):
         state = torch.load(
             f,
             map_location=(
-                lambda s, _: torch.serialization.default_restore_location(s, 'cpu')
+                lambda s, _: torch.serialization.default_restore_location(s, "cpu")
             ),
         )
         # Copies over the settings from the first checkpoint
         if new_state is None:
             new_state = state
 
-        model_params = state['model']
+        model_params = state["model"]
 
         model_params_keys = list(model_params.keys())
         if params_keys is None:
             params_keys = model_params_keys
         elif params_keys != model_params_keys:
             raise KeyError(
-                'For checkpoint {}, expected list of params: {}, '
-                'but found: {}'.format(f, params_keys, model_params_keys)
+                "For checkpoint {}, expected list of params: {}, "
+                "but found: {}".format(f, params_keys, model_params_keys)
             )
 
         for k in params_keys:
@@ -58,7 +59,7 @@ def average_checkpoints(inputs):
         for x in v:
             summed_v = summed_v + x if summed_v is not None else x
         averaged_params[k] = summed_v / len(v)
-    new_state['model'] = averaged_params
+    new_state["model"] = averaged_params
     return new_state
 
 
@@ -66,9 +67,9 @@ def last_n_checkpoints(paths, n, update_based):
     assert len(paths) == 1
     path = paths[0]
     if update_based:
-        pt_regexp = re.compile(r'checkpoint_\d+_(\d+)\.pt')
+        pt_regexp = re.compile(r"checkpoint_\d+_(\d+)\.pt")
     else:
-        pt_regexp = re.compile(r'checkpoint(\d+)\.pt')
+        pt_regexp = re.compile(r"checkpoint(\d+)\.pt")
     files = os.listdir(path)
 
     entries = []
@@ -77,41 +78,43 @@ def last_n_checkpoints(paths, n, update_based):
         if m is not None:
             entries.append((int(m.group(1)), m.group(0)))
     if len(entries) < n:
-        raise Exception('Found {} checkpoint files but need at least {}', len(entries), n)
+        raise Exception(
+            "Found {} checkpoint files but need at least {}", len(entries), n
+        )
     return [os.path.join(path, x[1]) for x in sorted(entries, reverse=True)[:n]]
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Tool to average the params of input checkpoints to '
-                    'produce a new checkpoint',
+        description="Tool to average the params of input checkpoints to "
+        "produce a new checkpoint",
     )
 
     parser.add_argument(
-        '--inputs',
+        "--inputs",
         required=True,
-        nargs='+',
-        help='Input checkpoint file paths.',
+        nargs="+",
+        help="Input checkpoint file paths.",
     )
     parser.add_argument(
-        '--output',
+        "--output",
         required=True,
-        metavar='FILE',
-        help='Write the new checkpoint containing the averaged weights to this '
-             'path.',
+        metavar="FILE",
+        help="Write the new checkpoint containing the averaged weights to this "
+        "path.",
     )
     num_group = parser.add_mutually_exclusive_group()
     num_group.add_argument(
-        '--num-epoch-checkpoints',
+        "--num-epoch-checkpoints",
         type=int,
-        help='if set, will try to find checkpoints with names checkpoint_xx.pt in the path specified by input, '
-             'and average last this many of them.',
+        help="if set, will try to find checkpoints with names checkpoint_xx.pt in the path specified by input, "
+        "and average last this many of them.",
     )
     num_group.add_argument(
-        '--num-update-checkpoints',
+        "--num-update-checkpoints",
         type=int,
-        help='if set, will try to find checkpoints with names checkpoint_ee_xx.pt in the path specified by input, '
-             'and average last this many of them.',
+        help="if set, will try to find checkpoints with names checkpoint_ee_xx.pt in the path specified by input, "
+        "and average last this many of them.",
     )
     args = parser.parse_args()
     print(args)
@@ -126,12 +129,12 @@ def main():
 
     if num is not None:
         args.inputs = last_n_checkpoints(args.inputs, num, is_update_based)
-        print('averaging checkpoints: ', args.inputs)
+        print("averaging checkpoints: ", args.inputs)
 
     new_state = average_checkpoints(args.inputs)
     torch.save(new_state, args.output)
-    print('Finished writing averaged checkpoint to {}.'.format(args.output))
+    print("Finished writing averaged checkpoint to {}.".format(args.output))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

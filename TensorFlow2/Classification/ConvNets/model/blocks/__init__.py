@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from model.blocks.conv2d_block import conv2d_block
-from model.blocks.mb_conv_block import mb_conv_block
 from model.blocks.fused_mb_conv_block import fused_mb_conv_block
+from model.blocks.mb_conv_block import mb_conv_block
 
-__all__ = ['conv2d_block', 'mb_conv_block','fused_mb_conv_block']
+__all__ = ["conv2d_block", "mb_conv_block", "fused_mb_conv_block"]

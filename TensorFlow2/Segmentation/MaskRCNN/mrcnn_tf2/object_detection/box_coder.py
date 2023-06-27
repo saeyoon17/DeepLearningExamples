@@ -29,14 +29,15 @@ from abc import ABCMeta, abstractmethod, abstractproperty
 import tensorflow as tf
 
 # Box coder types.
-FASTER_RCNN = 'faster_rcnn'
-KEYPOINT = 'keypoint'
-MEAN_STDDEV = 'mean_stddev'
-SQUARE = 'square'
+FASTER_RCNN = "faster_rcnn"
+KEYPOINT = "keypoint"
+MEAN_STDDEV = "mean_stddev"
+SQUARE = "square"
 
 
 class BoxCoder:
     """Abstract base class for box coder."""
+
     __metaclass__ = ABCMeta
 
     @abstractproperty
@@ -130,17 +131,14 @@ def batch_decode(encoded_boxes, box_coder, anchors):
     """
 
     if encoded_boxes.get_shape()[1].value != anchors.num_boxes_static():
-        raise ValueError('The number of anchors inferred from encoded_boxes'
-                         ' and anchors are inconsistent: shape[1] of encoded_boxes'
-                         ' %s should be equal to the number of anchors: %s.' %
-                         (
-                             encoded_boxes.get_shape()[1].value,
-                             anchors.num_boxes_static()
-                         )
-                         )
+        raise ValueError(
+            "The number of anchors inferred from encoded_boxes"
+            " and anchors are inconsistent: shape[1] of encoded_boxes"
+            " %s should be equal to the number of anchors: %s."
+            % (encoded_boxes.get_shape()[1].value, anchors.num_boxes_static())
+        )
 
-    decoded_boxes = tf.stack([
-        box_coder.decode(boxes, anchors).get()
-        for boxes in tf.unstack(encoded_boxes)
-    ])
+    decoded_boxes = tf.stack(
+        [box_coder.decode(boxes, anchors).get() for boxes in tf.unstack(encoded_boxes)]
+    )
     return decoded_boxes

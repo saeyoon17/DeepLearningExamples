@@ -23,9 +23,8 @@ import cupy
 import dask_cudf
 import pandas as pd
 import torch
-from tqdm import tqdm
-
 from syngen.utils.types import ColumnType
+from tqdm import tqdm
 
 
 def get_graph(df, src="src", dst="dst", from_dask=False):
@@ -140,7 +139,7 @@ def get_preproc_fn(name: str):
 
 
 def get_preproc_dict(feature_types: dict):
-    """Apply preprocessing functions to each column type specified in `feature_types` """
+    """Apply preprocessing functions to each column type specified in `feature_types`"""
     preproc_dict = {}
     for feat, type_ in feature_types.items():
         if type_ == ColumnType.CONTINUOUS:

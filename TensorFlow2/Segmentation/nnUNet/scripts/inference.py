@@ -19,19 +19,39 @@ from subprocess import call
 parser = ArgumentParser()
 parser.add_argument("--data", type=Path, required=True, help="Path to data")
 parser.add_argument("--task", type=str, default="01", help="Task code")
-parser.add_argument("--dim", type=int, required=True, choices=[2, 3], help="Dimension of UNet")
-parser.add_argument("--batch-size", "--batch_size", type=int, default=2, help="Batch size")
-parser.add_argument("--fold", type=int, required=True, choices=[0, 1, 2, 3, 4], help="Fold number")
-parser.add_argument("--amp", action="store_true", help="Enable automatic mixed precision")
-parser.add_argument("--tta", action="store_true", help="Enable test time augmentation")
-parser.add_argument("--save-preds", "--save_preds", action="store_true", help="Save predicted masks")
 parser.add_argument(
-    "--results", type=Path, default=Path("/results"), help="Path to results directory, output for the predicted masks"
+    "--dim", type=int, required=True, choices=[2, 3], help="Dimension of UNet"
+)
+parser.add_argument(
+    "--batch-size", "--batch_size", type=int, default=2, help="Batch size"
+)
+parser.add_argument(
+    "--fold", type=int, required=True, choices=[0, 1, 2, 3, 4], help="Fold number"
+)
+parser.add_argument(
+    "--amp", action="store_true", help="Enable automatic mixed precision"
+)
+parser.add_argument("--tta", action="store_true", help="Enable test time augmentation")
+parser.add_argument(
+    "--save-preds", "--save_preds", action="store_true", help="Save predicted masks"
+)
+parser.add_argument(
+    "--results",
+    type=Path,
+    default=Path("/results"),
+    help="Path to results directory, output for the predicted masks",
 )
 
 group = parser.add_mutually_exclusive_group(required=True)
-group.add_argument("--ckpt-dir", "--ckpt_dir", type=Path, help="Path to checkpoint directory")
-group.add_argument("--saved-model-dir", "--saved_model_dir", type=Path, help="Path to saved model directory")
+group.add_argument(
+    "--ckpt-dir", "--ckpt_dir", type=Path, help="Path to checkpoint directory"
+)
+group.add_argument(
+    "--saved-model-dir",
+    "--saved_model_dir",
+    type=Path,
+    help="Path to saved model directory",
+)
 
 if __name__ == "__main__":
     args = parser.parse_args()

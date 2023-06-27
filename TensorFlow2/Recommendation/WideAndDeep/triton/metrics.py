@@ -64,10 +64,16 @@ class MetricsCalculator(BaseMetricsCalculator):
             display_ids = tf.gather(display_ids, indices=sorted_ids)
             predictions = tf.gather(predictions, indices=sorted_ids)
             labels = tf.gather(labels, indices=sorted_ids)
-            _, display_ids_idx, display_ids_ads_count = tf.unique_with_counts(display_ids, out_idx=tf.int64)
+            _, display_ids_idx, display_ids_ads_count = tf.unique_with_counts(
+                display_ids, out_idx=tf.int64
+            )
             pad_length = 30 - tf.reduce_max(display_ids_ads_count)
-            preds = tf.RaggedTensor.from_value_rowids(predictions, display_ids_idx).to_tensor()
-            labels = tf.RaggedTensor.from_value_rowids(labels, display_ids_idx).to_tensor()
+            preds = tf.RaggedTensor.from_value_rowids(
+                predictions, display_ids_idx
+            ).to_tensor()
+            labels = tf.RaggedTensor.from_value_rowids(
+                labels, display_ids_idx
+            ).to_tensor()
 
             labels_mask = tf.math.reduce_max(labels, 1)
             preds_masked = tf.boolean_mask(preds, labels_mask)

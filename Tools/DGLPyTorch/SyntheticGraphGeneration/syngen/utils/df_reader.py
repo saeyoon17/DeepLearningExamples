@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pandas
 import dask.dataframe as dask_dataframe
+import pandas
 
 _DFREADER = pandas
 _DASKREADER = dask_dataframe
@@ -32,7 +32,8 @@ try:
 except ImportError:
     pass
 
-READERS = ['pandas', 'dask', 'cudf', 'dask_cudf']
+READERS = ["pandas", "dask", "cudf", "dask_cudf"]
+
 
 class DFReader(object):
     df_reader = _DFREADER

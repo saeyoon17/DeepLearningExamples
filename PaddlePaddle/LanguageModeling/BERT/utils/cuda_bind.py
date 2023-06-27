@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import ctypes
+import os
 
-_cuda_home = os.environ.get('CUDA_HOME', '/usr/local/cuda')
+_cuda_home = os.environ.get("CUDA_HOME", "/usr/local/cuda")
 
-_cudart = ctypes.CDLL(os.path.join(_cuda_home, 'lib64/libcudart.so'))
+_cudart = ctypes.CDLL(os.path.join(_cuda_home, "lib64/libcudart.so"))
 
 
 def cuda_profile_start():
@@ -28,7 +28,7 @@ def cuda_profile_stop():
     _cudart.cudaProfilerStop()
 
 
-_nvtx = ctypes.CDLL(os.path.join(_cuda_home, 'lib64/libnvToolsExt.so'))
+_nvtx = ctypes.CDLL(os.path.join(_cuda_home, "lib64/libnvToolsExt.so"))
 
 
 def cuda_nvtx_range_push(name):

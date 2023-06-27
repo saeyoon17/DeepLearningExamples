@@ -26,7 +26,7 @@ class CTRClassificationMLP(tf.keras.layers.Layer):
             tf.keras.layers.PReLU, alpha_initializer=tf.keras.initializers.Constant(0.1)
         ),
         use_bn=False,
-        dropout_rate=-1
+        dropout_rate=-1,
     ):
         super().__init__()
         self.layer_sizes = layer_sizes
@@ -46,7 +46,7 @@ class CTRClassificationMLP(tf.keras.layers.Layer):
             # add dropout between final representation and classification layer
             self.layers.append(tf.keras.layers.Dropout(rate=self.dropout_rate))
         # add the scoring layer
-        scoring_layer = tf.keras.layers.Dense(num_outputs, dtype='float32')
+        scoring_layer = tf.keras.layers.Dense(num_outputs, dtype="float32")
         self.layers.append(scoring_layer)
 
     def call(self, input, training=False):

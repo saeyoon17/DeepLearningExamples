@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
 import os
 from abc import ABC
 
@@ -21,22 +22,23 @@ import hydra
 import numpy as np
 import torch
 import torch.nn as nn
-import importlib
+
 try:
     from apex import amp
 except ImportError:
-    print("Nvidia apex not available. Can't use apex Automatic Mixed Precision (AMP) for training.\
-    Please check: https://github.com/NVIDIA/apex for installation")
+    print(
+        "Nvidia apex not available. Can't use apex Automatic Mixed Precision (AMP) for training.\
+    Please check: https://github.com/NVIDIA/apex for installation"
+    )
+from callbacks.ctl_callbacks import CTLCallbackContainer
+from criterion import TSPP_criterion_wrapper
+from data.datasets import TSBaseDataset, get_collate_fn
+from distributed_utils import get_mp_context, reduce_tensor
+from loggers.log_helper import setup_logger
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
-
-from callbacks.ctl_callbacks import CTLCallbackContainer
-from data.datasets import TSBaseDataset, get_collate_fn
-from distributed_utils import reduce_tensor, get_mp_context
-from loggers.log_helper import setup_logger
-from training.ema import ModelEmaV2
-from criterion import TSPP_criterion_wrapper
 from training.checkpoint_utils import maybe_continue_run
+from training.ema import ModelEmaV2
 from training.utils import to_device
 
 
@@ -47,14 +49,14 @@ class Trainer(ABC):
 
 class CTLTrainer(Trainer):
     def __init__(
-            self,
-            model: nn.Module,
-            train_dataset: TSBaseDataset,
-            valid_dataset: TSBaseDataset,
-            optimizer,
-            criterion,
-            callbacks,
-            config,
+        self,
+        model: nn.Module,
+        train_dataset: TSBaseDataset,
+        valid_dataset: TSBaseDataset,
+        optimizer,
+        criterion,
+        callbacks,
+        config,
     ):
         self.config = config
         self._stop_training = False
@@ -64,7 +66,7 @@ class CTLTrainer(Trainer):
         callbacks = callbacks.values()
         self.callbacks = CTLCallbackContainer(self, callbacks)
 
-        self.world_size = int(os.environ.get('WORLD_SIZE', 1))
+        self.world_size = int(os.environ.get("WORLD_SIZE", 1))
         self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
 
         self.device = next(model.parameters()).device
@@ -80,10 +82,16 @@ class CTLTrainer(Trainer):
             # XXX: is the seed argument here needed for reproducibility?
             # It should be set in launch_training.py with other seeds
             self.train_sampler = DistributedSampler(
-                train_dataset, self.world_size, seed=config.get("seed", 1), drop_last=True
+                train_dataset,
+                self.world_size,
+                seed=config.get("seed", 1),
+                drop_last=True,
             )
             self.valid_sampler = DistributedSampler(
-                valid_dataset, self.world_size, seed=config.get("seed", 1), drop_last=False
+                valid_dataset,
+                self.world_size,
+                seed=config.get("seed", 1),
+                drop_last=False,
             )
         self.logger = setup_logger(self.config)
         self.optimizer = optimizer
@@ -94,17 +102,26 @@ class CTLTrainer(Trainer):
         self.global_step = 0
         self.epoch = 0
 
-        if not self.config.get('force_rerun'):
+        if not self.config.get("force_rerun"):
             maybe_continue_run(self)
 
         if config.get("ema", False):
-            self.ema = ModelEmaV2(model, decay=self.config.get('ema_decay', 0.999), device=self.device)
+            self.ema = ModelEmaV2(
+                model, decay=self.config.get("ema_decay", 0.999), device=self.device
+            )
         else:
             self.ema = None
         if self.amp_enabled:
-            self.model, self.optimizer = amp.initialize(self.model, self.optimizer, opt_level="O2", loss_scale="dynamic")
+            self.model, self.optimizer = amp.initialize(
+                self.model, self.optimizer, opt_level="O2", loss_scale="dynamic"
+            )
         if self.world_size > 1:
-            self.model = DDP(self.model, device_ids=[self.local_rank], output_device=self.local_rank, find_unused_parameters=True)
+            self.model = DDP(
+                self.model,
+                device_ids=[self.local_rank],
+                output_device=self.local_rank,
+                find_unused_parameters=True,
+            )
 
         mp_context = get_mp_context()
 
@@ -116,7 +133,7 @@ class CTLTrainer(Trainer):
             shuffle=True if self.train_sampler is None else False,
             pin_memory=True,
             collate_fn=get_collate_fn(config.model_type, config.encoder_length),
-            multiprocessing_context=mp_context
+            multiprocessing_context=mp_context,
         )
         self.valid_dataloader = DataLoader(
             valid_dataset,
@@ -125,7 +142,7 @@ class CTLTrainer(Trainer):
             sampler=self.valid_sampler,
             pin_memory=True,
             collate_fn=get_collate_fn(config.model_type, config.encoder_length),
-            multiprocessing_context=mp_context
+            multiprocessing_context=mp_context,
         )
 
         # TODO: make it reccursively instantiated
@@ -168,14 +185,18 @@ class CTLTrainer(Trainer):
                 losses = reduce_tensor(losses, self.world_size).detach()
                 running_losses += losses
 
-        running_losses = running_losses / (len(self.valid_dataloader.dataset) / self.config.batch_size)
+        running_losses = running_losses / (
+            len(self.valid_dataloader.dataset) / self.config.batch_size
+        )
         if len(running_losses.size()) < 1:
             running_losses = running_losses.unsqueeze(0)
         running_losses = [loss.item() for loss in running_losses]
         data = {"val_loss": sum(running_losses)}
         for i, elem in enumerate(running_losses):
             data["val_loss_component_" + str(i)] = elem
-        self.logger.log(step=self.global_step, data=data, verbosity=dllogger.Verbosity.VERBOSE)
+        self.logger.log(
+            step=self.global_step, data=data, verbosity=dllogger.Verbosity.VERBOSE
+        )
 
         self.model.train()
         self.criterion.train()
@@ -187,7 +208,11 @@ class CTLTrainer(Trainer):
         while self.epoch < self.config.num_epochs:
             self.callbacks.on_epoch_begin(self.epoch)
 
-            self.logger.log(step=self.global_step, data={"epoch": self.epoch}, verbosity=dllogger.Verbosity.VERBOSE)
+            self.logger.log(
+                step=self.global_step,
+                data={"epoch": self.epoch},
+                verbosity=dllogger.Verbosity.VERBOSE,
+            )
 
             for i, (batch, labels, weights) in enumerate(self.train_dataloader):
                 self.callbacks.on_batch_begin(i)
@@ -207,7 +232,9 @@ class CTLTrainer(Trainer):
                     loss.backward()
 
                 if self.config.get("gradient_norm", 0.0) > 0:
-                    nn.utils.clip_grad_norm(self.model.parameters(), self.config.gradient_norm)
+                    nn.utils.clip_grad_norm(
+                        self.model.parameters(), self.config.gradient_norm
+                    )
                 self.optimizer.step()
 
                 losses = reduce_tensor(losses, self.world_size, average=True)
@@ -218,7 +245,11 @@ class CTLTrainer(Trainer):
                 for k, v in enumerate(losses):
                     data["loss_component_" + str(k)] = v
 
-                self.logger.log(step=self.global_step, data=data, verbosity=dllogger.Verbosity.VERBOSE)
+                self.logger.log(
+                    step=self.global_step,
+                    data=data,
+                    verbosity=dllogger.Verbosity.VERBOSE,
+                )
 
                 self.callbacks.on_batch_end(i, logs=data)
                 if self.ema:
@@ -228,7 +259,7 @@ class CTLTrainer(Trainer):
                 self.scheduler.step()
             self.callbacks.on_valid_begin(self.epoch)
             validation_loss = self.validate()
-            if validation_loss != validation_loss: #NaN check
+            if validation_loss != validation_loss:  # NaN check
                 self._stop_training = True
             data = {"val_loss": validation_loss}
             self.callbacks.on_valid_end(self.epoch, logs=data)
@@ -247,12 +278,7 @@ class CTLTrainer(Trainer):
 
 
 class StatTrainer(Trainer):
-    def __init__(self,
-                 config,
-                 model,
-                 train_dataset,
-                 valid_dataset
-                 ):
+    def __init__(self, config, model, train_dataset, valid_dataset):
         self.config = config
         self.train_dataset = train_dataset
         self.global_step = 0
@@ -272,7 +298,7 @@ class StatTrainer(Trainer):
 
 class XGBTrainer(Trainer):
     def __init__(self, config, callbacks, model, train_dataset, valid_dataset):
-        '''
+        """
         The idea behind this trainer is that we are given data at a time step t and want to create models to predict the value of a target
         from t+1 to t+n.  At time step t we have access to every feature including the target, and if we are trying to predict at time step
         t+i, we have access to the known and static values from there, using the function target_shift.  To aid in prediction and
@@ -281,19 +307,25 @@ class XGBTrainer(Trainer):
         value are specified then the range(min, max+1) is used as the list.  Moving average (or rolling features) are specified
         by a window size.  These values are added with the feat_adder function.  A new model is trained for every step we want
         to predict.  The trainer is not recursive so each model is independent and does not rely on the previous trained models.
-        '''
+        """
         self.config = config
         self.logger = setup_logger(config)
         self.train_dataset = train_dataset
         self.valid_dataset = valid_dataset
         self.patience = callbacks.early_stopping.patience
-        self.log_interval = config.get('log_interval', 25)
+        self.log_interval = config.get("log_interval", 25)
         self.model = model
 
     def train(self):
-        for i, ((train_step, labels), (valid_step, valid_labels)) in enumerate(zip(self.train_dataset, self.valid_dataset)):
-            self.model.fit(train_step, labels, valid_step, valid_labels,
-                           patience=self.patience,
-                           log_interval=self.log_interval)
+        for i, ((train_step, labels), (valid_step, valid_labels)) in enumerate(
+            zip(self.train_dataset, self.valid_dataset)
+        ):
+            self.model.fit(
+                train_step,
+                labels,
+                valid_step,
+                valid_labels,
+                patience=self.patience,
+                log_interval=self.log_interval,
+            )
         self.model.save(os.getcwd())
-

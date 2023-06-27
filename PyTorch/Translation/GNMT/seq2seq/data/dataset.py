@@ -22,15 +22,11 @@
 import logging
 from operator import itemgetter
 
-import torch
-from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
-
 import seq2seq.data.config as config
-from seq2seq.data.sampler import BucketingSampler
-from seq2seq.data.sampler import DistributedSampler
-from seq2seq.data.sampler import ShardingSampler
-from seq2seq.data.sampler import StaticDistributedSampler
+import torch
+from seq2seq.data.sampler import (BucketingSampler, DistributedSampler,
+                                  ShardingSampler, StaticDistributedSampler)
+from torch.utils.data import DataLoader, Dataset
 
 
 def build_collate_fn(batch_first=False, parallel=True, sort=False):
@@ -42,6 +38,7 @@ def build_collate_fn(batch_first=False, parallel=True, sort=False):
     :param parallel: if True builds batches from parallel corpus (src, tgt)
     :param sort: if True sorts by src sequence length within each batch
     """
+
     def collate_seq(seq):
         """
         Builds batches for training or inference.
@@ -73,9 +70,11 @@ def build_collate_fn(batch_first=False, parallel=True, sort=False):
         """
         src_seqs, tgt_seqs = zip(*seqs)
         if sort:
-            indices, src_seqs = zip(*sorted(enumerate(src_seqs),
-                                            key=lambda item: len(item[1]),
-                                            reverse=True))
+            indices, src_seqs = zip(
+                *sorted(
+                    enumerate(src_seqs), key=lambda item: len(item[1]), reverse=True
+                )
+            )
             tgt_seqs = [tgt_seqs[idx] for idx in indices]
 
         return tuple([collate_seq(s) for s in [src_seqs, tgt_seqs]])
@@ -88,9 +87,11 @@ def build_collate_fn(batch_first=False, parallel=True, sort=False):
         :param src_seqs: source sequences
         """
         if sort:
-            indices, src_seqs = zip(*sorted(enumerate(src_seqs),
-                                            key=lambda item: len(item[1]),
-                                            reverse=True))
+            indices, src_seqs = zip(
+                *sorted(
+                    enumerate(src_seqs), key=lambda item: len(item[1]), reverse=True
+                )
+            )
         else:
             indices = range(len(src_seqs))
 
@@ -115,32 +116,41 @@ class SyntheticDataset(Dataset):
     def unsort(self, array):
         return array
 
-    def get_loader(self, batch_size=1, num_workers=0, batch_first=False,
-                   pad=False, repeat=1):
+    def get_loader(
+        self, batch_size=1, num_workers=0, batch_first=False, pad=False, repeat=1
+    ):
 
-        collate_fn = build_collate_fn(batch_first, parallel=False,
-                                      sort=True)
+        collate_fn = build_collate_fn(batch_first, parallel=False, sort=True)
         sampler = StaticDistributedSampler(self, batch_size, pad, repeat)
 
-        return DataLoader(self,
-                          batch_size=batch_size,
-                          collate_fn=collate_fn,
-                          sampler=sampler,
-                          num_workers=num_workers,
-                          pin_memory=True,
-                          drop_last=False)
+        return DataLoader(
+            self,
+            batch_size=batch_size,
+            collate_fn=collate_fn,
+            sampler=sampler,
+            num_workers=num_workers,
+            pin_memory=True,
+            drop_last=False,
+        )
 
     def __len__(self):
         return self.nsamples
 
+
 class RawTextDataset(Dataset):
-    def __init__(self, raw_data=None, raw_datafile=None, tokenizer=None,
-                 sort=False, max_size=None):
+    def __init__(
+        self,
+        raw_data=None,
+        raw_datafile=None,
+        tokenizer=None,
+        sort=False,
+        max_size=None,
+    ):
         self.tokenizer = tokenizer
         self.sorted = False
 
         if raw_datafile:
-            with open(raw_datafile, 'r') as f:
+            with open(raw_datafile, "r") as f:
                 self.raw_data = f.readlines()
         else:
             self.raw_data = raw_data
@@ -174,7 +184,7 @@ class RawTextDataset(Dataset):
         output = sorted(
             enumerate(self.raw_data),
             key=lambda x: len(x[1].split()),
-            )
+        )
         self.indices, self.raw_data = zip(*output)
         self.lengths = [self.lengths[idx] for idx in self.indices]
         self.sorted = True
@@ -182,25 +192,34 @@ class RawTextDataset(Dataset):
     def __len__(self):
         return len(self.raw_data)
 
-    def get_loader(self, batch_size=1, num_workers=0, batch_first=False,
-                   pad=False, repeat=1):
+    def get_loader(
+        self, batch_size=1, num_workers=0, batch_first=False, pad=False, repeat=1
+    ):
 
-        collate_fn = build_collate_fn(batch_first, parallel=False,
-                                      sort=True)
+        collate_fn = build_collate_fn(batch_first, parallel=False, sort=True)
         sampler = StaticDistributedSampler(self, batch_size, pad, repeat)
 
-        return DataLoader(self,
-                          batch_size=batch_size,
-                          collate_fn=collate_fn,
-                          sampler=sampler,
-                          num_workers=num_workers,
-                          pin_memory=True,
-                          drop_last=False)
+        return DataLoader(
+            self,
+            batch_size=batch_size,
+            collate_fn=collate_fn,
+            sampler=sampler,
+            num_workers=num_workers,
+            pin_memory=True,
+            drop_last=False,
+        )
 
 
 class TextDataset(Dataset):
-    def __init__(self, src_fname, tokenizer, min_len=None, max_len=None,
-                 sort=False, max_size=None):
+    def __init__(
+        self,
+        src_fname,
+        tokenizer,
+        min_len=None,
+        max_len=None,
+        sort=False,
+        max_size=None,
+    ):
         """
         Constructor for the TextDataset. Builds monolingual dataset.
 
@@ -259,7 +278,7 @@ class TextDataset(Dataset):
         :param min_len: minimum sequence length
         :param max_len: maximum sequence length
         """
-        logging.info(f'Filtering data, min len: {min_len}, max len: {max_len}')
+        logging.info(f"Filtering data, min len: {min_len}, max len: {max_len}")
 
         initial_len = len(self.src)
         filtered_src = []
@@ -269,7 +288,7 @@ class TextDataset(Dataset):
 
         self.src = filtered_src
         filtered_len = len(self.src)
-        logging.info(f'Pairs before: {initial_len}, after: {filtered_len}')
+        logging.info(f"Pairs before: {initial_len}, after: {filtered_len}")
 
     def process_data(self, fname, tokenizer, max_size):
         """
@@ -280,7 +299,7 @@ class TextDataset(Dataset):
         :param max_size: loads at most 'max_size' samples from the input file,
             if None loads the entire dataset
         """
-        logging.info(f'Processing data from {fname}')
+        logging.info(f"Processing data from {fname}")
         data = []
         with open(fname) as dfile:
             for idx, line in enumerate(dfile):
@@ -297,39 +316,58 @@ class TextDataset(Dataset):
     def __getitem__(self, idx):
         return self.src[idx]
 
-    def get_loader(self, batch_size=1, seeds=None, shuffle=False,
-                   num_workers=0, batch_first=False, pad=False,
-                   batching=None, batching_opt={}):
+    def get_loader(
+        self,
+        batch_size=1,
+        seeds=None,
+        shuffle=False,
+        num_workers=0,
+        batch_first=False,
+        pad=False,
+        batching=None,
+        batching_opt={},
+    ):
 
-        collate_fn = build_collate_fn(batch_first, parallel=self.parallel,
-                                      sort=True)
+        collate_fn = build_collate_fn(batch_first, parallel=self.parallel, sort=True)
 
         if shuffle:
-            if batching == 'random':
+            if batching == "random":
                 sampler = DistributedSampler(self, batch_size, seeds)
-            elif batching == 'sharding':
-                sampler = ShardingSampler(self, batch_size, seeds,
-                                          batching_opt['shard_size'])
-            elif batching == 'bucketing':
-                sampler = BucketingSampler(self, batch_size, seeds,
-                                           batching_opt['num_buckets'])
+            elif batching == "sharding":
+                sampler = ShardingSampler(
+                    self, batch_size, seeds, batching_opt["shard_size"]
+                )
+            elif batching == "bucketing":
+                sampler = BucketingSampler(
+                    self, batch_size, seeds, batching_opt["num_buckets"]
+                )
             else:
                 raise NotImplementedError
         else:
             sampler = StaticDistributedSampler(self, batch_size, pad)
 
-        return DataLoader(self,
-                          batch_size=batch_size,
-                          collate_fn=collate_fn,
-                          sampler=sampler,
-                          num_workers=num_workers,
-                          pin_memory=True,
-                          drop_last=False)
+        return DataLoader(
+            self,
+            batch_size=batch_size,
+            collate_fn=collate_fn,
+            sampler=sampler,
+            num_workers=num_workers,
+            pin_memory=True,
+            drop_last=False,
+        )
 
 
 class ParallelDataset(TextDataset):
-    def __init__(self, src_fname, tgt_fname, tokenizer,
-                 min_len, max_len, sort=False, max_size=None):
+    def __init__(
+        self,
+        src_fname,
+        tgt_fname,
+        tokenizer,
+        min_len,
+        max_len,
+        sort=False,
+        max_size=None,
+    ):
         """
         Constructor for the ParallelDataset.
         Tokenization is done when the data is loaded from the disk.
@@ -387,29 +425,36 @@ class ParallelDataset(TextDataset):
         :param min_len: minimum sequence length
         :param max_len: maximum sequence length
         """
-        logging.info(f'Filtering data, min len: {min_len}, max len: {max_len}')
+        logging.info(f"Filtering data, min len: {min_len}, max len: {max_len}")
 
         initial_len = len(self.src)
         filtered_src = []
         filtered_tgt = []
         for src, tgt in zip(self.src, self.tgt):
-            if min_len <= len(src) <= max_len and \
-                    min_len <= len(tgt) <= max_len:
+            if min_len <= len(src) <= max_len and min_len <= len(tgt) <= max_len:
                 filtered_src.append(src)
                 filtered_tgt.append(tgt)
 
         self.src = filtered_src
         self.tgt = filtered_tgt
         filtered_len = len(self.src)
-        logging.info(f'Pairs before: {initial_len}, after: {filtered_len}')
+        logging.info(f"Pairs before: {initial_len}, after: {filtered_len}")
 
     def __getitem__(self, idx):
         return self.src[idx], self.tgt[idx]
 
 
 class LazyParallelDataset(TextDataset):
-    def __init__(self, src_fname, tgt_fname, tokenizer,
-                 min_len, max_len, sort=False, max_size=None):
+    def __init__(
+        self,
+        src_fname,
+        tgt_fname,
+        tokenizer,
+        min_len,
+        max_len,
+        sort=False,
+        max_size=None,
+    ):
         """
         Constructor for the LazyParallelDataset.
         Tokenization is done on the fly.
@@ -433,7 +478,7 @@ class LazyParallelDataset(TextDataset):
         self.raw_tgt = self.process_raw_data(tgt_fname, max_size)
         assert len(self.raw_src) == len(self.raw_tgt)
 
-        logging.info(f'Filtering data, min len: {min_len}, max len: {max_len}')
+        logging.info(f"Filtering data, min len: {min_len}, max len: {max_len}")
         # Subtracting 2 because EOS and BOS are added later during tokenization
         self.filter_raw_data(min_len - 2, max_len - 2)
         assert len(self.raw_src) == len(self.raw_tgt)
@@ -453,7 +498,7 @@ class LazyParallelDataset(TextDataset):
         :param max_size: loads at most 'max_size' samples from the input file,
             if None loads the entire dataset
         """
-        logging.info(f'Processing data from {fname}')
+        logging.info(f"Processing data from {fname}")
         data = []
         with open(fname) as dfile:
             for idx, line in enumerate(dfile):
@@ -477,10 +522,9 @@ class LazyParallelDataset(TextDataset):
         filtered_src_len = []
         filtered_tgt_len = []
         for src, tgt in zip(self.raw_src, self.raw_tgt):
-            src_len = src.count(' ') + 1
-            tgt_len = tgt.count(' ') + 1
-            if min_len <= src_len <= max_len and \
-                    min_len <= tgt_len <= max_len:
+            src_len = src.count(" ") + 1
+            tgt_len = tgt.count(" ") + 1
+            if min_len <= src_len <= max_len and min_len <= tgt_len <= max_len:
                 filtered_src.append(src)
                 filtered_tgt.append(tgt)
                 filtered_src_len.append(src_len)
@@ -491,7 +535,7 @@ class LazyParallelDataset(TextDataset):
         self.src_len = filtered_src_len
         self.tgt_len = filtered_tgt_len
         filtered_len = len(self.raw_src)
-        logging.info(f'Pairs before: {initial_len}, after: {filtered_len}')
+        logging.info(f"Pairs before: {initial_len}, after: {filtered_len}")
 
     def __getitem__(self, idx):
         src = torch.tensor(self.tokenizer.segment(self.raw_src[idx]))

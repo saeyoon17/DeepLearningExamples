@@ -20,10 +20,8 @@ from model.blocks.conv2d_block import conv2d_block
 from model.blocks.resnet_bottleneck_block import bottleneck_block
 
 __all__ = [
-
     # conv + bn + act block
-    'conv2d_block',
-
+    "conv2d_block",
     # resnet blocks
-    'bottleneck_block'
+    "bottleneck_block",
 ]

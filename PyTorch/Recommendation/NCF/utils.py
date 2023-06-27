@@ -23,7 +23,7 @@ def count_parameters(model):
 
 def save_result(result, path):
     write_heading = not os.path.exists(path)
-    with open(path, mode='a') as out:
+    with open(path, mode="a") as out:
         if write_heading:
-            out.write(",".join([str(k) for k, v in result.items()]) + '\n')
-        out.write(",".join([str(v) for k, v in result.items()]) + '\n')
+            out.write(",".join([str(k) for k, v in result.items()]) + "\n")
+        out.write(",".join([str(v) for k, v in result.items()]) + "\n")

@@ -1,6 +1,6 @@
 """ adapted from https://github.com/keithito/tacotron """
 
-'''
+"""
 Cleaners are transformations that run over the input text at both training and eval time.
 
 Cleaners can be selected by passing a comma-delimited list of cleaner names as the "cleaners"
@@ -10,9 +10,10 @@ hyperparameter. Some cleaners are English-specific. You'll typically want to use
          the Unidecode library (https://pypi.python.org/pypi/Unidecode)
     3. "basic_cleaners" if you do not want to transliterate (in this case, you should also update
          the symbols in symbols.py to match your data).
-'''
+"""
 
 import re
+
 from .abbreviations import normalize_abbreviations
 from .acronyms import normalize_acronyms, spell_acronyms
 from .datestime import normalize_datestime
@@ -20,9 +21,8 @@ from .letters_and_numbers import normalize_letters_and_numbers
 from .numerical import normalize_numbers
 from .unidecoder import unidecoder
 
-
 # Regular expression matching whitespace:
-_whitespace_re = re.compile(r'\s+')
+_whitespace_re = re.compile(r"\s+")
 
 
 def expand_abbreviations(text):
@@ -50,7 +50,7 @@ def lowercase(text):
 
 
 def collapse_whitespace(text):
-    return re.sub(_whitespace_re, ' ', text)
+    return re.sub(_whitespace_re, " ", text)
 
 
 def separate_acronyms(text):
@@ -64,14 +64,14 @@ def convert_to_ascii(text):
 
 
 def basic_cleaners(text):
-    '''Basic pipeline that collapses whitespace without transliteration.'''
+    """Basic pipeline that collapses whitespace without transliteration."""
     text = lowercase(text)
     text = collapse_whitespace(text)
     return text
 
 
 def transliteration_cleaners(text):
-    '''Pipeline for non-English text that transliterates to ASCII.'''
+    """Pipeline for non-English text that transliterates to ASCII."""
     text = convert_to_ascii(text)
     text = lowercase(text)
     text = collapse_whitespace(text)
@@ -79,7 +79,7 @@ def transliteration_cleaners(text):
 
 
 def english_cleaners(text):
-    '''Pipeline for English text, with number and abbreviation expansion.'''
+    """Pipeline for English text, with number and abbreviation expansion."""
     text = convert_to_ascii(text)
     text = lowercase(text)
     text = expand_numbers(text)
@@ -98,5 +98,5 @@ def english_cleaners_v2(text):
     text = lowercase(text)
     text = collapse_whitespace(text)
     # compatibility with basic_english symbol set
-    text = re.sub(r'/+', ' ', text)
+    text = re.sub(r"/+", " ", text)
     return text

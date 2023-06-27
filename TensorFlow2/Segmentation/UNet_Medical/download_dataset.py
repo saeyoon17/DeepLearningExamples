@@ -17,10 +17,12 @@ import os
 
 PARSER = argparse.ArgumentParser(description="U-Net medical")
 
-PARSER.add_argument('--data_dir',
-                    type=str,
-                    default='./data',
-                    help="""Directory where to download the dataset""")
+PARSER.add_argument(
+    "--data_dir",
+    type=str,
+    default="./data",
+    help="""Directory where to download the dataset""",
+)
 
 
 def main():
@@ -29,12 +31,24 @@ def main():
     if not os.path.exists(FLAGS.data_dir):
         os.makedirs(FLAGS.data_dir)
 
-    os.system('wget http://brainiac2.mit.edu/isbi_challenge/sites/default/files/train-volume.tif -P {}'.format(FLAGS.data_dir))
-    os.system('wget http://brainiac2.mit.edu/isbi_challenge/sites/default/files/train-labels.tif -P {}'.format(FLAGS.data_dir))
-    os.system('wget http://brainiac2.mit.edu/isbi_challenge/sites/default/files/test-volume.tif -P {}'.format(FLAGS.data_dir))
+    os.system(
+        "wget http://brainiac2.mit.edu/isbi_challenge/sites/default/files/train-volume.tif -P {}".format(
+            FLAGS.data_dir
+        )
+    )
+    os.system(
+        "wget http://brainiac2.mit.edu/isbi_challenge/sites/default/files/train-labels.tif -P {}".format(
+            FLAGS.data_dir
+        )
+    )
+    os.system(
+        "wget http://brainiac2.mit.edu/isbi_challenge/sites/default/files/test-volume.tif -P {}".format(
+            FLAGS.data_dir
+        )
+    )
 
     print("Finished downloading files for U-Net medical to {}".format(FLAGS.data_dir))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

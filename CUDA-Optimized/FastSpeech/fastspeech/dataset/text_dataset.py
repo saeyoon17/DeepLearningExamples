@@ -23,13 +23,12 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import numpy as np
-from torch.utils.data import Dataset
-
 from fastspeech.text_norm import text_to_sequence
+from torch.utils.data import Dataset
 
 
 class TextDataset(Dataset):
-    def __init__(self, text_list, text_cleaner=['english_cleaners']):
+    def __init__(self, text_list, text_cleaner=["english_cleaners"]):
         self.texts = text_list
         self.text_cleaner = text_cleaner
 
@@ -41,7 +40,7 @@ class TextDataset(Dataset):
 
         # Text normalization
         text_encoded = np.array(text_to_sequence(text, self.text_cleaner))
-        text_pos = np.array([idx+1 for idx, _ in enumerate(text_encoded)])
+        text_pos = np.array([idx + 1 for idx, _ in enumerate(text_encoded)])
 
         data = {
             "text": text,

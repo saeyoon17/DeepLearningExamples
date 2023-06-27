@@ -2,17 +2,18 @@
 Convert LiTS 2017 (Liver Tumor Segmentation) data into UNet3+ data format
 LiTS: https://competitions.codalab.org/competitions/17094
 """
+import multiprocessing as mp
 import os
 import sys
 from glob import glob
 from pathlib import Path
-from tqdm import tqdm
-import numpy as np
-import multiprocessing as mp
+
 import cv2
-import nibabel as nib
 import hydra
+import nibabel as nib
+import numpy as np
 from omegaconf import DictConfig
+from tqdm import tqdm
 
 sys.path.append(os.path.abspath("./"))
 from utils.general_utils import create_directory, join_paths
@@ -37,7 +38,7 @@ def crop_center(img, croph, cropw):
     height, width = img.shape[:2]
     starth = height // 2 - (croph // 2)
     startw = width // 2 - (cropw // 2)
-    return img[starth:starth + croph, startw:startw + cropw, :]
+    return img[starth : starth + croph, startw : startw + cropw, :]
 
 
 def linear_scale(img):
@@ -64,11 +65,10 @@ def resize_scan(scan, new_height, new_width, scan_type):
     resize_method = cv2.INTER_CUBIC if scan_type == "image" else cv2.INTER_NEAREST
     for start in range(0, scan_shape[2], scan_shape[1]):
         end = start + scan_shape[1]
-        if end >= scan_shape[2]: end = scan_shape[2]
+        if end >= scan_shape[2]:
+            end = scan_shape[2]
         resized_scan[:, :, start:end] = resize_image(
-            scan[:, :, start:end],
-            new_height, new_width,
-            resize_method
+            scan[:, :, start:end], new_height, new_width, resize_method
         )
 
     return resized_scan
@@ -88,12 +88,9 @@ def save_images(scan, save_path, img_index):
 
         new_img_path = join_paths(save_path, f"image_{img_index}_{index}.png")
         new_image = np.stack(
-            (
-                scan[:, :, before_index],
-                scan[:, :, index],
-                scan[:, :, after_index]
-            )
-            , axis=-1)
+            (scan[:, :, before_index], scan[:, :, index], scan[:, :, after_index]),
+            axis=-1,
+        )
         new_image = cv2.cvtColor(new_image, cv2.COLOR_RGB2BGR)  # RGB to BGR
         cv2.imwrite(new_img_path, new_image)  # save the images as .png
 
@@ -107,7 +104,12 @@ def save_mask(scan, save_path, mask_index):
         cv2.imwrite(new_mask_path, scan[:, :, index])  # save grey scale image
 
 
-def extract_image(cfg, image_path, save_path, scan_type="image", ):
+def extract_image(
+    cfg,
+    image_path,
+    save_path,
+    scan_type="image",
+):
     """
     Extract image from given scan path
     """
@@ -118,13 +120,13 @@ def extract_image(cfg, image_path, save_path, scan_type="image", ):
         scan,
         cfg.DATA_PREPARATION.RESIZED_HEIGHT,
         cfg.DATA_PREPARATION.RESIZED_WIDTH,
-        scan_type
+        scan_type,
     )
     if scan_type == "image":
         scan = clip_scan(
             scan,
             cfg.DATA_PREPARATION.SCAN_MIN_VALUE,
-            cfg.DATA_PREPARATION.SCAN_MAX_VALUE
+            cfg.DATA_PREPARATION.SCAN_MAX_VALUE,
         )
         scan = linear_scale(scan)
         scan = np.uint8(scan)
@@ -138,7 +140,12 @@ def extract_image(cfg, image_path, save_path, scan_type="image", ):
         save_mask(scan, save_path, index)
 
 
-def extract_images(cfg, images_path, save_path, scan_type="image", ):
+def extract_images(
+    cfg,
+    images_path,
+    save_path,
+    scan_type="image",
+):
     """
     Extract images paths using multiprocessing and pass to
     extract_image function for further processing .
@@ -147,9 +154,10 @@ def extract_images(cfg, images_path, save_path, scan_type="image", ):
     process_count = np.clip(mp.cpu_count() - 2, 1, 20)  # less than 20 workers
     pool = mp.Pool(process_count)
     for image_path in tqdm(images_path):
-        pool.apply_async(extract_image,
-                         args=(cfg, image_path, save_path, scan_type),
-                         )
+        pool.apply_async(
+            extract_image,
+            args=(cfg, image_path, save_path, scan_type),
+        )
 
     # close pool
     pool.close()
@@ -164,56 +172,44 @@ def preprocess_lits_data(cfg: DictConfig):
     """
     train_images_names = glob(
         join_paths(
-            cfg.WORK_DIR,
-            cfg.DATA_PREPARATION.SCANS_TRAIN_DATA_PATH,
-            "volume-*.nii"
+            cfg.WORK_DIR, cfg.DATA_PREPARATION.SCANS_TRAIN_DATA_PATH, "volume-*.nii"
         )
     )
     train_mask_names = glob(
         join_paths(
             cfg.WORK_DIR,
             cfg.DATA_PREPARATION.SCANS_TRAIN_DATA_PATH,
-            "segmentation-*.nii"
+            "segmentation-*.nii",
         )
     )
 
-    assert len(train_images_names) == len(train_mask_names), \
-        "Train volumes and segmentations are not same in length"
+    assert len(train_images_names) == len(
+        train_mask_names
+    ), "Train volumes and segmentations are not same in length"
 
     val_images_names = glob(
         join_paths(
-            cfg.WORK_DIR,
-            cfg.DATA_PREPARATION.SCANS_VAL_DATA_PATH,
-            "volume-*.nii"
+            cfg.WORK_DIR, cfg.DATA_PREPARATION.SCANS_VAL_DATA_PATH, "volume-*.nii"
         )
     )
     val_mask_names = glob(
         join_paths(
-            cfg.WORK_DIR,
-            cfg.DATA_PREPARATION.SCANS_VAL_DATA_PATH,
-            "segmentation-*.nii"
+            cfg.WORK_DIR, cfg.DATA_PREPARATION.SCANS_VAL_DATA_PATH, "segmentation-*.nii"
         )
     )
-    assert len(val_images_names) == len(val_mask_names), \
-        "Validation volumes and segmentations are not same in length"
+    assert len(val_images_names) == len(
+        val_mask_names
+    ), "Validation volumes and segmentations are not same in length"
 
     train_images_names = sorted(train_images_names)
     train_mask_names = sorted(train_mask_names)
     val_images_names = sorted(val_images_names)
     val_mask_names = sorted(val_mask_names)
 
-    train_images_path = join_paths(
-        cfg.WORK_DIR, cfg.DATASET.TRAIN.IMAGES_PATH
-    )
-    train_mask_path = join_paths(
-        cfg.WORK_DIR, cfg.DATASET.TRAIN.MASK_PATH
-    )
-    val_images_path = join_paths(
-        cfg.WORK_DIR, cfg.DATASET.VAL.IMAGES_PATH
-    )
-    val_mask_path = join_paths(
-        cfg.WORK_DIR, cfg.DATASET.VAL.MASK_PATH
-    )
+    train_images_path = join_paths(cfg.WORK_DIR, cfg.DATASET.TRAIN.IMAGES_PATH)
+    train_mask_path = join_paths(cfg.WORK_DIR, cfg.DATASET.TRAIN.MASK_PATH)
+    val_images_path = join_paths(cfg.WORK_DIR, cfg.DATASET.VAL.IMAGES_PATH)
+    val_mask_path = join_paths(cfg.WORK_DIR, cfg.DATASET.VAL.MASK_PATH)
 
     create_directory(train_images_path)
     create_directory(train_mask_path)
@@ -221,22 +217,14 @@ def preprocess_lits_data(cfg: DictConfig):
     create_directory(val_mask_path)
 
     print("\nExtracting train images")
-    extract_images(
-        cfg, train_images_names, train_images_path, scan_type="image"
-    )
+    extract_images(cfg, train_images_names, train_images_path, scan_type="image")
     print("\nExtracting train mask")
-    extract_images(
-        cfg, train_mask_names, train_mask_path, scan_type="mask"
-    )
+    extract_images(cfg, train_mask_names, train_mask_path, scan_type="mask")
     print("\nExtracting val images")
-    extract_images(
-        cfg, val_images_names, val_images_path, scan_type="image"
-    )
+    extract_images(cfg, val_images_names, val_images_path, scan_type="image")
     print("\nExtracting val mask")
-    extract_images(
-        cfg, val_mask_names, val_mask_path, scan_type="mask"
-    )
+    extract_images(cfg, val_mask_names, val_mask_path, scan_type="mask")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     preprocess_lits_data()

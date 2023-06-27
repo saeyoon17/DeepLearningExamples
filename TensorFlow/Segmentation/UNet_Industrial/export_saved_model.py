@@ -34,66 +34,69 @@ Usage:
         --amp
 """
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
-import os
 import argparse
+import os
 import pprint
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 import tensorflow as tf
-
 from dllogger.logger import LOGGER
-
-from model.unet import UNet_v1
 from model.blocks.activation_blck import authorized_activation_fn
-
+from model.unet import UNet_v1
 from utils.cmdline_helper import _add_bool_argument
 
 
 def get_export_flags():
     parser = argparse.ArgumentParser(description="JoC-UNet_v1-TF-ExportFlags")
 
-    parser.add_argument('--export_dir', default=None, required=True, type=str, help='The export directory.')
-    parser.add_argument('--model_checkpoint_path', default=None, required=True, help='Checkpoint path.')
+    parser.add_argument(
+        "--export_dir",
+        default=None,
+        required=True,
+        type=str,
+        help="The export directory.",
+    )
+    parser.add_argument(
+        "--model_checkpoint_path", default=None, required=True, help="Checkpoint path."
+    )
 
     parser.add_argument(
-        '--data_format',
-        choices=['NHWC', 'NCHW'],
+        "--data_format",
+        choices=["NHWC", "NCHW"],
         type=str,
         default="NCHW",
         required=False,
-        help="""Which Tensor format is used for computation inside the mode"""
+        help="""Which Tensor format is used for computation inside the mode""",
     )
 
     parser.add_argument(
-        '--input_dtype',
-        choices=['fp32', 'fp16'],
+        "--input_dtype",
+        choices=["fp32", "fp16"],
         type=str,
         default="fp32",
         required=False,
-        help="""Tensorflow dtype of the input tensor"""
+        help="""Tensorflow dtype of the input tensor""",
     )
 
     parser.add_argument(
-        '--unet_variant',
+        "--unet_variant",
         default="tinyUNet",
         choices=UNet_v1.authorized_models_variants,
         type=str,
         required=False,
-        help="""Which model size is used. This parameter control directly the size and the number of parameters"""
+        help="""Which model size is used. This parameter control directly the size and the number of parameters""",
     )
 
     parser.add_argument(
-        '--activation_fn',
+        "--activation_fn",
         choices=authorized_activation_fn,
         type=str,
         default="relu",
         required=False,
-        help="""Which activation function is used after the convolution layers"""
+        help="""Which activation function is used after the convolution layers""",
     )
 
     _add_bool_argument(
@@ -101,7 +104,7 @@ def get_export_flags():
         name="amp",
         default=False,
         required=False,
-        help="Enable Automatic Mixed Precision Computation to maximise performance."
+        help="Enable Automatic Mixed Precision Computation to maximise performance.",
     )
 
     _add_bool_argument(
@@ -109,10 +112,12 @@ def get_export_flags():
         name="xla",
         default=False,
         required=False,
-        help="Enable Tensorflow XLA to maximise performance."
+        help="Enable Tensorflow XLA to maximise performance.",
     )
 
-    parser.add_argument('--batch_size', default=16, type=int, help='Evaluation batch size.')
+    parser.add_argument(
+        "--batch_size", default=16, type=int, help="Evaluation batch size."
+    )
 
     FLAGS, unknown_args = parser.parse_known_args()
 
@@ -138,7 +143,7 @@ def export_model(RUNNING_CONFIG):
         n_output_channels=1,
         unet_variant=RUNNING_CONFIG.unet_variant,
         weight_init_method="he_normal",
-        activation_fn=RUNNING_CONFIG.activation_fn
+        activation_fn=RUNNING_CONFIG.activation_fn,
     )
 
     config_proto = tf.ConfigProto()
@@ -150,7 +155,9 @@ def export_model(RUNNING_CONFIG):
 
     if RUNNING_CONFIG.xla:  # Only working on single GPU
         LOGGER.log("XLA is activated - Experimental Feature")
-        config_proto.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+        config_proto.graph_options.optimizer_options.global_jit_level = (
+            tf.OptimizerOptions.ON_1
+        )
 
     config_proto.gpu_options.force_gpu_compatible = True  # Force pinned memory
 
@@ -168,17 +175,17 @@ def export_model(RUNNING_CONFIG):
         device_fn=None,
         protocol=None,
         eval_distribute=None,
-        experimental_distribute=None
+        experimental_distribute=None,
     )
 
     estimator = tf.estimator.Estimator(
         model_fn=model,
         model_dir=RUNNING_CONFIG.model_checkpoint_path,
         config=run_config,
-        params={'debug_verbosity': 0}
+        params={"debug_verbosity": 0},
     )
 
-    LOGGER.log('[*] Exporting the model ...')
+    LOGGER.log("[*] Exporting the model ...")
 
     input_type = tf.float32 if RUNNING_CONFIG.input_dtype else tf.float16
 
@@ -187,22 +194,26 @@ def export_model(RUNNING_CONFIG):
         input_shape = [RUNNING_CONFIG.batch_size, 512, 512, 1]
 
         def serving_input_receiver_fn():
-            features = tf.placeholder(dtype=input_type, shape=input_shape, name='input_tensor')
+            features = tf.placeholder(
+                dtype=input_type, shape=input_shape, name="input_tensor"
+            )
 
-            return tf.estimator.export.TensorServingInputReceiver(features=features, receiver_tensors=features)
+            return tf.estimator.export.TensorServingInputReceiver(
+                features=features, receiver_tensors=features
+            )
 
         return serving_input_receiver_fn
 
     export_path = estimator.export_saved_model(
         export_dir_base=RUNNING_CONFIG.export_dir,
         serving_input_receiver_fn=get_serving_input_receiver_fn(),
-        checkpoint_path=RUNNING_CONFIG.model_checkpoint_path
+        checkpoint_path=RUNNING_CONFIG.model_checkpoint_path,
     )
 
-    LOGGER.log('[*] Done! path: `%s`' % export_path.decode())
+    LOGGER.log("[*] Done! path: `%s`" % export_path.decode())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     tf.logging.set_verbosity(tf.logging.ERROR)
     tf.disable_eager_execution()
@@ -212,7 +223,9 @@ if __name__ == '__main__':
     for endpattern in [".index", ".meta"]:
         file_to_check = flags.model_checkpoint_path + endpattern
         if not os.path.isfile(file_to_check):
-            raise FileNotFoundError("The checkpoint file `%s` does not exist" % file_to_check)
+            raise FileNotFoundError(
+                "The checkpoint file `%s` does not exist" % file_to_check
+            )
 
     print(" ========================= Export Flags =========================\n")
     pprint.pprint(dict(flags._get_kwargs()))

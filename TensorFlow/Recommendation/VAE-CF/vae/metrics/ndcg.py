@@ -27,7 +27,7 @@ from scipy.sparse import csr_matrix
 
 
 def ndcg(X_true: csr_matrix, X_top_k: np.array, R=100) -> np.array:
-    """ Calculate ndcg@R for each users in X_true and X_pred matrices
+    """Calculate ndcg@R for each users in X_true and X_pred matrices
 
     Args:
         X_true: Matrix containing True values for user-item interactions
@@ -38,7 +38,7 @@ def ndcg(X_true: csr_matrix, X_top_k: np.array, R=100) -> np.array:
         Numpy array containing calculated ndcg@R for each user
     """
 
-    penalties = 1. / np.log2(np.arange(2, R + 2))
+    penalties = 1.0 / np.log2(np.arange(2, R + 2))
     selected = np.take_along_axis(X_true, X_top_k[:, :R], axis=-1)
 
     DCG = selected * penalties

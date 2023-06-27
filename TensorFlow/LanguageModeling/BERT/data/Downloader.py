@@ -11,13 +11,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from GooglePretrainedWeightDownloader import GooglePretrainedWeightDownloader
-from NVIDIAPretrainedWeightDownloader import NVIDIAPretrainedWeightDownloader
-from WikiDownloader import WikiDownloader
 from BooksDownloader import BooksDownloader
 from GLUEDownloader import GLUEDownloader
-from SquadDownloader import SquadDownloader
+from GooglePretrainedWeightDownloader import GooglePretrainedWeightDownloader
+from NVIDIAPretrainedWeightDownloader import NVIDIAPretrainedWeightDownloader
 from PubMedDownloader import PubMedDownloader
+from SquadDownloader import SquadDownloader
+from WikiDownloader import WikiDownloader
+
 
 class Downloader:
     def __init__(self, dataset_name, save_path):

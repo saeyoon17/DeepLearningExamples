@@ -44,7 +44,8 @@ def dot_interact(concat_features, bottom_mlp_out=None, skip_gather=False):
     if skip_gather:
         upper_tri_bool = tf.cast(upper_tri_mask, tf.bool)
         activations = tf.where(
-                condition=upper_tri_bool, x=tf.zeros_like(interactions), y=interactions)
+            condition=upper_tri_bool, x=tf.zeros_like(interactions), y=interactions
+        )
         out_dim = feature_dim * feature_dim
     else:
         lower_tri_mask = ones - upper_tri_mask

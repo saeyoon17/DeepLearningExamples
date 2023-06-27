@@ -16,77 +16,79 @@
 
 """Tokenization classes."""
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import collections
+import os
+import re
 import unicodedata
+
 import six
 import tensorflow as tf
-import re
-import os
-
 
 PRETRAINED_VOCAB_ARCHIVE_MAP = {
-    'bert-base-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-vocab.txt",
-    'bert-large-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-vocab.txt",
-    'bert-base-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-cased-vocab.txt",
-    'bert-large-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt",
-    'bert-base-multilingual-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-uncased-vocab.txt",
-    'bert-base-multilingual-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-cased-vocab.txt",
-    'bert-base-chinese': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-chinese-vocab.txt",
+    "bert-base-uncased": "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-vocab.txt",
+    "bert-large-uncased": "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-vocab.txt",
+    "bert-base-cased": "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-cased-vocab.txt",
+    "bert-large-cased": "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-vocab.txt",
+    "bert-base-multilingual-uncased": "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-uncased-vocab.txt",
+    "bert-base-multilingual-cased": "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-cased-vocab.txt",
+    "bert-base-chinese": "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-chinese-vocab.txt",
 }
 
+
 def validate_case_matches_checkpoint(do_lower_case, init_checkpoint):
-  """Checks whether the casing config is consistent with the checkpoint name."""
+    """Checks whether the casing config is consistent with the checkpoint name."""
 
-  # The casing has to be passed in by the user and there is no explicit check
-  # as to whether it matches the checkpoint. The casing information probably
-  # should have been stored in the bert_config.json file, but it's not, so
-  # we have to heuristically detect it to validate.
+    # The casing has to be passed in by the user and there is no explicit check
+    # as to whether it matches the checkpoint. The casing information probably
+    # should have been stored in the bert_config.json file, but it's not, so
+    # we have to heuristically detect it to validate.
 
-  if not init_checkpoint:
-    return
+    if not init_checkpoint:
+        return
 
-  m = re.match("^.*?([A-Za-z0-9_-]+)/bert_model.ckpt", init_checkpoint)
-  if m is None:
-    return
+    m = re.match("^.*?([A-Za-z0-9_-]+)/bert_model.ckpt", init_checkpoint)
+    if m is None:
+        return
 
-  model_name = m.group(1)
+    model_name = m.group(1)
 
-  lower_models = [
-      "uncased_L-24_H-1024_A-16", "uncased_L-12_H-768_A-12",
-      "multilingual_L-12_H-768_A-12", "chinese_L-12_H-768_A-12"
-  ]
+    lower_models = [
+        "uncased_L-24_H-1024_A-16",
+        "uncased_L-12_H-768_A-12",
+        "multilingual_L-12_H-768_A-12",
+        "chinese_L-12_H-768_A-12",
+    ]
 
-  cased_models = [
-      "cased_L-12_H-768_A-12", "cased_L-24_H-1024_A-16",
-      "multi_cased_L-12_H-768_A-12"
-  ]
+    cased_models = [
+        "cased_L-12_H-768_A-12",
+        "cased_L-24_H-1024_A-16",
+        "multi_cased_L-12_H-768_A-12",
+    ]
 
-  is_bad_config = False
-  if model_name in lower_models and not do_lower_case:
-    is_bad_config = True
-    actual_flag = "False"
-    case_name = "lowercased"
-    opposite_flag = "True"
+    is_bad_config = False
+    if model_name in lower_models and not do_lower_case:
+        is_bad_config = True
+        actual_flag = "False"
+        case_name = "lowercased"
+        opposite_flag = "True"
 
-  if model_name in cased_models and do_lower_case:
-    is_bad_config = True
-    actual_flag = "True"
-    case_name = "cased"
-    opposite_flag = "False"
+    if model_name in cased_models and do_lower_case:
+        is_bad_config = True
+        actual_flag = "True"
+        case_name = "cased"
+        opposite_flag = "False"
 
-  if is_bad_config:
-    raise ValueError(
-        "You passed in `--do_lower_case=%s` with `--init_checkpoint=%s`. "
-        "However, `%s` seems to be a %s model, so you "
-        "should pass in `--do_lower_case=%s` so that the fine-tuning matches "
-        "how the model was pre-training. If this error is wrong, please "
-        "just comment out this check." % (actual_flag, init_checkpoint,
-                                          model_name, case_name, opposite_flag))
-
+    if is_bad_config:
+        raise ValueError(
+            "You passed in `--do_lower_case=%s` with `--init_checkpoint=%s`. "
+            "However, `%s` seems to be a %s model, so you "
+            "should pass in `--do_lower_case=%s` so that the fine-tuning matches "
+            "how the model was pre-training. If this error is wrong, please "
+            "just comment out this check."
+            % (actual_flag, init_checkpoint, model_name, case_name, opposite_flag)
+        )
 
 
 def convert_to_unicode(text):
@@ -128,11 +130,11 @@ def load_vocab(vocab_file):
 
 
 def convert_by_vocab(vocab, items):
-  """Converts a sequence of [tokens|ids] using the vocab."""
-  output = []
-  for item in items:
-    output.append(vocab[item])
-  return output
+    """Converts a sequence of [tokens|ids] using the vocab."""
+    output = []
+    for item in items:
+        output.append(vocab[item])
+    return output
 
 
 def whitespace_tokenize(text):
@@ -145,27 +147,27 @@ def whitespace_tokenize(text):
 
 
 class FullTokenizer(object):
-  """Runs end-to-end tokenziation."""
+    """Runs end-to-end tokenziation."""
 
-  def __init__(self, vocab_file, do_lower_case=True):
-    self.vocab = load_vocab(vocab_file)
-    self.inv_vocab = {v: k for k, v in self.vocab.items()}
-    self.basic_tokenizer = BasicTokenizer(do_lower_case=do_lower_case)
-    self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self.vocab)
+    def __init__(self, vocab_file, do_lower_case=True):
+        self.vocab = load_vocab(vocab_file)
+        self.inv_vocab = {v: k for k, v in self.vocab.items()}
+        self.basic_tokenizer = BasicTokenizer(do_lower_case=do_lower_case)
+        self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self.vocab)
 
-  def tokenize(self, text):
-    split_tokens = []
-    for token in self.basic_tokenizer.tokenize(text):
-      for sub_token in self.wordpiece_tokenizer.tokenize(token):
-        split_tokens.append(sub_token)
+    def tokenize(self, text):
+        split_tokens = []
+        for token in self.basic_tokenizer.tokenize(text):
+            for sub_token in self.wordpiece_tokenizer.tokenize(token):
+                split_tokens.append(sub_token)
 
-    return split_tokens
+        return split_tokens
 
-  def convert_tokens_to_ids(self, tokens):
-    return convert_by_vocab(self.vocab, tokens)
+    def convert_tokens_to_ids(self, tokens):
+        return convert_by_vocab(self.vocab, tokens)
 
-  def convert_ids_to_tokens(self, ids):
-    return convert_by_vocab(self.inv_vocab, ids)
+    def convert_ids_to_tokens(self, ids):
+        return convert_by_vocab(self.inv_vocab, ids)
 
 
 class BertTokenizer(object):
@@ -175,10 +177,14 @@ class BertTokenizer(object):
         if not os.path.isfile(vocab_file):
             raise ValueError(
                 "Can't find a vocabulary file at path '{}'. To load the vocabulary from a Google pretrained "
-                "model use `tokenizer = BertTokenizer.from_pretrained(PRETRAINED_MODEL_NAME)`".format(vocab_file))
+                "model use `tokenizer = BertTokenizer.from_pretrained(PRETRAINED_MODEL_NAME)`".format(
+                    vocab_file
+                )
+            )
         self.vocab = load_vocab(vocab_file)
         self.ids_to_tokens = collections.OrderedDict(
-            [(ids, tok) for tok, ids in self.vocab.items()])
+            [(ids, tok) for tok, ids in self.vocab.items()]
+        )
         self.basic_tokenizer = BasicTokenizer(do_lower_case=do_lower_case)
         self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self.vocab)
 
@@ -206,9 +212,9 @@ class BertTokenizer(object):
     @classmethod
     def from_pretrained(cls, pretrained_model_name, do_lower_case=True):
         """
-    Instantiate a PreTrainedBertModel from a pre-trained model file.
-    Download and cache the pre-trained model file if needed.
-    """
+        Instantiate a PreTrainedBertModel from a pre-trained model file.
+        Download and cache the pre-trained model file if needed.
+        """
         if pretrained_model_name in PRETRAINED_VOCAB_ARCHIVE_MAP:
             vocab_file = PRETRAINED_VOCAB_ARCHIVE_MAP[pretrained_model_name]
         else:
@@ -220,8 +226,11 @@ class BertTokenizer(object):
 
                 logger.info("loading vocabulary file {}".format(vocab_file))
             else:
-                logger.info("loading vocabulary file {} from cache at {}".format(
-                    vocab_file, resolved_vocab_file))
+                logger.info(
+                    "loading vocabulary file {} from cache at {}".format(
+                        vocab_file, resolved_vocab_file
+                    )
+                )
             # Instantiate tokenizer.
             tokenizer = cls(resolved_vocab_file, do_lower_case)
         except FileNotFoundError:
@@ -230,8 +239,10 @@ class BertTokenizer(object):
                 "We assumed '{}' was a path or url but couldn't find any file "
                 "associated to this path or url.".format(
                     pretrained_model_name,
-                    ', '.join(PRETRAINED_VOCAB_ARCHIVE_MAP.keys()),
-                    pretrained_model_name))
+                    ", ".join(PRETRAINED_VOCAB_ARCHIVE_MAP.keys()),
+                    pretrained_model_name,
+                )
+            )
             tokenizer = None
         return tokenizer
 
@@ -242,9 +253,9 @@ class BasicTokenizer(object):
     def __init__(self, do_lower_case=True):
         """Constructs a BasicTokenizer.
 
-    Args:
-      do_lower_case: Whether to lower case the input.
-    """
+        Args:
+          do_lower_case: Whether to lower case the input.
+        """
         self.do_lower_case = do_lower_case
 
     def tokenize(self, text):
@@ -323,14 +334,16 @@ class BasicTokenizer(object):
         # as is Japanese Hiragana and Katakana. Those alphabets are used to write
         # space-separated words, so they are not treated specially and handled
         # like the all of the other languages.
-        if ((cp >= 0x4E00 and cp <= 0x9FFF) or  #
-                (cp >= 0x3400 and cp <= 0x4DBF) or  #
-                (cp >= 0x20000 and cp <= 0x2A6DF) or  #
-                (cp >= 0x2A700 and cp <= 0x2B73F) or  #
-                (cp >= 0x2B740 and cp <= 0x2B81F) or  #
-                (cp >= 0x2B820 and cp <= 0x2CEAF) or
-                (cp >= 0xF900 and cp <= 0xFAFF) or  #
-                (cp >= 0x2F800 and cp <= 0x2FA1F)):  #
+        if (
+            (cp >= 0x4E00 and cp <= 0x9FFF)
+            or (cp >= 0x3400 and cp <= 0x4DBF)  #
+            or (cp >= 0x20000 and cp <= 0x2A6DF)  #
+            or (cp >= 0x2A700 and cp <= 0x2B73F)  #
+            or (cp >= 0x2B740 and cp <= 0x2B81F)  #
+            or (cp >= 0x2B820 and cp <= 0x2CEAF)  #
+            or (cp >= 0xF900 and cp <= 0xFAFF)
+            or (cp >= 0x2F800 and cp <= 0x2FA1F)  #
+        ):  #
             return True
 
         return False
@@ -340,7 +353,7 @@ class BasicTokenizer(object):
         output = []
         for char in text:
             cp = ord(char)
-            if cp == 0 or cp == 0xfffd or _is_control(char):
+            if cp == 0 or cp == 0xFFFD or _is_control(char):
                 continue
             if _is_whitespace(char):
                 output.append(" ")
@@ -360,20 +373,20 @@ class WordpieceTokenizer(object):
     def tokenize(self, text):
         """Tokenizes a piece of text into its word pieces.
 
-    This uses a greedy longest-match-first algorithm to perform tokenization
-    using the given vocabulary.
+        This uses a greedy longest-match-first algorithm to perform tokenization
+        using the given vocabulary.
 
-    For example:
-      input = "unaffable"
-      output = ["un", "##aff", "##able"]
+        For example:
+          input = "unaffable"
+          output = ["un", "##aff", "##able"]
 
-    Args:
-      text: A single token or whitespace separated tokens. This should have
-        already been passed through `BasicTokenizer.
+        Args:
+          text: A single token or whitespace separated tokens. This should have
+            already been passed through `BasicTokenizer.
 
-    Returns:
-      A list of wordpiece tokens.
-    """
+        Returns:
+          A list of wordpiece tokens.
+        """
 
         text = convert_to_unicode(text)
 
@@ -442,8 +455,12 @@ def _is_punctuation(char):
     # Characters such as "^", "$", and "`" are not in the Unicode
     # Punctuation class but we treat them as punctuation anyways, for
     # consistency.
-    if ((cp >= 33 and cp <= 47) or (cp >= 58 and cp <= 64) or
-            (cp >= 91 and cp <= 96) or (cp >= 123 and cp <= 126)):
+    if (
+        (cp >= 33 and cp <= 47)
+        or (cp >= 58 and cp <= 64)
+        or (cp >= 91 and cp <= 96)
+        or (cp >= 123 and cp <= 126)
+    ):
         return True
     cat = unicodedata.category(char)
     if cat.startswith("P"):

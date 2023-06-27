@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
-import paddle.distributed as dist
+
 import dllogger
+import paddle.distributed as dist
 
 
 def format_step(step):
@@ -45,14 +46,16 @@ def setup_loggers(log_file):
         log_file(str): Path to log file.
     """
     logging.basicConfig(
-        level=logging.DEBUG,
-        format='{asctime}:{levelname}: {message}',
-        style='{')
+        level=logging.DEBUG, format="{asctime}:{levelname}: {message}", style="{"
+    )
     if dist.get_rank() == 0:
-        dllogger.init(backends=[
-            dllogger.StdOutBackend(
-                dllogger.Verbosity.DEFAULT, step_format=format_step),
-            dllogger.JSONStreamBackend(dllogger.Verbosity.VERBOSE, log_file),
-        ])
+        dllogger.init(
+            backends=[
+                dllogger.StdOutBackend(
+                    dllogger.Verbosity.DEFAULT, step_format=format_step
+                ),
+                dllogger.JSONStreamBackend(dllogger.Verbosity.VERBOSE, log_file),
+            ]
+        )
     else:
         dllogger.init([])

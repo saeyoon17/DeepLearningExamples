@@ -20,18 +20,23 @@
 # SOFTWARE.
 
 import torch
-
-from seq2seq.data.config import BOS
-from seq2seq.data.config import EOS
+from seq2seq.data.config import BOS, EOS
 
 
 class SequenceGenerator:
     """
     Generator for the autoregressive inference with beam search decoding.
     """
-    def __init__(self, model, beam_size=5, max_seq_len=100,
-                 len_norm_factor=0.6, len_norm_const=5,
-                 cov_penalty_factor=0.1):
+
+    def __init__(
+        self,
+        model,
+        beam_size=5,
+        max_seq_len=100,
+        len_norm_factor=0.6,
+        len_norm_const=5,
+        cov_penalty_factor=0.1,
+    ):
         """
         Constructor for the SequenceGenerator.
 
@@ -73,14 +78,12 @@ class SequenceGenerator:
         device = initial_input.device
         max_seq_len = self.max_seq_len
 
-        translation = torch.zeros(batch_size, max_seq_len, dtype=torch.int64,
-                                  device=device)
-        lengths = torch.ones(batch_size, dtype=torch.int64,
-                             device=device)
-        active = torch.arange(0, batch_size, dtype=torch.int64,
-                              device=device)
-        base_mask = torch.arange(0, batch_size, dtype=torch.int64,
-                                 device=device)
+        translation = torch.zeros(
+            batch_size, max_seq_len, dtype=torch.int64, device=device
+        )
+        lengths = torch.ones(batch_size, dtype=torch.int64, device=device)
+        active = torch.arange(0, batch_size, dtype=torch.int64, device=device)
+        base_mask = torch.arange(0, batch_size, dtype=torch.int64, device=device)
 
         translation[:, 0] = BOS
         words, context = initial_input, initial_context
@@ -106,12 +109,12 @@ class SequenceGenerator:
             translation[active, idx] = words
             lengths[active] += 1
 
-            terminating = (words == EOS)
+            terminating = words == EOS
 
             if terminating.any():
                 not_terminating = ~terminating
 
-                mask = base_mask[:len(active)]
+                mask = base_mask[: len(active)]
                 mask = mask.masked_select(not_terminating)
                 active = active.masked_select(not_terminating)
 
@@ -143,20 +146,23 @@ class SequenceGenerator:
         max_seq_len = self.max_seq_len
         cov_penalty_factor = self.cov_penalty_factor
 
-        translation = torch.zeros(batch_size * beam_size, max_seq_len,
-                                  dtype=torch.int64, device=device)
-        lengths = torch.ones(batch_size * beam_size,
-                             dtype=torch.int64, device=device)
-        scores = torch.zeros(batch_size * beam_size,
-                             dtype=torch.float32, device=device)
-        active = torch.arange(0, batch_size * beam_size,
-                              dtype=torch.int64, device=device)
-        base_mask = torch.arange(0, batch_size * beam_size,
-                                 dtype=torch.int64, device=device)
-        global_offset = torch.arange(0, batch_size * beam_size, beam_size,
-                                     device=device, dtype=torch.int64)
-        eos_beam_fill = torch.tensor([0] + (beam_size - 1) * [float('-inf')],
-                                     dtype=torch.float32, device=device)
+        translation = torch.zeros(
+            batch_size * beam_size, max_seq_len, dtype=torch.int64, device=device
+        )
+        lengths = torch.ones(batch_size * beam_size, dtype=torch.int64, device=device)
+        scores = torch.zeros(batch_size * beam_size, dtype=torch.float32, device=device)
+        active = torch.arange(
+            0, batch_size * beam_size, dtype=torch.int64, device=device
+        )
+        base_mask = torch.arange(
+            0, batch_size * beam_size, dtype=torch.int64, device=device
+        )
+        global_offset = torch.arange(
+            0, batch_size * beam_size, beam_size, device=device, dtype=torch.int64
+        )
+        eos_beam_fill = torch.tensor(
+            [0] + (beam_size - 1) * [float("-inf")], dtype=torch.float32, device=device
+        )
 
         translation[:, 0] = BOS
 
@@ -177,16 +183,18 @@ class SequenceGenerator:
             _, seq, feature = context[0].shape
             context[0].unsqueeze_(1)
             context[0] = context[0].expand(-1, beam_size, -1, -1)
-            context[0] = context[0].contiguous().view(batch_size * beam_size,
-                                                      seq, feature)
+            context[0] = (
+                context[0].contiguous().view(batch_size * beam_size, seq, feature)
+            )
             # context[0]: (batch * beam, seq, feature)
         else:
             # context[0] (encoder state): (seq, batch, feature)
             seq, _, feature = context[0].shape
             context[0].unsqueeze_(2)
             context[0] = context[0].expand(-1, -1, beam_size, -1)
-            context[0] = context[0].contiguous().view(seq, batch_size *
-                                                      beam_size, feature)
+            context[0] = (
+                context[0].contiguous().view(seq, batch_size * beam_size, feature)
+            )
             # context[0]: (seq, batch * beam,  feature)
 
         # context[1] (encoder seq length): (batch)
@@ -195,8 +203,9 @@ class SequenceGenerator:
         context[1] = context[1].contiguous().view(batch_size * beam_size)
         # context[1]: (batch * beam)
 
-        accu_attn_scores = torch.zeros(batch_size * beam_size, seq,
-                                       dtype=torch.float32, device=device)
+        accu_attn_scores = torch.zeros(
+            batch_size * beam_size, seq, dtype=torch.float32, device=device
+        )
 
         counter = 0
         for idx in range(1, self.max_seq_len):
@@ -204,7 +213,7 @@ class SequenceGenerator:
                 break
             counter += 1
 
-            eos_mask = (words == EOS)
+            eos_mask = words == EOS
             eos_mask = eos_mask.view(-1, beam_size)
 
             terminating, _ = eos_mask.min(dim=1)
@@ -233,7 +242,7 @@ class SequenceGenerator:
             new_scores = active_scores.unsqueeze(2) + logprobs
 
             if idx == 1:
-                new_scores[:, 1:, :].fill_(float('-inf'))
+                new_scores[:, 1:, :].fill_(float("-inf"))
 
             new_scores = new_scores.view(-1, beam_size * beam_size)
             # index: (batch, beam)
@@ -250,7 +259,7 @@ class SequenceGenerator:
             # words: (1, batch * beam)
             words = words.view(word_view)
 
-            offset = global_offset[:source_beam.shape[0]]
+            offset = global_offset[: source_beam.shape[0]]
             source_beam += offset.unsqueeze(1)
 
             translation[active, :] = translation[active[source_beam.view(-1)], :]
@@ -270,7 +279,7 @@ class SequenceGenerator:
                 # length normalization
                 norm = lengths[normalization_mask].float()
                 norm = (norm_const + norm) / (norm_const + 1.0)
-                norm = norm ** norm_factor
+                norm = norm**norm_factor
 
                 scores[normalization_mask] /= norm
 
@@ -278,12 +287,12 @@ class SequenceGenerator:
                 penalty = accu_attn_scores[normalization_mask]
                 penalty = penalty.clamp(0, 1)
                 penalty = penalty.log()
-                penalty[penalty == float('-inf')] = 0
+                penalty[penalty == float("-inf")] = 0
                 penalty = penalty.sum(dim=-1)
 
                 scores[normalization_mask] += cov_penalty_factor * penalty
 
-                mask = base_mask[:len(active)]
+                mask = base_mask[: len(active)]
                 mask = mask.masked_select(not_terminating.view(-1))
 
                 words = words.index_select(ctx_batch_dim, mask)

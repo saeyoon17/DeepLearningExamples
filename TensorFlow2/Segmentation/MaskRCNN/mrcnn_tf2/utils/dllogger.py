@@ -17,10 +17,10 @@ from dllogger import Backend
 
 
 class LoggingBackend(Backend):
-    """ Simple DLLogger backend that uses python `logging` library. """
+    """Simple DLLogger backend that uses python `logging` library."""
 
-    def __init__(self, verbosity, logger_name='dllogger', level=logging.INFO):
-        """ Creates backend for dllogger that uses `logging` library.
+    def __init__(self, verbosity, logger_name="dllogger", level=logging.INFO):
+        """Creates backend for dllogger that uses `logging` library.
 
         Args:
             verbosity: DLLogger verbosity.
@@ -34,14 +34,13 @@ class LoggingBackend(Backend):
     def log(self, timestamp, elapsedtime, step, data):
         self._logger.log(
             level=self._level,
-            msg='{step} {data}'.format(
-                step=step,
-                data=', '.join(f'{k}: {v}' for k, v in data.items())
-            )
+            msg="{step} {data}".format(
+                step=step, data=", ".join(f"{k}: {v}" for k, v in data.items())
+            ),
         )
 
     def metadata(self, timestamp, elapsedtime, metric, metadata):
-        """ For simplicity this logger ignores metadata. """
+        """For simplicity this logger ignores metadata."""
 
     def flush(self):
         pass

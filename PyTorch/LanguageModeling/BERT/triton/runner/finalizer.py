@@ -31,7 +31,9 @@ from .task import Task
 
 class Finalizer(abc.ABC):
     @abc.abstractmethod
-    def exec(self, workspace: pathlib.Path, task: Task, results: List[ExperimentResult]):
+    def exec(
+        self, workspace: pathlib.Path, task: Task, results: List[ExperimentResult]
+    ):
         pass
 
 
@@ -40,7 +42,9 @@ class ExperimentFinalizer(Finalizer):
     Public runner finalizer object.
     """
 
-    def exec(self, workspace: pathlib.Path, task: Task, results: List[ExperimentResult]):
+    def exec(
+        self, workspace: pathlib.Path, task: Task, results: List[ExperimentResult]
+    ):
         results_path = workspace / task.results_dir
 
         self._generate_summary(results_path, results)
@@ -66,7 +70,9 @@ class ExperimentFinalizer(Finalizer):
 
         LOGGER.info(f"Task details and results stored in {results_path}")
 
-    def _generate_summary(self, results_path: pathlib.Path, experiment_results: List[ExperimentResult]):
+    def _generate_summary(
+        self, results_path: pathlib.Path, experiment_results: List[ExperimentResult]
+    ):
         """
         Generate summary for results collected in all experiments
 
@@ -87,7 +93,9 @@ class ExperimentFinalizer(Finalizer):
         self._collect_summary_results(experiment_results, results_mapping)
         self._prepare_final_results(results_path, results_mapping)
 
-    def _collect_summary_results(self, experiment_results: List[ExperimentResult], results_mapping: Dict):
+    def _collect_summary_results(
+        self, experiment_results: List[ExperimentResult], results_mapping: Dict
+    ):
         for experiment_result in experiment_results:
             experiment = experiment_result.experiment
             for result_type, result_path in experiment_result.results.items():
@@ -98,10 +106,14 @@ class ExperimentFinalizer(Finalizer):
                 LOGGER.debug(f"Found {result_type} in {result_path} file.")
 
                 if result_type not in results_mapping:
-                    LOGGER.debug(f"Results {result_type} for {experiment.experiment_id} are ignored in final summary.")
+                    LOGGER.debug(
+                        f"Results {result_type} for {experiment.experiment_id} are ignored in final summary."
+                    )
                     return
 
-                LOGGER.debug(f"Collecting {result_type} results from {result_path} for summary")
+                LOGGER.debug(
+                    f"Collecting {result_type} results from {result_path} for summary"
+                )
                 result = load_results(
                     results_path=result_path,
                     parameters=experiment.parameters,
@@ -111,7 +123,9 @@ class ExperimentFinalizer(Finalizer):
                 results_mapping[result_type].extend(result)
                 LOGGER.debug(f"Done.")
 
-    def _prepare_final_results(self, results_path: pathlib.Path, results_mapping: Dict) -> None:
+    def _prepare_final_results(
+        self, results_path: pathlib.Path, results_mapping: Dict
+    ) -> None:
         """
         Prepare summary files for offline and online performance
 

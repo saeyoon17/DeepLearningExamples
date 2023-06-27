@@ -36,18 +36,10 @@ from timm.data import create_dataset, create_loader
 from timm.models.helpers import load_checkpoint
 from timm.utils import AverageMeter, accuracy
 
-from .gpunet_modules import (
-    ConvBnAct,
-    EdgeResidual,
-    Epilogue,
-    EpilogueD,
-    Fused_IRB,
-    Inverted_Residual_Block,
-    InvertedResidual,
-    Prologue,
-    PrologueD,
-    PrologueLargeD,
-)
+from .gpunet_modules import (ConvBnAct, EdgeResidual, Epilogue, EpilogueD,
+                             Fused_IRB, Inverted_Residual_Block,
+                             InvertedResidual, Prologue, PrologueD,
+                             PrologueLargeD)
 
 
 class GPUNet(nn.Module):

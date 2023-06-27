@@ -58,7 +58,9 @@ class CommandsExporter:
 
         result = os.system(f'ex +"set syn=sh" +"norm gg=G" -cwq {file_path}')
         if result != 0:
-            raise RunnerException(f"Failed running {filename} script formatting. Exit code {result}")
+            raise RunnerException(
+                f"Failed running {filename} script formatting. Exit code {result}"
+            )
 
         command = Command(f"bash -xe {file_path.as_posix()}")
         return command

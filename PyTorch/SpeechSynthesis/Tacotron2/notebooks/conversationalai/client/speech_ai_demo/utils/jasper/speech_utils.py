@@ -26,17 +26,16 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import librosa
-import soundfile as sf
 import math
 from os import system
-import numpy as np
-from tensorrtserver.api import *
-import tensorrtserver.api.model_config_pb2 as model_config
+
 import grpc
-from tensorrtserver.api import api_pb2
-from tensorrtserver.api import grpc_service_pb2
-from tensorrtserver.api import grpc_service_pb2_grpc
+import librosa
+import numpy as np
+import soundfile as sf
+import tensorrtserver.api.model_config_pb2 as model_config
+from tensorrtserver.api import *
+from tensorrtserver.api import api_pb2, grpc_service_pb2, grpc_service_pb2_grpc
 
 WINDOWS_FNS = {"hanning": np.hanning, "hamming": np.hamming, "none": None}
 
@@ -83,26 +82,36 @@ def ctc_decoder_predictions_tensor(prediction_cpu_tensor, batch_size, labels):
     hypotheses = []
     labels_map = dict([(i, labels[i]) for i in range(len(labels))])
     # iterate over batch
-    prediction_cpu_tensor = prediction_cpu_tensor.reshape((batch_size, int(prediction_cpu_tensor.size/batch_size)))
+    prediction_cpu_tensor = prediction_cpu_tensor.reshape(
+        (batch_size, int(prediction_cpu_tensor.size / batch_size))
+    )
     for ind in range(batch_size):
         prediction = prediction_cpu_tensor[ind].tolist()
         # CTC decoding procedure
         decoded_prediction = []
-        previous = len(labels) - 1 # id of a blank symbol
+        previous = len(labels) - 1  # id of a blank symbol
         for p in prediction:
             if (p != previous or previous == blank_id) and p != blank_id:
                 decoded_prediction.append(p)
             previous = p
-        hypothesis = ''.join([labels_map[c] for c in decoded_prediction])
+        hypothesis = "".join([labels_map[c] for c in decoded_prediction])
         hypotheses.append(hypothesis)
     return hypotheses
 
-class SpeechClient(object):
 
-    def __init__(self, url, protocol, model_name, model_version, batch_size,
-                 model_platform=None, verbose=False,
-                 mode="batch",
-                 from_features=True):
+class SpeechClient(object):
+    def __init__(
+        self,
+        url,
+        protocol,
+        model_name,
+        model_version,
+        batch_size,
+        model_platform=None,
+        verbose=False,
+        mode="batch",
+        from_features=True,
+    ):
 
         self.model_name = model_name
         self.model_version = model_version
@@ -118,48 +127,101 @@ class SpeechClient(object):
 
         self.buffer = []
 
-        self.ctx = InferContext(url, protocol, model_name, model_version,
-                                verbose, self.correlation_id, False)
-        server_ctx = ServerStatusContext(url, protocol, model_name,
-                                         verbose)
+        self.ctx = InferContext(
+            url,
+            protocol,
+            model_name,
+            model_version,
+            verbose,
+            self.correlation_id,
+            False,
+        )
+        server_ctx = ServerStatusContext(url, protocol, model_name, verbose)
         server_status = server_ctx.get_server_status()
 
-        self.audio_signals_name, self.num_samples_name, self.transcripts_name, \
-        self.audio_signals_type, self.num_samples_type, self.transcripts_type =  self.parse_model(server_status, model_name,
-                                                                                                  batch_size, model_platform, verbose)
-        self.labels = [" ", "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "'", "<BLANK>"]
+        (
+            self.audio_signals_name,
+            self.num_samples_name,
+            self.transcripts_name,
+            self.audio_signals_type,
+            self.num_samples_type,
+            self.transcripts_type,
+        ) = self.parse_model(
+            server_status, model_name, batch_size, model_platform, verbose
+        )
+        self.labels = [
+            " ",
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
+            "f",
+            "g",
+            "h",
+            "i",
+            "j",
+            "k",
+            "l",
+            "m",
+            "n",
+            "o",
+            "p",
+            "q",
+            "r",
+            "s",
+            "t",
+            "u",
+            "v",
+            "w",
+            "x",
+            "y",
+            "z",
+            "'",
+            "<BLANK>",
+        ]
 
     def postprocess(self, results, labels):
 
         if len(results) != 1:
             raise Exception("expected 1 result, got {}".format(len(results)))
 
-        transcript_values = results['TRANSCRIPT']
+        transcript_values = results["TRANSCRIPT"]
 
-        for transcript, filename in zip(transcript_values,
-                                        labels):
-            hypotheses = ctc_decoder_predictions_tensor(transcript, self.batch_size, self.labels)
-            print('---')
-            print('File: ', filename)
+        for transcript, filename in zip(transcript_values, labels):
+            hypotheses = ctc_decoder_predictions_tensor(
+                transcript, self.batch_size, self.labels
+            )
+            print("---")
+            print("File: ", filename)
             print("Final transcript: ", hypotheses)
-            print('---')
-            
+            print("---")
+
         return hypotheses
 
     def check_num_samples(self, num_samples):
-        if num_samples.data_type != model_config.TYPE_UINT32 and num_samples.data_type != model_config.TYPE_INT32:
-             raise Exception(
-                    "expecting num_samples datatype to be TYPE_UINT32/TYPE_INT32, "
-                    "model '" + model_name + "' output type is " +
-                    model_config.DataType.Name(num_samples.data_type))
+        if (
+            num_samples.data_type != model_config.TYPE_UINT32
+            and num_samples.data_type != model_config.TYPE_INT32
+        ):
+            raise Exception(
+                "expecting num_samples datatype to be TYPE_UINT32/TYPE_INT32, "
+                "model '"
+                + model_name
+                + "' output type is "
+                + model_config.DataType.Name(num_samples.data_type)
+            )
         if len(num_samples.dims) != 1:
-            raise Exception("Expecting num_samples to have 1 dimension, "
-                            "model '{}' num_samples has {}".format(
-                                model_name,len(num_samples.dims)))
+            raise Exception(
+                "Expecting num_samples to have 1 dimension, "
+                "model '{}' num_samples has {}".format(
+                    model_name, len(num_samples.dims)
+                )
+            )
 
-    def parse_model(self, server_status,
-                    model_name, batch_size,
-                    model_platform=None, verbose=False):
+    def parse_model(
+        self, server_status, model_name, batch_size, model_platform=None, verbose=False
+    ):
         """
         Check the configuration of the ensemble model
         """
@@ -178,34 +240,34 @@ class SpeechClient(object):
         #   3) num_samples: length of audio
 
         if len(config.input) < 2:
-            raise Exception(
-                "expecting 2-3 inputs, got {}".format(len(config.input)))
+            raise Exception("expecting 2-3 inputs, got {}".format(len(config.input)))
 
         # Outputs are:
         #   1) transcripts:        candidate transcripts
 
         if len(config.output) != 1:
-            raise Exception(
-                "expecting 1 output, got {}".format(len(config.output)))
+            raise Exception("expecting 1 output, got {}".format(len(config.output)))
 
         audio_signal = config.input[0]
 
         if len(config.input) > 1:
             num_samples = config.input[1]
-            self.check_num_samples(num_samples);
-            
+            self.check_num_samples(num_samples)
+
         transcripts = config.output[0]
 
         expected_audio_signal_dim = 1
         expected_audio_signal_type = model_config.TYPE_FP32
 
         if audio_signal.data_type != expected_audio_signal_type:
-            raise Exception("expecting audio_signal datatype to be " +
-                            model_config.DataType.Name(
-                                expected_audio_signal_type) +
-                            "model '" + model_name + "' output type is " +
-                            model_config.DataType.Name(audio_signal.data_type))
-
+            raise Exception(
+                "expecting audio_signal datatype to be "
+                + model_config.DataType.Name(expected_audio_signal_type)
+                + "model '"
+                + model_name
+                + "' output type is "
+                + model_config.DataType.Name(audio_signal.data_type)
+            )
 
         # Model specifying maximum batch size of 0 indicates that batching
         # is not supported and so the input tensors do not expect an "N"
@@ -214,27 +276,31 @@ class SpeechClient(object):
         max_batch_size = config.max_batch_size
         if max_batch_size == 0:
             if batch_size != 1:
-                raise Exception(
-                    "batching not supported for model '" + model_name + "'")
+                raise Exception("batching not supported for model '" + model_name + "'")
         else:  # max_batch_size > 0
             if batch_size > max_batch_size:
                 raise Exception(
                     "expecting batch size <= {} for model {}".format(
-                        max_batch_size, model_name))
-
-        if len(audio_signal.dims) != expected_audio_signal_dim:
-            raise Exception("Expecting audio signal to have {} dimensions, "
-                            "model '{}' audio_signal has {}".format(
-                expected_audio_signal_dim,
-                model_name,
-                len(audio_signal.dims)))
-
-        return (audio_signal.name, num_samples.name, transcripts.name, 
-                model_dtype_to_np(audio_signal.data_type),
-                model_dtype_to_np(num_samples.data_type),
-                model_dtype_to_np(transcripts.data_type),
+                        max_batch_size, model_name
+                    )
                 )
 
+        if len(audio_signal.dims) != expected_audio_signal_dim:
+            raise Exception(
+                "Expecting audio signal to have {} dimensions, "
+                "model '{}' audio_signal has {}".format(
+                    expected_audio_signal_dim, model_name, len(audio_signal.dims)
+                )
+            )
+
+        return (
+            audio_signal.name,
+            num_samples.name,
+            transcripts.name,
+            model_dtype_to_np(audio_signal.data_type),
+            model_dtype_to_np(num_samples.data_type),
+            model_dtype_to_np(transcripts.data_type),
+        )
 
     def update_audio_request(self, request, audio_generator):
 
@@ -243,9 +309,9 @@ class SpeechClient(object):
 
             input_batch = [audio_signal.astype(self.audio_signals_type)]
             num_samples_batch = audio_signal.shape[0]
-            num_samples_batch = [np.asarray([num_samples_batch],
-                                            dtype=self.num_samples_type)]
-
+            num_samples_batch = [
+                np.asarray([num_samples_batch], dtype=self.num_samples_type)
+            ]
 
             flags = InferRequestHeader.FLAG_NONE
             input_batch[0] = np.expand_dims(input_batch[0], axis=0)
@@ -260,10 +326,9 @@ class SpeechClient(object):
             request.meta_data.input[1].batch_byte_size = len(num_samples_bytes)
 
             if start:
-                request.meta_data.flags = flags | \
-                                          InferRequestHeader.FLAG_SEQUENCE_START
+                request.meta_data.flags = flags | InferRequestHeader.FLAG_SEQUENCE_START
             else:
-                request.meta_data.flags = flags;
+                request.meta_data.flags = flags
 
             # Send request with audio signal
             del request.raw_input[:]
@@ -273,10 +338,10 @@ class SpeechClient(object):
 
             # If end, send empty request to flush out remaining audio
             if end:
-                request.meta_data.flags = flags | \
-                                          InferRequestHeader.FLAG_SEQUENCE_END
-                zero_bytes = np.zeros(shape=input_batch[0].shape,
-                                      dtype=input_batch[0].dtype).tobytes()
+                request.meta_data.flags = flags | InferRequestHeader.FLAG_SEQUENCE_END
+                zero_bytes = np.zeros(
+                    shape=input_batch[0].shape, dtype=input_batch[0].dtype
+                ).tobytes()
                 del request.raw_input[:]
                 request.raw_input.extend([zero_bytes])
                 request.raw_input.extend([num_samples_bytes])
@@ -295,12 +360,11 @@ class SpeechClient(object):
         max_num_samples_batch = 0
 
         for idx in range(self.batch_size):
-            input_batch.append(audio_signal[idx].astype(
-                self.audio_signals_type))
+            input_batch.append(audio_signal[idx].astype(self.audio_signals_type))
             input_filenames.append(filenames[idx])
             num_samples = audio_signal[idx].shape[0]
 
-            if (num_samples > max_num_samples_batch):
+            if num_samples > max_num_samples_batch:
                 max_num_samples_batch = num_samples
 
         for idx in range(self.batch_size):
@@ -315,38 +379,46 @@ class SpeechClient(object):
             mean = np.mean(input_batch[idx])
             std_var = np.std(input_batch[idx])
             gauss_noise = np.random.normal(
-                mean,std_var,
-                max_num_samples_batch-num_samples)
+                mean, std_var, max_num_samples_batch - num_samples
+            )
 
-            input_batch[idx]= np.concatenate(
-                (input_batch[idx], gauss_noise.astype(
-                    self.audio_signals_type)))
+            input_batch[idx] = np.concatenate(
+                (input_batch[idx], gauss_noise.astype(self.audio_signals_type))
+            )
 
-        max_num_samples_batch = np.asarray([max_num_samples_batch],
-                                           dtype=self.num_samples_type)
+        max_num_samples_batch = np.asarray(
+            [max_num_samples_batch], dtype=self.num_samples_type
+        )
 
         num_samples_batch = [max_num_samples_batch] * self.batch_size
 
-        #print(num_samples_batch)
-        #print(input_batch)
-        #print(input_sample_rates)
+        # print(num_samples_batch)
+        # print(input_batch)
+        # print(input_sample_rates)
 
         # Send request
-        print("Sending request to transcribe file(s):", ",".join(
-            input_filenames))
+        print("Sending request to transcribe file(s):", ",".join(input_filenames))
 
-        if (self.model_platform == "obsolete_pyt"):
+        if self.model_platform == "obsolete_pyt":
             result = self.ctx.run(
-                {self.audio_signals_name: input_batch,
-                 self.num_samples_name: num_samples_batch},
+                {
+                    self.audio_signals_name: input_batch,
+                    self.num_samples_name: num_samples_batch,
+                },
                 {self.transcripts_name: InferContext.ResultFormat.RAW},
-                self.batch_size, flags)
+                self.batch_size,
+                flags,
+            )
         else:
             result = self.ctx.run(
-                {self.audio_signals_name: input_batch,
-                 self.num_samples_name: num_samples_batch},
+                {
+                    self.audio_signals_name: input_batch,
+                    self.num_samples_name: num_samples_batch,
+                },
                 {self.transcripts_name: InferContext.ResultFormat.RAW},
-                self.batch_size, flags)
+                self.batch_size,
+                flags,
+            )
 
         hypotheses = self.postprocess(result, input_filenames)
 
@@ -366,7 +438,6 @@ def normalize_signal(signal, gain=None):
     return signal * gain
 
 
-
 class AudioSegment(object):
     """Monaural audio segment abstraction.
     :param samples: Audio samples [num_samples x num_channels].
@@ -376,8 +447,7 @@ class AudioSegment(object):
     :raises TypeError: If the sample data type is not float or int.
     """
 
-    def __init__(self, samples, sample_rate, target_sr=16000, trim=False,
-                 trim_db=60):
+    def __init__(self, samples, sample_rate, target_sr=16000, trim=False, trim_db=60):
         """Create audio segment from samples.
         Samples are convert float32 internally, with int scaled to [-1, 1].
         """
@@ -398,19 +468,26 @@ class AudioSegment(object):
         Audio sample type is usually integer or float-point.
         Integers will be scaled to [-1, 1] in float32.
         """
-        float32_samples = samples.astype('float32')
-        if samples.dtype in np.sctypes['int']:
+        float32_samples = samples.astype("float32")
+        if samples.dtype in np.sctypes["int"]:
             bits = np.iinfo(samples.dtype).bits
-            float32_samples *= (1. / 2 ** (bits - 1))
-        elif samples.dtype in np.sctypes['float']:
+            float32_samples *= 1.0 / 2 ** (bits - 1)
+        elif samples.dtype in np.sctypes["float"]:
             pass
         else:
             raise TypeError("Unsupported sample type: %s." % samples.dtype)
         return float32_samples
 
     @classmethod
-    def from_file(cls, filename, target_sr=16000, int_values=False, offset=0,
-                  duration=0, trim=False):
+    def from_file(
+        cls,
+        filename,
+        target_sr=16000,
+        int_values=False,
+        offset=0,
+        duration=0,
+        trim=False,
+    ):
         """
         Load a file supported by librosa and return as an AudioSegment.
         :param filename: path of file to load
@@ -420,8 +497,8 @@ class AudioSegment(object):
         :param duration: duration in seconds when loading audio
         :return: numpy array of samples
         """
-        with sf.SoundFile(filename, 'r') as f:
-            dtype = 'int32' if int_values else 'float32'
+        with sf.SoundFile(filename, "r") as f:
+            dtype = "int32" if int_values else "float32"
             sample_rate = f.samplerate
             if offset > 0:
                 f.seek(int(offset * sample_rate))
@@ -441,6 +518,7 @@ class AudioSegment(object):
     def sample_rate(self):
         return self._sample_rate
 
+
 # define our clear function
 def clear_screen():
-    _ = system('clear')
+    _ = system("clear")

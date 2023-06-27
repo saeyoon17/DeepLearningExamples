@@ -17,23 +17,49 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 parser = ArgumentParser()
-parser.add_argument("--mode", type=str, required=True, choices=["train", "predict"], help="Benchmarking mode")
+parser.add_argument(
+    "--mode",
+    type=str,
+    required=True,
+    choices=["train", "predict"],
+    help="Benchmarking mode",
+)
 parser.add_argument("--task", type=str, default="01", help="Task code")
-parser.add_argument("--dim", type=int, required=True, choices=[2, 3], help="Dimension of UNet")
+parser.add_argument(
+    "--dim", type=int, required=True, choices=[2, 3], help="Dimension of UNet"
+)
 parser.add_argument("--gpus", type=int, default=1, help="Number of gpus")
 parser.add_argument("--batch-size", "--batch_size", type=int, required=True)
-parser.add_argument("--amp", action="store_true", help="Enable automatic mixed precision")
-parser.add_argument("--bind", action="store_true", help="Bind CPUs for each GPU. Improves throughput for multi-GPU.")
+parser.add_argument(
+    "--amp", action="store_true", help="Enable automatic mixed precision"
+)
+parser.add_argument(
+    "--bind",
+    action="store_true",
+    help="Bind CPUs for each GPU. Improves throughput for multi-GPU.",
+)
 parser.add_argument("--horovod", action="store_true")
 parser.add_argument("--xla", action="store_true", help="Enable XLA compiling")
 parser.add_argument(
-    "--bench-steps", "--bench_steps", type=int, default=200, help="Number of benchmarked steps in total"
+    "--bench-steps",
+    "--bench_steps",
+    type=int,
+    default=200,
+    help="Number of benchmarked steps in total",
 )
 parser.add_argument(
-    "--warmup-steps", "--warmup_steps", type=int, default=100, help="Warmup iterations before collecting statistics"
+    "--warmup-steps",
+    "--warmup_steps",
+    type=int,
+    default=100,
+    help="Warmup iterations before collecting statistics",
 )
-parser.add_argument("--results", type=Path, default=Path("/results"), help="Path to results directory")
-parser.add_argument("--logname", type=str, default="perf.json", help="Name of the dlloger output")
+parser.add_argument(
+    "--results", type=Path, default=Path("/results"), help="Path to results directory"
+)
+parser.add_argument(
+    "--logname", type=str, default="perf.json", help="Name of the dlloger output"
+)
 
 
 if __name__ == "__main__":

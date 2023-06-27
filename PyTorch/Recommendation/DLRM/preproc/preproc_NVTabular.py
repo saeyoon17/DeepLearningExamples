@@ -18,17 +18,18 @@ This script accepts input in either tsv or parquet format.
 """
 
 import argparse
-from collections import OrderedDict
 import json
 import os
 import subprocess
+from collections import OrderedDict
 from time import time
 from typing import List, Optional
 
+import cudf
 import numpy as np
 import nvtabular as nvt
 import rmm
-import cudf
+from cudf.io.parquet import ParquetWriter
 from dask.base import tokenize
 from dask.dataframe.io.parquet.utils import _analyze_paths
 from dask.delayed import Delayed
@@ -39,14 +40,13 @@ from dask_cuda import LocalCUDACluster
 from fsspec.core import get_fs_token_paths
 from nvtabular import Workflow
 from nvtabular.io import Dataset, Shuffle
+from nvtabular.ops import (Categorify, Clip, FillMissing, LambdaOp, LogOp,
+                           Normalize, get_embedding_sizes)
 from nvtabular.utils import device_mem_size
-from nvtabular.ops import Normalize, Categorify, LogOp, FillMissing, Clip, get_embedding_sizes, \
-    LambdaOp
-from cudf.io.parquet import ParquetWriter
 
-CRITEO_CONTINUOUS_COLUMNS = [f'_c{x}' for x in range(1, 14)]
-CRITEO_CATEGORICAL_COLUMNS = [f'_c{x}' for x in range(14, 40)]
-CRITEO_CLICK_COLUMNS = ['_c0']
+CRITEO_CONTINUOUS_COLUMNS = [f"_c{x}" for x in range(1, 14)]
+CRITEO_CATEGORICAL_COLUMNS = [f"_c{x}" for x in range(14, 40)]
+CRITEO_CLICK_COLUMNS = ["_c0"]
 COLUMNS = CRITEO_CONTINUOUS_COLUMNS + CRITEO_CATEGORICAL_COLUMNS + CRITEO_CLICK_COLUMNS
 CRITEO_TRAIN_DAYS = list(range(0, 0))
 
@@ -55,12 +55,14 @@ TRAIN_DS_MEM_FRAC = 0.045
 TEST_DS_MEM_FRAC = 0.3
 VALID_DS_MEM_FRAC = 0.3
 
+
 def _pool(frac=0.8):
     initial_pool_size = frac * device_mem_size()
     if initial_pool_size % 256 != 0:
         new_initial_pool_size = initial_pool_size // 256 * 256
         print(
-            f"Initial pool size for rmm has to be a multiply of 256. Got {initial_pool_size}, reducing to {new_initial_pool_size}")
+            f"Initial pool size for rmm has to be a multiply of 256. Got {initial_pool_size}, reducing to {new_initial_pool_size}"
+        )
         initial_pool_size = new_initial_pool_size
 
     rmm.reinitialize(
@@ -78,7 +80,7 @@ def _convert_file(path, name, out_dir, gpu_mem_frac, fs, cols, dtypes):
         engine="csv",
         names=cols,
         part_memory_fraction=gpu_mem_frac,
-        sep='\t',
+        sep="\t",
         dtypes=dtypes,
     ).to_iter():
         writer.write_table(gdf)
@@ -108,24 +110,36 @@ def convert_criteo_to_parquet(
 ):
     print("Converting tsv to parquet files")
     if not output_path:
-        raise RuntimeError("Intermediate directory must be defined, if the dataset is tsv.")
+        raise RuntimeError(
+            "Intermediate directory must be defined, if the dataset is tsv."
+        )
     os.makedirs(output_path, exist_ok=True)
 
     # split last day into two parts
     number_of_lines = int(
-        subprocess.check_output((f'wc -l {os.path.join(input_path, "day_0")}').split()).split()[0])
+        subprocess.check_output(
+            (f'wc -l {os.path.join(input_path, "day_0")}').split()
+        ).split()[0]
+    )
     valid_set_size = number_of_lines // 2
     test_set_size = number_of_lines - valid_set_size
 
     with open(os.path.join(input_path, "day_0.part1"), "w") as f:
-        subprocess.run(['head', '-n', str(test_set_size), str(os.path.join(input_path, "day_0"))], stdout=f)
+        subprocess.run(
+            ["head", "-n", str(test_set_size), str(os.path.join(input_path, "day_0"))],
+            stdout=f,
+        )
 
     with open(os.path.join(input_path, "day_0.part2"), "w") as f:
-        subprocess.run(['tail', '-n', str(valid_set_size), str(os.path.join(input_path, "day_0"))], stdout=f)
+        subprocess.run(
+            ["tail", "-n", str(valid_set_size), str(os.path.join(input_path, "day_0"))],
+            stdout=f,
+        )
 
     fs = get_fs_token_paths(input_path, mode="rb")[0]
     file_list = [
-        x for x in fs.glob(fs.sep.join([input_path, "day_*"]))
+        x
+        for x in fs.glob(fs.sep.join([input_path, "day_*"]))
         if not x.endswith("parquet")
     ]
     file_list = sorted(file_list, key=natural_sort_key)
@@ -145,7 +159,16 @@ def convert_criteo_to_parquet(
     convert_file_name = "convert_file-" + token
     for i, (path, name) in enumerate(zip(file_list, name_list)):
         key = (convert_file_name, i)
-        dsk[key] = (_convert_file, path, name, output_path, gpu_mem_frac, fs, cols, dtypes)
+        dsk[key] = (
+            _convert_file,
+            path,
+            name,
+            output_path,
+            gpu_mem_frac,
+            fs,
+            cols,
+            dtypes,
+        )
 
     write_meta_name = "write-metadata-" + token
     dsk[write_meta_name] = (
@@ -168,12 +191,14 @@ def convert_criteo_to_parquet(
 def save_model_size_config(workflow: Workflow, output_path: str):
     embeddings = {}
     for k, v in get_embedding_sizes(workflow).items():
-        embeddings[k] = v[0] - 1  # we have to subtract one, as the model expects to get a maximal id for each category
+        embeddings[k] = (
+            v[0] - 1
+        )  # we have to subtract one, as the model expects to get a maximal id for each category
 
     ordered_dict = OrderedDict()
     for k, v in sorted(list(embeddings.items()), key=lambda x: x[0]):
         ordered_dict[k] = v
-    with open(os.path.join(output_path, "model_size.json"), 'w') as file:
+    with open(os.path.join(output_path, "model_size.json"), "w") as file:
         file.write(json.dumps(ordered_dict))
 
 
@@ -200,16 +225,20 @@ def preprocess_criteo_parquet(
     workflow = Workflow(
         cat_names=CRITEO_CATEGORICAL_COLUMNS,
         cont_names=CRITEO_CONTINUOUS_COLUMNS,
-        label_name=CRITEO_CLICK_COLUMNS
+        label_name=CRITEO_CLICK_COLUMNS,
     )
 
     # We want to assign 0 to all missing values, and calculate log(x+3) for present values
     # so if we set missing values to -2, then the result of log(1+2+(-2)) would be 0
-    workflow.add_cont_feature([
-        FillMissing(fill_val=-2.0),
-        LambdaOp(op_name='Add3ButMinusOneCauseLogAddsOne', f=lambda col, _: col.add(2.0)),
-        LogOp(),  # Log(1+x)
-    ])
+    workflow.add_cont_feature(
+        [
+            FillMissing(fill_val=-2.0),
+            LambdaOp(
+                op_name="Add3ButMinusOneCauseLogAddsOne", f=lambda col, _: col.add(2.0)
+            ),
+            LogOp(),  # Log(1+x)
+        ]
+    )
 
     workflow.add_cat_preprocess(
         Categorify(freq_threshold=frequency_threshold, out_path=output_path)
@@ -219,7 +248,9 @@ def preprocess_criteo_parquet(
 
     print("Creating Dataset Iterator")
     all_ds = Dataset(all_set, engine="parquet", part_mem_fraction=ALL_DS_MEM_FRAC)
-    trains_ds = Dataset(train_files, engine="parquet", part_mem_fraction=TRAIN_DS_MEM_FRAC)
+    trains_ds = Dataset(
+        train_files, engine="parquet", part_mem_fraction=TRAIN_DS_MEM_FRAC
+    )
     valid_ds = Dataset(valid_file, engine="parquet", part_mem_fraction=TEST_DS_MEM_FRAC)
     test_ds = Dataset(test_file, engine="parquet", part_mem_fraction=VALID_DS_MEM_FRAC)
 
@@ -233,27 +264,15 @@ def preprocess_criteo_parquet(
     print(f"Gathering statistics time: {time() - start}")
 
     start = time()
-    workflow.apply(
-        trains_ds,
-        record_stats=False,
-        output_path=out_train
-    )
+    workflow.apply(trains_ds, record_stats=False, output_path=out_train)
     print(f"train preprocess time: {time() - start}")
 
     start = time()
-    workflow.apply(
-        valid_ds,
-        record_stats=False,
-        output_path=out_valid
-    )
+    workflow.apply(valid_ds, record_stats=False, output_path=out_valid)
     print(f"valid preprocess time: {time() - start}")
 
     start = time()
-    workflow.apply(
-        test_ds,
-        record_stats=False,
-        output_path=out_test
-    )
+    workflow.apply(test_ds, record_stats=False, output_path=out_test)
     print(f"test preprocess time: {time() - start}")
 
     save_model_size_config(workflow, output_path)
@@ -262,35 +281,33 @@ def preprocess_criteo_parquet(
 def parse_args():
     parser = argparse.ArgumentParser(description="Process some integers.")
     parser.add_argument(
-        "input_dir",
-        help="directory with either csv or parquet dataset files inside"
+        "input_dir", help="directory with either csv or parquet dataset files inside"
     )
     parser.add_argument(
-        "output_dir",
-        help="directory to save preprocessed dataset files"
+        "output_dir", help="directory to save preprocessed dataset files"
     )
     parser.add_argument(
         "--intermediate_dir",
         required=False,
         default=None,
-        help="directory for converted to parquet dataset files inside"
+        help="directory for converted to parquet dataset files inside",
     )
     parser.add_argument(
         "--devices",
         required=True,
-        help="available gpus, separated with commas; e.g 0,1,2,3"
+        help="available gpus, separated with commas; e.g 0,1,2,3",
     )
     parser.add_argument(
         "--freq_threshold",
         required=False,
         default=15,
-        help="frequency threshold for categorical can be int or dict {column_name: threshold}"
+        help="frequency threshold for categorical can be int or dict {column_name: threshold}",
     )
     parser.add_argument(
         "--pool",
         required=False,
         default=False,
-        help="bool value to use a RMM pooled allocator"
+        help="bool value to use a RMM pooled allocator",
     )
 
     args = parser.parse_args()
@@ -302,7 +319,7 @@ def parse_args():
 
 def is_input_parquet(input_dir: str):
     for f in os.listdir(input_dir):
-        if 'parquet' in f:
+        if "parquet" in f:
             return True
     return False
 
@@ -344,5 +361,5 @@ def main():
     print("Done")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

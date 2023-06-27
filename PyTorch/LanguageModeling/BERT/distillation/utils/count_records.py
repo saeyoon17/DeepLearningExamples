@@ -13,23 +13,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import os
+import sys
+
 import h5py
 import numpy as np
 
 folder = sys.argv[1]
 print(folder)
-files = [os.path.join(folder, f) for f in os.listdir(folder) if
-                         os.path.isfile(os.path.join(folder, f))]
+files = [
+    os.path.join(folder, f)
+    for f in os.listdir(folder)
+    if os.path.isfile(os.path.join(folder, f))
+]
 counts = []
 for input_file in files:
-	f = h5py.File(input_file, "r")
-	keys = ['input_ids']
-	inputs = np.asarray(f[keys[0]][:])
-	print(inputs.shape)
-	counts.append(inputs.shape[0])
-	f.close()
+    f = h5py.File(input_file, "r")
+    keys = ["input_ids"]
+    inputs = np.asarray(f[keys[0]][:])
+    print(inputs.shape)
+    counts.append(inputs.shape[0])
+    f.close()
 print(counts)
 print(sum(counts))
 print(len(counts))

@@ -21,11 +21,12 @@ import os
 import h5py
 import numpy as np
 import tensorflow as tf
+from configuration_utils import BertConfig, PretrainedConfig
+from file_utils import (DUMMY_INPUTS, MULTIPLE_CHOICE_DUMMY_INPUTS,
+                        TF2_WEIGHTS_NAME, WEIGHTS_NAME, add_start_docstrings,
+                        add_start_docstrings_to_callable, cached_path,
+                        hf_bucket_url, is_remote_url)
 from tensorflow.python.keras.saving import hdf5_format
-
-from configuration_utils import PretrainedConfig, BertConfig
-from file_utils import DUMMY_INPUTS, TF2_WEIGHTS_NAME, WEIGHTS_NAME, cached_path, hf_bucket_url, is_remote_url
-from file_utils import MULTIPLE_CHOICE_DUMMY_INPUTS, add_start_docstrings, add_start_docstrings_to_callable
 from tokenization_utils import BatchEncoding
 from utils import log
 
@@ -40,7 +41,9 @@ class TFModelUtilsMixin:
         Get number of (optionally, trainable) parameters in the model.
         """
         if only_trainable:
-            return int(sum(np.prod(w.shape.as_list()) for w in self.trainable_variables))
+            return int(
+                sum(np.prod(w.shape.as_list()) for w in self.trainable_variables)
+            )
         else:
             return self.count_params()
 
@@ -70,9 +73,15 @@ def keras_serializable(cls):
     @functools.wraps(initializer)
     def wrapped_init(self, *args, **kwargs):
         transformers_config = kwargs.pop("transformers_config", None)
-        config = args[0] if args and isinstance(args[0], PretrainedConfig) else kwargs.get("config", None)
+        config = (
+            args[0]
+            if args and isinstance(args[0], PretrainedConfig)
+            else kwargs.get("config", None)
+        )
         if config is not None and transformers_config is not None:
-            raise ValueError("Must pass either `config` or `transformers_config`, not both")
+            raise ValueError(
+                "Must pass either `config` or `transformers_config`, not both"
+            )
         elif config is not None:
             # normal layer construction, call with unchanged args (config is already in there)
             initializer(self, *args, **kwargs)
@@ -81,13 +90,17 @@ def keras_serializable(cls):
             config = config_class.from_dict(transformers_config)
             initializer(self, config, *args, **kwargs)
         else:
-            raise ValueError("Must pass either `config` (PretrainedConfig) or `transformers_config` (dict)")
+            raise ValueError(
+                "Must pass either `config` (PretrainedConfig) or `transformers_config` (dict)"
+            )
         self._transformers_config = config
 
     cls.__init__ = wrapped_init
 
     if not hasattr(cls, "get_config"):
-        raise TypeError("Only use @keras_serializable on tf.keras.layers.Layer subclasses")
+        raise TypeError(
+            "Only use @keras_serializable on tf.keras.layers.Layer subclasses"
+        )
     if hasattr(cls.get_config, "_is_default"):
 
         def get_config(self):
@@ -104,21 +117,21 @@ def keras_serializable(cls):
 
 
 class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
-    r""" Base class for all TF models.
+    r"""Base class for all TF models.
 
-        :class:`~transformers.TFPreTrainedModel` takes care of storing the configuration of the models and handles methods for loading/downloading/saving models
-        as well as a few methods common to all models to (i) resize the input embeddings and (ii) prune heads in the self-attention heads.
+    :class:`~transformers.TFPreTrainedModel` takes care of storing the configuration of the models and handles methods for loading/downloading/saving models
+    as well as a few methods common to all models to (i) resize the input embeddings and (ii) prune heads in the self-attention heads.
 
-        Class attributes (overridden by derived classes):
-            - ``config_class``: a class derived from :class:`~transformers.PretrainedConfig` to use as configuration class for this model architecture.
-            - ``pretrained_model_archive_map``: a python ``dict`` of with `short-cut-names` (string) as keys and `url` (string) of associated pretrained weights as values.
-            - ``load_tf_weights``: a python ``method`` for loading a TensorFlow checkpoint in a PyTorch model, taking as arguments:
+    Class attributes (overridden by derived classes):
+        - ``config_class``: a class derived from :class:`~transformers.PretrainedConfig` to use as configuration class for this model architecture.
+        - ``pretrained_model_archive_map``: a python ``dict`` of with `short-cut-names` (string) as keys and `url` (string) of associated pretrained weights as values.
+        - ``load_tf_weights``: a python ``method`` for loading a TensorFlow checkpoint in a PyTorch model, taking as arguments:
 
-                - ``model``: an instance of the relevant subclass of :class:`~transformers.PreTrainedModel`,
-                - ``config``: an instance of the relevant subclass of :class:`~transformers.PretrainedConfig`,
-                - ``path``: a path (string) to the TensorFlow checkpoint.
+            - ``model``: an instance of the relevant subclass of :class:`~transformers.PreTrainedModel`,
+            - ``config``: an instance of the relevant subclass of :class:`~transformers.PretrainedConfig`,
+            - ``path``: a path (string) to the TensorFlow checkpoint.
 
-            - ``base_model_prefix``: a string indicating the attribute associated to the base model in derived classes of the same architecture adding modules on top of the base model.
+        - ``base_model_prefix``: a string indicating the attribute associated to the base model in derived classes of the same architecture adding modules on top of the base model.
     """
     config_class = None
     pretrained_model_archive_map = {}
@@ -126,7 +139,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
 
     @property
     def dummy_inputs(self):
-        """ Dummy inputs to build the network.
+        """Dummy inputs to build the network.
 
         Returns:
             tf.Tensor with dummy inputs
@@ -171,7 +184,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         return None  # Overwrite for models with output embeddings
 
     def _get_resized_embeddings(self, old_embeddings, new_num_tokens=None):
-        """ Build a resized Embedding Variable from a provided token Embedding Module.
+        """Build a resized Embedding Variable from a provided token Embedding Module.
             Increasing the size will add newly initialized vectors at the end
             Reducing the size will remove vectors from the end
 
@@ -205,7 +218,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         # return new_embeddings
 
     def resize_token_embeddings(self, new_num_tokens=None):
-        """ Resize input token embeddings matrix of the model if new_num_tokens != config.vocab_size.
+        """Resize input token embeddings matrix of the model if new_num_tokens != config.vocab_size.
         Take care of tying weights embeddings afterwards if the model class has a `tie_weights()` method.
 
         Arguments:
@@ -220,20 +233,24 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         raise NotImplementedError
 
     def prune_heads(self, heads_to_prune):
-        """ Prunes heads of the base model.
+        """Prunes heads of the base model.
 
-            Arguments:
+        Arguments:
 
-                heads_to_prune: dict with keys being selected layer indices (`int`) and associated values being the list of heads to prune in said layer (list of `int`).
+            heads_to_prune: dict with keys being selected layer indices (`int`) and associated values being the list of heads to prune in said layer (list of `int`).
         """
         raise NotImplementedError
 
     def save_pretrained(self, save_directory):
-        """ Save a model and its configuration file to a directory, so that it
-            can be re-loaded using the :func:`~transformers.PreTrainedModel.from_pretrained` class method.
+        """Save a model and its configuration file to a directory, so that it
+        can be re-loaded using the :func:`~transformers.PreTrainedModel.from_pretrained` class method.
         """
         if os.path.isfile(save_directory):
-            log("Provided path ({}) should be a directory, not a file".format(save_directory))
+            log(
+                "Provided path ({}) should be a directory, not a file".format(
+                    save_directory
+                )
+            )
             return
         os.makedirs(save_directory, exist_ok=True)
 
@@ -247,7 +264,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         with h5py.File(output_model_file, "r") as f:
             if "layer_names" not in f.attrs and "model_weights" in f:
                 f = f["model_weights"]
-            hdf5_layer_names = set(hdf5_format.load_attributes_from_hdf5_group(f, "layer_names"))
+            hdf5_layer_names = set(
+                hdf5_format.load_attributes_from_hdf5_group(f, "layer_names")
+            )
         log(f"Model weights saved in {output_model_file}: {hdf5_layer_names}")
 
     @classmethod
@@ -327,7 +346,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
 
         # Load config if we don't provide a configuration
         if not isinstance(config, PretrainedConfig):
-            config_path = config if config is not None else pretrained_model_name_or_path
+            config_path = (
+                config if config is not None else pretrained_model_name_or_path
+            )
             config, model_kwargs = cls.config_class.from_pretrained(
                 config_path,
                 *model_args,
@@ -343,27 +364,41 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         # Load model
         if pretrained_model_name_or_path is not None:
             if pretrained_model_name_or_path in cls.pretrained_model_archive_map:
-                archive_file = cls.pretrained_model_archive_map[pretrained_model_name_or_path]
+                archive_file = cls.pretrained_model_archive_map[
+                    pretrained_model_name_or_path
+                ]
             elif os.path.isdir(pretrained_model_name_or_path):
-                if os.path.isfile(os.path.join(pretrained_model_name_or_path, TF2_WEIGHTS_NAME)):
+                if os.path.isfile(
+                    os.path.join(pretrained_model_name_or_path, TF2_WEIGHTS_NAME)
+                ):
                     # Load from a TF 2.0 checkpoint
-                    archive_file = os.path.join(pretrained_model_name_or_path, TF2_WEIGHTS_NAME)
-                elif from_pt and os.path.isfile(os.path.join(pretrained_model_name_or_path, WEIGHTS_NAME)):
+                    archive_file = os.path.join(
+                        pretrained_model_name_or_path, TF2_WEIGHTS_NAME
+                    )
+                elif from_pt and os.path.isfile(
+                    os.path.join(pretrained_model_name_or_path, WEIGHTS_NAME)
+                ):
                     # Load from a PyTorch checkpoint
-                    archive_file = os.path.join(pretrained_model_name_or_path, WEIGHTS_NAME)
+                    archive_file = os.path.join(
+                        pretrained_model_name_or_path, WEIGHTS_NAME
+                    )
                 else:
                     raise EnvironmentError(
                         "Error no file named {} found in directory {} or `from_pt` set to False".format(
-                            [WEIGHTS_NAME, TF2_WEIGHTS_NAME], pretrained_model_name_or_path
+                            [WEIGHTS_NAME, TF2_WEIGHTS_NAME],
+                            pretrained_model_name_or_path,
                         )
                     )
-            elif os.path.isfile(pretrained_model_name_or_path) or is_remote_url(pretrained_model_name_or_path):
+            elif os.path.isfile(pretrained_model_name_or_path) or is_remote_url(
+                pretrained_model_name_or_path
+            ):
                 archive_file = pretrained_model_name_or_path
             elif os.path.isfile(pretrained_model_name_or_path + ".index"):
                 archive_file = pretrained_model_name_or_path + ".index"
             else:
                 archive_file = hf_bucket_url(
-                    pretrained_model_name_or_path, postfix=(WEIGHTS_NAME if from_pt else TF2_WEIGHTS_NAME)
+                    pretrained_model_name_or_path,
+                    postfix=(WEIGHTS_NAME if from_pt else TF2_WEIGHTS_NAME),
                 )
 
             # redirect to the cache, if necessary
@@ -377,7 +412,11 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 )
             except EnvironmentError as e:
                 if pretrained_model_name_or_path in cls.pretrained_model_archive_map:
-                    log("Couldn't reach server at '{}' to download pretrained weights.".format(archive_file))
+                    log(
+                        "Couldn't reach server at '{}' to download pretrained weights.".format(
+                            archive_file
+                        )
+                    )
                 else:
                     log(
                         "Model name '{}' was not found in model name list ({}). "
@@ -392,7 +431,11 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
             if resolved_archive_file == archive_file:
                 log("loading weights file {}".format(archive_file))
             else:
-                log("loading weights file {} from cache at {}".format(archive_file, resolved_archive_file))
+                log(
+                    "loading weights file {} from cache at {}".format(
+                        archive_file, resolved_archive_file
+                    )
+                )
         else:
             resolved_archive_file = None
 
@@ -406,7 +449,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
 
         model(model.dummy_inputs, training=False)  # build the network with dummy inputs
 
-        assert os.path.isfile(resolved_archive_file), "Error retrieving file {}".format(resolved_archive_file)
+        assert os.path.isfile(resolved_archive_file), "Error retrieving file {}".format(
+            resolved_archive_file
+        )
         # 'by_name' allow us to do transfer learning by skipping/adding layers
         # see https://github.com/tensorflow/tensorflow/blob/00fad90125b18b80fe054de1055770cfb8fe4ba3/tensorflow/python/keras/engine/network.py#L1339-L1357
         try:
@@ -423,7 +468,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         with h5py.File(resolved_archive_file, "r") as f:
             if "layer_names" not in f.attrs and "model_weights" in f:
                 f = f["model_weights"]
-            hdf5_layer_names = set(hdf5_format.load_attributes_from_hdf5_group(f, "layer_names"))
+            hdf5_layer_names = set(
+                hdf5_format.load_attributes_from_hdf5_group(f, "layer_names")
+            )
         model_layer_names = set(layer.name for layer in model.layers)
         missing_keys = list(model_layer_names - hdf5_layer_names)
         unexpected_keys = list(hdf5_layer_names - model_layer_names)
@@ -435,7 +482,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 f"initializing {model.__class__.__name__}: {unexpected_keys}\n"
             )
         else:
-            log(f"All model checkpoint weights were used when initializing {model.__class__.__name__}.\n")
+            log(
+                f"All model checkpoint weights were used when initializing {model.__class__.__name__}.\n"
+            )
         if len(missing_keys) > 0:
             log(
                 f"Some weights of {model.__class__.__name__} were not initialized from the model checkpoint at {pretrained_model_name_or_path} "
@@ -449,10 +498,16 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
             )
         if len(error_msgs) > 0:
             raise RuntimeError(
-                "Error(s) in loading weights for {}:\n\t{}".format(model.__class__.__name__, "\n\t".join(error_msgs))
+                "Error(s) in loading weights for {}:\n\t{}".format(
+                    model.__class__.__name__, "\n\t".join(error_msgs)
+                )
             )
         if output_loading_info:
-            loading_info = {"missing_keys": missing_keys, "unexpected_keys": unexpected_keys, "error_msgs": error_msgs}
+            loading_info = {
+                "missing_keys": missing_keys,
+                "unexpected_keys": unexpected_keys,
+                "error_msgs": error_msgs,
+            }
             return model, loading_info
 
         return model
@@ -461,7 +516,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         return {"inputs": inputs}
 
     def _do_output_past(self, outputs):
-        has_output_past = hasattr(self.config, "output_past") and self.config.output_past
+        has_output_past = (
+            hasattr(self.config, "output_past") and self.config.output_past
+        )
         has_mem_len = hasattr(self.config, "mem_len") and self.config.mem_len
 
         if has_output_past and not has_mem_len and len(outputs) > 1:
@@ -493,7 +550,7 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         attention_mask=None,
         decoder_start_token_id=None,
     ):
-        r""" Generates sequences for models with a LM head. The method currently supports greedy or penalized greedy decoding, sampling with top-k or nucleus sampling
+        r"""Generates sequences for models with a LM head. The method currently supports greedy or penalized greedy decoding, sampling with top-k or nucleus sampling
         and beam-search.
 
         Adapted in part from `Facebook's XLM beam search code`_.
@@ -620,25 +677,49 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         max_length = max_length if max_length is not None else self.config.max_length
         min_length = min_length if min_length is not None else self.config.min_length
         do_sample = do_sample if do_sample is not None else self.config.do_sample
-        early_stopping = early_stopping if early_stopping is not None else self.config.early_stopping
+        early_stopping = (
+            early_stopping if early_stopping is not None else self.config.early_stopping
+        )
         num_beams = num_beams if num_beams is not None else self.config.num_beams
-        temperature = temperature if temperature is not None else self.config.temperature
+        temperature = (
+            temperature if temperature is not None else self.config.temperature
+        )
         top_k = top_k if top_k is not None else self.config.top_k
         top_p = top_p if top_p is not None else self.config.top_p
-        repetition_penalty = repetition_penalty if repetition_penalty is not None else self.config.repetition_penalty
-        bos_token_id = bos_token_id if bos_token_id is not None else self.config.bos_token_id
-        pad_token_id = pad_token_id if pad_token_id is not None else self.config.pad_token_id
-        eos_token_id = eos_token_id if eos_token_id is not None else self.config.eos_token_id
-        length_penalty = length_penalty if length_penalty is not None else self.config.length_penalty
-        no_repeat_ngram_size = (
-            no_repeat_ngram_size if no_repeat_ngram_size is not None else self.config.no_repeat_ngram_size
+        repetition_penalty = (
+            repetition_penalty
+            if repetition_penalty is not None
+            else self.config.repetition_penalty
         )
-        bad_words_ids = bad_words_ids if bad_words_ids is not None else self.config.bad_words_ids
+        bos_token_id = (
+            bos_token_id if bos_token_id is not None else self.config.bos_token_id
+        )
+        pad_token_id = (
+            pad_token_id if pad_token_id is not None else self.config.pad_token_id
+        )
+        eos_token_id = (
+            eos_token_id if eos_token_id is not None else self.config.eos_token_id
+        )
+        length_penalty = (
+            length_penalty if length_penalty is not None else self.config.length_penalty
+        )
+        no_repeat_ngram_size = (
+            no_repeat_ngram_size
+            if no_repeat_ngram_size is not None
+            else self.config.no_repeat_ngram_size
+        )
+        bad_words_ids = (
+            bad_words_ids if bad_words_ids is not None else self.config.bad_words_ids
+        )
         num_return_sequences = (
-            num_return_sequences if num_return_sequences is not None else self.config.num_return_sequences
+            num_return_sequences
+            if num_return_sequences is not None
+            else self.config.num_return_sequences
         )
         decoder_start_token_id = (
-            decoder_start_token_id if decoder_start_token_id is not None else self.config.decoder_start_token_id
+            decoder_start_token_id
+            if decoder_start_token_id is not None
+            else self.config.decoder_start_token_id
         )
 
         if input_ids is not None:
@@ -646,13 +727,21 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         else:
             batch_size = 1
 
-        assert isinstance(max_length, int) and max_length > 0, "`max_length` should be a strictely positive integer."
-        assert isinstance(min_length, int) and min_length >= 0, "`min_length` should be a positive integer."
+        assert (
+            isinstance(max_length, int) and max_length > 0
+        ), "`max_length` should be a strictely positive integer."
+        assert (
+            isinstance(min_length, int) and min_length >= 0
+        ), "`min_length` should be a positive integer."
         assert isinstance(do_sample, bool), "`do_sample` should be a boolean."
         assert isinstance(early_stopping, bool), "`early_stopping` should be a boolean."
-        assert isinstance(num_beams, int) and num_beams > 0, "`num_beams` should be a strictely positive integer."
+        assert (
+            isinstance(num_beams, int) and num_beams > 0
+        ), "`num_beams` should be a strictely positive integer."
         assert temperature > 0, "`temperature` should be strictely positive."
-        assert isinstance(top_k, int) and top_k >= 0, "`top_k` should be a positive integer."
+        assert (
+            isinstance(top_k, int) and top_k >= 0
+        ), "`top_k` should be a positive integer."
         assert 0 <= top_p <= 1, "`top_p` should be between 0 and 1."
         assert repetition_penalty >= 1.0, "`repetition_penalty` should be >= 1."
         assert input_ids is not None or (
@@ -669,7 +758,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
             isinstance(num_return_sequences, int) and num_return_sequences > 0
         ), "`num_return_sequences` should be a strictely positive integer."
         assert (
-            bad_words_ids is None or isinstance(bad_words_ids, list) and isinstance(bad_words_ids[0], list)
+            bad_words_ids is None
+            or isinstance(bad_words_ids, list)
+            and isinstance(bad_words_ids[0], list)
         ), "`bad_words_ids` is either `None` or a list of lists of tokens that should not be generated"
 
         if input_ids is None:
@@ -679,7 +770,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
             )
             input_ids = tf.fill((batch_size, 1), bos_token_id)
         else:
-            assert len(shape_list(input_ids)) == 2, "Input prompt should be of shape (batch_size, sequence length)."
+            assert (
+                len(shape_list(input_ids)) == 2
+            ), "Input prompt should be of shape (batch_size, sequence length)."
 
         # not allow to duplicate outputs when greedy decoding
         if do_sample is False:
@@ -697,14 +790,22 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
 
         # create attention mask if necessary
         # TODO (PVP): this should later be handled by the forward fn() in each model in the future see PR 3140
-        if (attention_mask is None) and (pad_token_id is not None) and (pad_token_id in input_ids.numpy()):
-            attention_mask = tf.cast(tf.math.not_equal(input_ids, pad_token_id), dtype=tf.int32)
+        if (
+            (attention_mask is None)
+            and (pad_token_id is not None)
+            and (pad_token_id in input_ids.numpy())
+        ):
+            attention_mask = tf.cast(
+                tf.math.not_equal(input_ids, pad_token_id), dtype=tf.int32
+            )
         elif attention_mask is None:
             attention_mask = tf.ones_like(input_ids)
 
         if pad_token_id is None and eos_token_id is not None:
             log(
-                "Setting `pad_token_id` to {} (first `eos_token_id`) to generate sequence".format(eos_token_id)
+                "Setting `pad_token_id` to {} (first `eos_token_id`) to generate sequence".format(
+                    eos_token_id
+                )
             )
             pad_token_id = eos_token_id
 
@@ -724,10 +825,12 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         if num_return_sequences > 1 or num_beams > 1:
             input_ids_len = shape_list(input_ids)[-1]
             input_ids = tf.broadcast_to(
-                tf.expand_dims(input_ids, 1), (batch_size, effective_batch_mult * num_beams, input_ids_len)
+                tf.expand_dims(input_ids, 1),
+                (batch_size, effective_batch_mult * num_beams, input_ids_len),
             )
             attention_mask = tf.broadcast_to(
-                tf.expand_dims(attention_mask, 1), (batch_size, effective_batch_mult * num_beams, input_ids_len)
+                tf.expand_dims(attention_mask, 1),
+                (batch_size, effective_batch_mult * num_beams, input_ids_len),
             )
             input_ids = tf.reshape(
                 input_ids, (effective_batch_size * num_beams, input_ids_len)
@@ -743,8 +846,12 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
             assert (
                 decoder_start_token_id is not None
             ), "decoder_start_token_id or bos_token_id has to be defined for encoder-decoder generation"
-            assert hasattr(self, "get_encoder"), "{} should have a 'get_encoder' function defined".format(self)
-            assert callable(self.get_encoder), "{} should be a method".format(self.get_encoder)
+            assert hasattr(
+                self, "get_encoder"
+            ), "{} should have a 'get_encoder' function defined".format(self)
+            assert callable(self.get_encoder), "{} should be a method".format(
+                self.get_encoder
+            )
 
             # get encoder and store encoder outputs
             encoder = self.get_encoder()
@@ -752,7 +859,13 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
             encoder_outputs = encoder(input_ids, attention_mask=attention_mask)
 
             # create empty decoder_input_ids
-            input_ids = tf.ones((effective_batch_size * num_beams, 1), dtype=tf.int32,) * decoder_start_token_id
+            input_ids = (
+                tf.ones(
+                    (effective_batch_size * num_beams, 1),
+                    dtype=tf.int32,
+                )
+                * decoder_start_token_id
+            )
             cur_len = 1
 
         else:
@@ -832,8 +945,8 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         encoder_outputs,
         attention_mask,
     ):
-        """ Generate sequences for each example without beam search (num_beams == 1).
-            All returned sequence are generated independantly.
+        """Generate sequences for each example without beam search (num_beams == 1).
+        All returned sequence are generated independantly.
         """
 
         # length of generated sentences / unfinished sentences
@@ -843,7 +956,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         past = encoder_outputs  # defined for encoder-decoder models, None for decoder-only models
 
         while cur_len < max_length:
-            model_inputs = self.prepare_inputs_for_generation(input_ids, past=past, attention_mask=attention_mask)
+            model_inputs = self.prepare_inputs_for_generation(
+                input_ids, past=past, attention_mask=attention_mask
+            )
             outputs = self(**model_inputs)
             next_token_logits = outputs[0][:, -1, :]
 
@@ -856,21 +971,30 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 next_token_logits_penalties = _create_next_token_logits_penalties(
                     input_ids, next_token_logits, repetition_penalty
                 )
-                next_token_logits = tf.math.multiply(next_token_logits, next_token_logits_penalties)
+                next_token_logits = tf.math.multiply(
+                    next_token_logits, next_token_logits_penalties
+                )
 
             if no_repeat_ngram_size > 0:
                 # calculate a list of banned tokens to prevent repetitively generating the same ngrams
                 # from fairseq: https://github.com/pytorch/fairseq/blob/a07cb6f40480928c9e0548b737aadd36ee66ac76/fairseq/sequence_generator.py#L345
-                banned_tokens = calc_banned_ngram_tokens(input_ids, batch_size, no_repeat_ngram_size, cur_len)
+                banned_tokens = calc_banned_ngram_tokens(
+                    input_ids, batch_size, no_repeat_ngram_size, cur_len
+                )
                 # create banned_tokens boolean mask
                 banned_tokens_indices_mask = []
                 for banned_tokens_slice in banned_tokens:
                     banned_tokens_indices_mask.append(
-                        [True if token in banned_tokens_slice else False for token in range(vocab_size)]
+                        [
+                            True if token in banned_tokens_slice else False
+                            for token in range(vocab_size)
+                        ]
                     )
 
                 next_token_logits = set_tensor_by_indices_to_value(
-                    next_token_logits, tf.convert_to_tensor(banned_tokens_indices_mask, dtype=tf.bool), -float("inf")
+                    next_token_logits,
+                    tf.convert_to_tensor(banned_tokens_indices_mask, dtype=tf.bool),
+                    -float("inf"),
                 )
 
             if bad_words_ids is not None:
@@ -880,20 +1004,31 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 banned_tokens_indices_mask = []
                 for banned_tokens_slice in banned_tokens:
                     banned_tokens_indices_mask.append(
-                        [True if token in banned_tokens_slice else False for token in range(vocab_size)]
+                        [
+                            True if token in banned_tokens_slice else False
+                            for token in range(vocab_size)
+                        ]
                     )
 
                 next_token_logits = set_tensor_by_indices_to_value(
-                    next_token_logits, tf.convert_to_tensor(banned_tokens_indices_mask, dtype=tf.bool), -float("inf")
+                    next_token_logits,
+                    tf.convert_to_tensor(banned_tokens_indices_mask, dtype=tf.bool),
+                    -float("inf"),
                 )
 
             # set eos token prob to zero if min_length is not reached
             if eos_token_id is not None and cur_len < min_length:
                 # create eos_token_id boolean mask
                 is_token_logit_eos_token = tf.convert_to_tensor(
-                    [True if token is eos_token_id else False for token in range(vocab_size)], dtype=tf.bool
+                    [
+                        True if token is eos_token_id else False
+                        for token in range(vocab_size)
+                    ],
+                    dtype=tf.bool,
                 )
-                eos_token_indices_mask = tf.broadcast_to(is_token_logit_eos_token, [batch_size, vocab_size])
+                eos_token_indices_mask = tf.broadcast_to(
+                    is_token_logit_eos_token, [batch_size, vocab_size]
+                )
 
                 next_token_logits = set_tensor_by_indices_to_value(
                     next_token_logits, eos_token_indices_mask, -float("inf")
@@ -904,19 +1039,28 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 if temperature != 1.0:
                     next_token_logits = next_token_logits / temperature
                 # Top-p/top-k filtering
-                next_token_logits = tf_top_k_top_p_filtering(next_token_logits, top_k=top_k, top_p=top_p)
+                next_token_logits = tf_top_k_top_p_filtering(
+                    next_token_logits, top_k=top_k, top_p=top_p
+                )
                 # Sample
                 next_token = tf.squeeze(
-                    tf.random.categorical(next_token_logits, dtype=tf.int32, num_samples=1), axis=1
+                    tf.random.categorical(
+                        next_token_logits, dtype=tf.int32, num_samples=1
+                    ),
+                    axis=1,
                 )
             else:
                 # Greedy decoding
-                next_token = tf.math.argmax(next_token_logits, axis=-1, output_type=tf.int32)
+                next_token = tf.math.argmax(
+                    next_token_logits, axis=-1, output_type=tf.int32
+                )
 
             # update generations and finished sentences
             if eos_token_id is not None:
                 # pad finished sentences if eos_token_id exist
-                tokens_to_add = next_token * unfinished_sents + (pad_token_id) * (1 - unfinished_sents)
+                tokens_to_add = next_token * unfinished_sents + (pad_token_id) * (
+                    1 - unfinished_sents
+                )
             else:
                 tokens_to_add = next_token
 
@@ -943,7 +1087,11 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
             # extend attention_mask for new generated input if only decoder
             if self.config.is_encoder_decoder is False:
                 attention_mask = tf.concat(
-                    [attention_mask, tf.ones((shape_list(attention_mask)[0], 1), dtype=tf.int32)], axis=-1
+                    [
+                        attention_mask,
+                        tf.ones((shape_list(attention_mask)[0], 1), dtype=tf.int32),
+                    ],
+                    axis=-1,
                 )
 
             cur_len = cur_len + 1
@@ -952,19 +1100,28 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         min_sent_length = tf.math.reduce_min(sent_lengths)
         max_sent_length = tf.math.reduce_max(sent_lengths)
         if min_sent_length != max_sent_length:
-            assert pad_token_id is not None, "`Pad_token_id` has to be defined if batches have different lengths"
+            assert (
+                pad_token_id is not None
+            ), "`Pad_token_id` has to be defined if batches have different lengths"
             # finished sents are filled with pad_token
-            padding = tf.ones([batch_size, max_sent_length.numpy()], dtype=tf.int32) * pad_token_id
+            padding = (
+                tf.ones([batch_size, max_sent_length.numpy()], dtype=tf.int32)
+                * pad_token_id
+            )
 
             # create length masks for tf.where operation
             broad_casted_sent_lengths = tf.broadcast_to(
                 tf.expand_dims(sent_lengths, -1), [batch_size, max_sent_length]
             )
             broad_casted_range = tf.transpose(
-                tf.broadcast_to(tf.expand_dims(tf.range(max_length), -1), [max_length, batch_size])
+                tf.broadcast_to(
+                    tf.expand_dims(tf.range(max_length), -1), [max_length, batch_size]
+                )
             )
 
-            decoded = tf.where(broad_casted_range < broad_casted_sent_lengths, input_ids, padding)
+            decoded = tf.where(
+                broad_casted_range < broad_casted_sent_lengths, input_ids, padding
+            )
         else:
             decoded = input_ids
 
@@ -996,19 +1153,22 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         encoder_outputs,
         attention_mask,
     ):
-        """ Generate sequences for each example with beam search.
-        """
+        """Generate sequences for each example with beam search."""
 
         # generated hypotheses
         generated_hyps = [
-            BeamHypotheses(num_beams, max_length, length_penalty, early_stopping=early_stopping)
+            BeamHypotheses(
+                num_beams, max_length, length_penalty, early_stopping=early_stopping
+            )
             for _ in range(batch_size)
         ]
 
         # for greedy decoding it is made sure that only tokens of the first beam are considered to avoid sampling the exact same tokens three times
         if do_sample is False:
             beam_scores_begin = tf.zeros((batch_size, 1), dtype=tf.float32)
-            beam_scores_end = tf.ones((batch_size, num_beams - 1), dtype=tf.float32) * (-1e9)
+            beam_scores_end = tf.ones((batch_size, num_beams - 1), dtype=tf.float32) * (
+                -1e9
+            )
             beam_scores = tf.concat([beam_scores_begin, beam_scores_end], -1)
         else:
             beam_scores = tf.zeros((batch_size, num_beams), dtype=tf.float32)
@@ -1022,9 +1182,15 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         done = [False for _ in range(batch_size)]
 
         while cur_len < max_length:
-            model_inputs = self.prepare_inputs_for_generation(input_ids, past=past, attention_mask=attention_mask)
-            outputs = self(**model_inputs)  # (batch_size * num_beams, cur_len, vocab_size)
-            next_token_logits = outputs[0][:, -1, :]  # (batch_size * num_beams, vocab_size)
+            model_inputs = self.prepare_inputs_for_generation(
+                input_ids, past=past, attention_mask=attention_mask
+            )
+            outputs = self(
+                **model_inputs
+            )  # (batch_size * num_beams, cur_len, vocab_size)
+            next_token_logits = outputs[0][
+                :, -1, :
+            ]  # (batch_size * num_beams, vocab_size)
 
             # if model has past, then set the past variable to speed up decoding
             if self._do_output_past(outputs):
@@ -1035,14 +1201,18 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 next_token_logits_penalties = _create_next_token_logits_penalties(
                     input_ids, next_token_logits, repetition_penalty
                 )
-                next_token_logits = tf.math.multiply(next_token_logits, next_token_logits_penalties)
+                next_token_logits = tf.math.multiply(
+                    next_token_logits, next_token_logits_penalties
+                )
 
             # Temperature (higher temperature => more likely to sample low probability tokens)
             if temperature != 1.0:
                 next_token_logits = next_token_logits / temperature
 
             #             calculate log softmax score
-            scores = tf.nn.log_softmax(next_token_logits, axis=-1)  # (batch_size * num_beams, vocab_size)
+            scores = tf.nn.log_softmax(
+                next_token_logits, axis=-1
+            )  # (batch_size * num_beams, vocab_size)
 
             # set eos token prob to zero if min_length is not reached
             if eos_token_id is not None and cur_len < min_length:
@@ -1050,11 +1220,19 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 num_batch_hypotheses = batch_size * num_beams
 
                 is_token_logit_eos_token = tf.convert_to_tensor(
-                    [True if token is eos_token_id else False for token in range(vocab_size)], dtype=tf.bool
+                    [
+                        True if token is eos_token_id else False
+                        for token in range(vocab_size)
+                    ],
+                    dtype=tf.bool,
                 )
-                eos_token_indices_mask = tf.broadcast_to(is_token_logit_eos_token, [num_batch_hypotheses, vocab_size])
+                eos_token_indices_mask = tf.broadcast_to(
+                    is_token_logit_eos_token, [num_batch_hypotheses, vocab_size]
+                )
 
-                scores = set_tensor_by_indices_to_value(scores, eos_token_indices_mask, -float("inf"))
+                scores = set_tensor_by_indices_to_value(
+                    scores, eos_token_indices_mask, -float("inf")
+                )
 
             if no_repeat_ngram_size > 0:
                 # calculate a list of banned tokens to prevent repetitively generating the same ngrams
@@ -1067,11 +1245,16 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 banned_tokens_indices_mask = []
                 for banned_tokens_slice in banned_tokens:
                     banned_tokens_indices_mask.append(
-                        [True if token in banned_tokens_slice else False for token in range(vocab_size)]
+                        [
+                            True if token in banned_tokens_slice else False
+                            for token in range(vocab_size)
+                        ]
                     )
 
                 scores = set_tensor_by_indices_to_value(
-                    scores, tf.convert_to_tensor(banned_tokens_indices_mask, dtype=tf.bool), -float("inf")
+                    scores,
+                    tf.convert_to_tensor(banned_tokens_indices_mask, dtype=tf.bool),
+                    -float("inf"),
                 )
 
             if bad_words_ids is not None:
@@ -1081,11 +1264,16 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 banned_tokens_indices_mask = []
                 for banned_tokens_slice in banned_tokens:
                     banned_tokens_indices_mask.append(
-                        [True if token in banned_tokens_slice else False for token in range(vocab_size)]
+                        [
+                            True if token in banned_tokens_slice else False
+                            for token in range(vocab_size)
+                        ]
                     )
 
                 scores = set_tensor_by_indices_to_value(
-                    scores, tf.convert_to_tensor(banned_tokens_indices_mask, dtype=tf.bool), -float("inf")
+                    scores,
+                    tf.convert_to_tensor(banned_tokens_indices_mask, dtype=tf.bool),
+                    -float("inf"),
                 )
 
             assert shape_list(scores) == [batch_size * num_beams, vocab_size]
@@ -1106,12 +1294,20 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                     _scores, dtype=tf.int32, num_samples=2 * num_beams
                 )  # (batch_size, 2 * num_beams)
                 # Compute next scores
-                next_scores = tf.gather(_scores, next_tokens, batch_dims=1)  # (batch_size, 2 * num_beams)
+                next_scores = tf.gather(
+                    _scores, next_tokens, batch_dims=1
+                )  # (batch_size, 2 * num_beams)
 
                 # sort the sampled vector to make sure that the first num_beams samples are the best
-                next_scores_indices = tf.argsort(next_scores, direction="DESCENDING", axis=1)
-                next_scores = tf.gather(next_scores, next_scores_indices, batch_dims=1)  # (batch_size, num_beams * 2)
-                next_tokens = tf.gather(next_tokens, next_scores_indices, batch_dims=1)  # (batch_size, num_beams * 2)
+                next_scores_indices = tf.argsort(
+                    next_scores, direction="DESCENDING", axis=1
+                )
+                next_scores = tf.gather(
+                    next_scores, next_scores_indices, batch_dims=1
+                )  # (batch_size, num_beams * 2)
+                next_tokens = tf.gather(
+                    next_tokens, next_scores_indices, batch_dims=1
+                )  # (batch_size, num_beams * 2)
             else:
                 # Add the log prob of the new beams to the log prob of the beginning of the sequence (sum of logs == log of the product)
                 next_scores = scores + tf.broadcast_to(
@@ -1123,9 +1319,15 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                     next_scores, (batch_size, num_beams * vocab_size)
                 )  # (batch_size, num_beams * vocab_size)
 
-                next_scores, next_tokens = tf.math.top_k(next_scores, k=2 * num_beams, sorted=True)
+                next_scores, next_tokens = tf.math.top_k(
+                    next_scores, k=2 * num_beams, sorted=True
+                )
 
-            assert shape_list(next_scores) == shape_list(next_tokens) == [batch_size, 2 * num_beams]
+            assert (
+                shape_list(next_scores)
+                == shape_list(next_tokens)
+                == [batch_size, 2 * num_beams]
+            )
 
             # next batch beam content
             next_batch_beam = []
@@ -1137,11 +1339,15 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 if done[batch_idx]:
                     assert (
                         len(generated_hyps[batch_idx]) >= num_beams
-                    ), "Batch can only be done if at least {} beams have been generated".format(num_beams)
+                    ), "Batch can only be done if at least {} beams have been generated".format(
+                        num_beams
+                    )
                     assert (
                         eos_token_id is not None and pad_token_id is not None
                     ), "generated beams >= num_beams -> eos_token_id and pad_token have to be defined"
-                    next_batch_beam.extend([(0, pad_token_id, 0)] * num_beams)  # pad the batch
+                    next_batch_beam.extend(
+                        [(0, pad_token_id, 0)] * num_beams
+                    )  # pad the batch
                     continue
 
                 # next sentence beam content
@@ -1157,17 +1363,24 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
 
                     effective_beam_id = batch_idx * num_beams + beam_id
                     # add to generated hypotheses if end of sentence or last iteration
-                    if (eos_token_id is not None) and (token_id.numpy() == eos_token_id):
+                    if (eos_token_id is not None) and (
+                        token_id.numpy() == eos_token_id
+                    ):
                         # if beam_token does not belong to top num_beams tokens, it should not be added
-                        is_beam_token_worse_than_top_num_beams = beam_token_rank >= num_beams
+                        is_beam_token_worse_than_top_num_beams = (
+                            beam_token_rank >= num_beams
+                        )
                         if is_beam_token_worse_than_top_num_beams:
                             continue
                         generated_hyps[batch_idx].add(
-                            tf.identity(input_ids[effective_beam_id]), beam_token_score.numpy()
+                            tf.identity(input_ids[effective_beam_id]),
+                            beam_token_score.numpy(),
                         )
                     else:
                         # add next predicted token if it is not eos_token
-                        next_sent_beam.append((beam_token_score, token_id, effective_beam_id))
+                        next_sent_beam.append(
+                            (beam_token_score, token_id, effective_beam_id)
+                        )
 
                     # the beam for next step is full
                     if len(next_sent_beam) == num_beams:
@@ -1189,9 +1402,15 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
 
             # sanity check / prepare next batch
             assert len(next_batch_beam) == batch_size * num_beams
-            beam_scores = tf.convert_to_tensor([x[0] for x in next_batch_beam], dtype=tf.float32)
-            beam_tokens = tf.convert_to_tensor([x[1] for x in next_batch_beam], dtype=tf.int32)
-            beam_idx = tf.convert_to_tensor([x[2] for x in next_batch_beam], dtype=tf.int32)
+            beam_scores = tf.convert_to_tensor(
+                [x[0] for x in next_batch_beam], dtype=tf.float32
+            )
+            beam_tokens = tf.convert_to_tensor(
+                [x[1] for x in next_batch_beam], dtype=tf.int32
+            )
+            beam_idx = tf.convert_to_tensor(
+                [x[2] for x in next_batch_beam], dtype=tf.int32
+            )
 
             # re-order batch
             input_ids = tf.stack([tf.identity(input_ids[x, :]) for x in beam_idx])
@@ -1203,7 +1422,11 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
             # extend attention_mask for new generated input if only decoder
             if self.config.is_encoder_decoder is False:
                 attention_mask = tf.concat(
-                    [attention_mask, tf.ones((shape_list(attention_mask)[0], 1), dtype=tf.int32)], axis=-1
+                    [
+                        attention_mask,
+                        tf.ones((shape_list(attention_mask)[0], 1), dtype=tf.int32),
+                    ],
+                    axis=-1,
                 )
 
             # update current length
@@ -1216,12 +1439,15 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 continue
             # test that beam scores match previously calculated scores if not eos and batch_idx not done
             if eos_token_id is not None and all(
-                (token_id % vocab_size).numpy().item() is not eos_token_id for token_id in next_tokens[batch_idx]
+                (token_id % vocab_size).numpy().item() is not eos_token_id
+                for token_id in next_tokens[batch_idx]
             ):
                 assert tf.reduce_all(
-                    next_scores[batch_idx, :num_beams] == tf.reshape(beam_scores, (batch_size, num_beams))[batch_idx]
+                    next_scores[batch_idx, :num_beams]
+                    == tf.reshape(beam_scores, (batch_size, num_beams))[batch_idx]
                 ), "If batch_idx is not done, final next scores: {} have to equal to accumulated beam_scores: {}".format(
-                    next_scores[:, :num_beams][batch_idx], tf.reshape(beam_scores, (batch_size, num_beams))[batch_idx]
+                    next_scores[:, :num_beams][batch_idx],
+                    tf.reshape(beam_scores, (batch_size, num_beams))[batch_idx],
                 )
 
             # need to add best num_beams hypotheses to generated hyps
@@ -1232,7 +1458,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 generated_hyps[batch_idx].add(final_tokens, final_score)
 
         # depending on whether greedy generation is wanted or not define different output_batch_size and output_num_return_sequences_per_batch
-        output_batch_size = batch_size if do_sample else batch_size * num_return_sequences
+        output_batch_size = (
+            batch_size if do_sample else batch_size * num_return_sequences
+        )
         output_num_return_sequences_per_batch = 1 if do_sample else num_return_sequences
 
         # select the best hypotheses
@@ -1246,7 +1474,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
                 best_hyp = sorted_hyps.pop()[1]
                 sent_lengths_list.append(len(best_hyp))
                 best.append(best_hyp)
-        assert output_batch_size == len(best), "Output batch size {} must match output beam hypotheses {}".format(
+        assert output_batch_size == len(
+            best
+        ), "Output batch size {} must match output beam hypotheses {}".format(
             output_batch_size, len(best)
         )
 
@@ -1294,7 +1524,9 @@ class TFPreTrainedModel(tf.keras.Model, TFModelUtilsMixin):
         for layer_past in past:
             # get the correct batch idx from layer past batch dim
             # batch dim of `past` and `mems` is at 2nd position
-            reordered_layer_past = [tf.identity(tf.expand_dims(layer_past[:, i], 1)) for i in beam_idx]
+            reordered_layer_past = [
+                tf.identity(tf.expand_dims(layer_past[:, i], 1)) for i in beam_idx
+            ]
             reordered_layer_past = tf.concat(reordered_layer_past, axis=1)
             # check that shape matches
             assert shape_list(reordered_layer_past) == shape_list(layer_past)
@@ -1328,7 +1560,9 @@ def calc_banned_ngram_tokens(prev_input_ids, num_hypos, no_repeat_ngram_size, cu
         generated_ngram = generated_ngrams[idx]
         for ngram in zip(*[gen_tokens[i:] for i in range(no_repeat_ngram_size)]):
             prev_ngram_tuple = tuple(ngram[:-1])
-            generated_ngram[prev_ngram_tuple] = generated_ngram.get(prev_ngram_tuple, []) + [ngram[-1]]
+            generated_ngram[prev_ngram_tuple] = generated_ngram.get(
+                prev_ngram_tuple, []
+            ) + [ngram[-1]]
 
     def _get_generated_ngrams(hypo_idx):
         # Before decoding the next token, prevent decoding of ngrams that have already appeared
@@ -1361,11 +1595,18 @@ def calc_banned_bad_words_ids(prev_input_ids, bad_words_ids):
         banned_tokens_slice = []
 
         for banned_token_seq in bad_words_ids:
-            assert len(banned_token_seq) > 0, "Banned words token sequences {} cannot have an empty list".format(
+            assert (
+                len(banned_token_seq) > 0
+            ), "Banned words token sequences {} cannot have an empty list".format(
                 bad_words_ids
             )
 
-            if _tokens_match(prev_input_ids_slice.numpy().tolist(), banned_token_seq[:-1]) is False:
+            if (
+                _tokens_match(
+                    prev_input_ids_slice.numpy().tolist(), banned_token_seq[:-1]
+                )
+                is False
+            ):
                 # if tokens do not match continue
                 continue
 
@@ -1376,15 +1617,17 @@ def calc_banned_bad_words_ids(prev_input_ids, bad_words_ids):
     return banned_tokens
 
 
-def tf_top_k_top_p_filtering(logits, top_k=0, top_p=1.0, filter_value=-float("Inf"), min_tokens_to_keep=1):
-    """ Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
-        Args:
-            logits: logits distribution shape (batch size, vocabulary size)
-            if top_k > 0: keep only top k tokens with highest probability (top-k filtering).
-            if top_p < 1.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering).
-                Nucleus filtering is described in Holtzman et al. (http://arxiv.org/abs/1904.09751)
-            Make sure we keep at least min_tokens_to_keep per batch example in the output
-        From: https://gist.github.com/thomwolf/1a5a29f6962089e871b94cbd09daf317
+def tf_top_k_top_p_filtering(
+    logits, top_k=0, top_p=1.0, filter_value=-float("Inf"), min_tokens_to_keep=1
+):
+    """Filter a distribution of logits using top-k and/or nucleus (top-p) filtering
+    Args:
+        logits: logits distribution shape (batch size, vocabulary size)
+        if top_k > 0: keep only top k tokens with highest probability (top-k filtering).
+        if top_p < 1.0: keep the top tokens with cumulative probability >= top_p (nucleus filtering).
+            Nucleus filtering is described in Holtzman et al. (http://arxiv.org/abs/1904.09751)
+        Make sure we keep at least min_tokens_to_keep per batch example in the output
+    From: https://gist.github.com/thomwolf/1a5a29f6962089e871b94cbd09daf317
     """
     logits_shape = shape_list(logits)
 
@@ -1400,7 +1643,9 @@ def tf_top_k_top_p_filtering(logits, top_k=0, top_p=1.0, filter_value=-float("In
             logits, sorted_indices, axis=-1, batch_dims=1
         )  # expects logits to be of dim (batch_size, vocab_size)
 
-        cumulative_probs = tf.math.cumsum(tf.nn.softmax(sorted_logits, axis=-1), axis=-1)
+        cumulative_probs = tf.math.cumsum(
+            tf.nn.softmax(sorted_logits, axis=-1), axis=-1
+        )
 
         # Remove tokens with cumulative probability above the threshold (token with 0 are kept)
         sorted_indices_to_remove = cumulative_probs > top_p
@@ -1418,10 +1663,16 @@ def tf_top_k_top_p_filtering(logits, top_k=0, top_p=1.0, filter_value=-float("In
         # Shift the indices to the right to keep also the first token above the threshold
         sorted_indices_to_remove = tf.roll(sorted_indices_to_remove, 1, axis=-1)
         sorted_indices_to_remove = tf.concat(
-            [tf.zeros_like(sorted_indices_to_remove[:, :1]), sorted_indices_to_remove[:, 1:]], -1,
+            [
+                tf.zeros_like(sorted_indices_to_remove[:, :1]),
+                sorted_indices_to_remove[:, 1:],
+            ],
+            -1,
         )
         # scatter sorted tensors to original indexing
-        indices_to_remove = scatter_values_on_batch_indices(sorted_indices_to_remove, sorted_indices)
+        indices_to_remove = scatter_values_on_batch_indices(
+            sorted_indices_to_remove, sorted_indices
+        )
         logits = set_tensor_by_indices_to_value(logits, indices_to_remove, filter_value)
     return logits
 
@@ -1429,9 +1680,13 @@ def tf_top_k_top_p_filtering(logits, top_k=0, top_p=1.0, filter_value=-float("In
 def scatter_values_on_batch_indices(values, batch_indices):
     shape = shape_list(batch_indices)
     # broadcast batch dim to shape
-    broad_casted_batch_dims = tf.reshape(tf.broadcast_to(tf.expand_dims(tf.range(shape[0]), axis=-1), shape), [1, -1])
+    broad_casted_batch_dims = tf.reshape(
+        tf.broadcast_to(tf.expand_dims(tf.range(shape[0]), axis=-1), shape), [1, -1]
+    )
     # transform batch_indices to pair_indices
-    pair_indices = tf.transpose(tf.concat([broad_casted_batch_dims, tf.reshape(batch_indices, [1, -1])], 0))
+    pair_indices = tf.transpose(
+        tf.concat([broad_casted_batch_dims, tf.reshape(batch_indices, [1, -1])], 0)
+    )
     # scatter values to pair indices
     return tf.scatter_nd(pair_indices, tf.reshape(values, [-1]), shape)
 
@@ -1468,7 +1723,9 @@ class BeamHypotheses(object):
         if len(self) < self.num_beams or score > self.worst_score:
             self.beams.append((score, hyp))
             if len(self) > self.num_beams:
-                sorted_scores = sorted([(s, idx) for idx, (s, _) in enumerate(self.beams)])
+                sorted_scores = sorted(
+                    [(s, idx) for idx, (s, _) in enumerate(self.beams)]
+                )
                 del self.beams[sorted_scores[0][1]]
                 self.worst_score = sorted_scores[1][0]
             else:
@@ -1487,15 +1744,15 @@ class BeamHypotheses(object):
         else:
             if cur_len is None:
                 cur_len = self.max_length
-            cur_score = best_sum_logprobs / cur_len ** self.length_penalty
+            cur_score = best_sum_logprobs / cur_len**self.length_penalty
             ret = self.worst_score >= cur_score
             return ret
 
 
 class TFConv1D(tf.keras.layers.Layer):
     def __init__(self, nf, nx, initializer_range=0.02, **kwargs):
-        """ TFConv1D layer as defined by Radford et al. for OpenAI GPT (and also used in GPT-2)
-            Basically works like a Linear layer but the weights are transposed
+        """TFConv1D layer as defined by Radford et al. for OpenAI GPT (and also used in GPT-2)
+        Basically works like a Linear layer but the weights are transposed
         """
         super().__init__(**kwargs)
         self.nf = nf
@@ -1504,9 +1761,13 @@ class TFConv1D(tf.keras.layers.Layer):
 
     def build(self, input_shape):
         self.weight = self.add_weight(
-            "weight", shape=[self.nx, self.nf], initializer=get_initializer(self.initializer_range)
+            "weight",
+            shape=[self.nx, self.nf],
+            initializer=get_initializer(self.initializer_range),
         )
-        self.bias = self.add_weight("bias", shape=[1, self.nf], initializer=tf.zeros_initializer())
+        self.bias = self.add_weight(
+            "bias", shape=[1, self.nf], initializer=tf.zeros_initializer()
+        )
 
     def call(self, x):
         bz, sl = shape_list(x)[:2]
@@ -1520,14 +1781,15 @@ class TFConv1D(tf.keras.layers.Layer):
 
 
 class TFSharedEmbeddings(tf.keras.layers.Layer):
-    """Construct shared token embeddings.
-    """
+    """Construct shared token embeddings."""
 
     def __init__(self, vocab_size, hidden_size, initializer_range=None, **kwargs):
         super().__init__(**kwargs)
         self.vocab_size = vocab_size
         self.hidden_size = hidden_size
-        self.initializer_range = hidden_size ** -0.5 if initializer_range is None else initializer_range
+        self.initializer_range = (
+            hidden_size**-0.5 if initializer_range is None else initializer_range
+        )
 
     def build(self, input_shape):
         """Build shared token embedding layer
@@ -1535,7 +1797,9 @@ class TFSharedEmbeddings(tf.keras.layers.Layer):
             https://github.com/tensorflow/models/blob/a009f4fb9d2fc4949e32192a944688925ef78659/official/transformer/v2/embedding_layer.py#L24
         """
         self.weight = self.add_weight(
-            "weight", shape=[self.vocab_size, self.hidden_size], initializer=get_initializer(self.initializer_range)
+            "weight",
+            shape=[self.vocab_size, self.hidden_size],
+            initializer=get_initializer(self.initializer_range),
         )
         super().build(input_shape)
 
@@ -1567,10 +1831,10 @@ class TFSharedEmbeddings(tf.keras.layers.Layer):
 
     def _linear(self, inputs):
         """Computes logits by running inputs through a linear layer.
-            Args:
-                inputs: A float32 tensor with shape [..., hidden_size]
-            Returns:
-                float32 tensor with shape [..., vocab_size].
+        Args:
+            inputs: A float32 tensor with shape [..., hidden_size]
+        Returns:
+            float32 tensor with shape [..., vocab_size].
         """
         first_dims = shape_list(inputs)[:-1]
 
@@ -1581,59 +1845,77 @@ class TFSharedEmbeddings(tf.keras.layers.Layer):
 
 
 class TFSequenceSummary(tf.keras.layers.Layer):
-    r""" Compute a single vector summary of a sequence hidden states according to various possibilities:
-        Args of the config class:
-            summary_type:
-                - 'last' => [default] take the last token hidden state (like XLNet)
-                - 'first' => take the first token hidden state (like Bert)
-                - 'mean' => take the mean of all tokens hidden states
-                - 'cls_index' => supply a Tensor of classification token position (GPT/GPT-2)
-                - 'attn' => Not implemented now, use multi-head attention
-            summary_use_proj: Add a projection after the vector extraction
-            summary_proj_to_labels: If True, the projection outputs to config.num_labels classes (otherwise to hidden_size). Default: False.
-            summary_activation: 'tanh' => add a tanh activation to the output, Other => no activation. Default
-            summary_first_dropout: Add a dropout before the projection and activation
-            summary_last_dropout: Add a dropout after the projection and activation
+    r"""Compute a single vector summary of a sequence hidden states according to various possibilities:
+    Args of the config class:
+        summary_type:
+            - 'last' => [default] take the last token hidden state (like XLNet)
+            - 'first' => take the first token hidden state (like Bert)
+            - 'mean' => take the mean of all tokens hidden states
+            - 'cls_index' => supply a Tensor of classification token position (GPT/GPT-2)
+            - 'attn' => Not implemented now, use multi-head attention
+        summary_use_proj: Add a projection after the vector extraction
+        summary_proj_to_labels: If True, the projection outputs to config.num_labels classes (otherwise to hidden_size). Default: False.
+        summary_activation: 'tanh' => add a tanh activation to the output, Other => no activation. Default
+        summary_first_dropout: Add a dropout before the projection and activation
+        summary_last_dropout: Add a dropout after the projection and activation
     """
 
     def __init__(self, config, initializer_range=0.02, **kwargs):
         super().__init__(**kwargs)
 
-        self.summary_type = config.summary_type if hasattr(config, "summary_use_proj") else "last"
+        self.summary_type = (
+            config.summary_type if hasattr(config, "summary_use_proj") else "last"
+        )
         if self.summary_type == "attn":
             # We should use a standard multi-head attention module with absolute positional embedding for that.
             # Cf. https://github.com/zihangdai/xlnet/blob/master/modeling.py#L253-L276
             # We can probably just use the multi-head attention module of PyTorch >=1.1.0
             raise NotImplementedError
 
-        self.has_summary = hasattr(config, "summary_use_proj") and config.summary_use_proj
+        self.has_summary = (
+            hasattr(config, "summary_use_proj") and config.summary_use_proj
+        )
         if self.has_summary:
-            if hasattr(config, "summary_proj_to_labels") and config.summary_proj_to_labels and config.num_labels > 0:
+            if (
+                hasattr(config, "summary_proj_to_labels")
+                and config.summary_proj_to_labels
+                and config.num_labels > 0
+            ):
                 num_classes = config.num_labels
             else:
                 num_classes = config.hidden_size
             self.summary = tf.keras.layers.Dense(
-                num_classes, kernel_initializer=get_initializer(initializer_range), name="summary"
+                num_classes,
+                kernel_initializer=get_initializer(initializer_range),
+                name="summary",
             )
 
-        self.has_activation = hasattr(config, "summary_activation") and config.summary_activation == "tanh"
+        self.has_activation = (
+            hasattr(config, "summary_activation")
+            and config.summary_activation == "tanh"
+        )
         if self.has_activation:
             self.activation = tf.keras.activations.tanh
 
-        self.has_first_dropout = hasattr(config, "summary_first_dropout") and config.summary_first_dropout > 0
+        self.has_first_dropout = (
+            hasattr(config, "summary_first_dropout")
+            and config.summary_first_dropout > 0
+        )
         if self.has_first_dropout:
             self.first_dropout = tf.keras.layers.Dropout(config.summary_first_dropout)
 
-        self.has_last_dropout = hasattr(config, "summary_last_dropout") and config.summary_last_dropout > 0
+        self.has_last_dropout = (
+            hasattr(config, "summary_last_dropout") and config.summary_last_dropout > 0
+        )
         if self.has_last_dropout:
             self.last_dropout = tf.keras.layers.Dropout(config.summary_last_dropout)
 
     def call(self, inputs, training=False):
-        """ hidden_states: float Tensor in shape [bsz, seq_len, hidden_size], the hidden-states of the last layer.
-            cls_index: [optional] position of the classification token if summary_type == 'cls_index',
-                shape (bsz,) or more generally (bsz, ...) where ... are optional leading dimensions of hidden_states.
-                if summary_type == 'cls_index' and cls_index is None:
-                    we take the last token of the sequence as classification token
+        """hidden_states: float Tensor in shape [bsz, seq_len, hidden_size], the hidden-states of the last layer.
+        cls_index: [optional] position of the classification token if summary_type == 'cls_index',
+            shape (bsz,) or more generally (bsz, ...) where ... are optional leading dimensions of hidden_states.
+            if summary_type == 'cls_index' and cls_index is None:
+                we take the last token of the sequence as classification token
         """
         if not isinstance(inputs, (dict, tuple, list)):
             hidden_states = inputs
@@ -1653,7 +1935,9 @@ class TFSequenceSummary(tf.keras.layers.Layer):
         elif self.summary_type == "mean":
             output = tf.reduce_mean(hidden_states, axis=1)
         elif self.summary_type == "cls_index":
-            hidden_shape = shape_list(hidden_states)  # e.g. [batch, num choices, seq length, hidden dims]
+            hidden_shape = shape_list(
+                hidden_states
+            )  # e.g. [batch, num choices, seq length, hidden dims]
             if cls_index is None:
                 cls_index = tf.fill(
                     hidden_shape[:-2], hidden_shape[-2] - 1
@@ -1665,7 +1949,9 @@ class TFSequenceSummary(tf.keras.layers.Layer):
             # cls_index = cls_index[..., tf.newaxis]
             # cls_index = cls_index.expand((-1,) * (cls_index.dim()-1) + (hidden_states.size(-1),))
             # shape of cls_index: (bsz, XX, 1, hidden_size) where XX are optional leading dim of hidden_states
-            output = tf.gather(hidden_states, cls_index, batch_dims=len(hidden_shape) - 2)
+            output = tf.gather(
+                hidden_states, cls_index, batch_dims=len(hidden_shape) - 2
+            )
             output = tf.squeeze(
                 output, axis=len(hidden_shape) - 2
             )  # shape of output: (batch, num choices, hidden_size)
@@ -1729,7 +2015,7 @@ TF_BERT_PRETRAINED_MODEL_ARCHIVE_MAP = {
 
 
 def gelu(x):
-    """ Gaussian Error Linear Unit.
+    """Gaussian Error Linear Unit.
     Original Implementation of the gelu activation function in Google Bert repo when initially created.
         For information: OpenAI GPT's gelu is slightly different (and gives slightly different results):
         0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
@@ -1765,8 +2051,7 @@ ACT2FN = {
 
 
 class TFBertEmbeddings(tf.keras.layers.Layer):
-    """Construct the embeddings from word, position and token_type embeddings.
-    """
+    """Construct the embeddings from word, position and token_type embeddings."""
 
     def __init__(self, config, **kwargs):
         super().__init__(**kwargs)
@@ -1789,11 +2074,13 @@ class TFBertEmbeddings(tf.keras.layers.Layer):
 
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
         # any TensorFlow checkpoint file
-        self.LayerNorm = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_eps, name="LayerNorm")
+        self.LayerNorm = tf.keras.layers.LayerNormalization(
+            epsilon=config.layer_norm_eps, name="LayerNorm"
+        )
         self.dropout = tf.keras.layers.Dropout(config.hidden_dropout_prob)
 
     def build(self, input_shape):
-        """Build shared word embedding layer """
+        """Build shared word embedding layer"""
         with tf.name_scope("word_embeddings"):
             # Create and initialize weights. The random normal initializer was chosen
             # arbitrarily, and works well.
@@ -1853,10 +2140,10 @@ class TFBertEmbeddings(tf.keras.layers.Layer):
 
     def _linear(self, inputs):
         """Computes logits by running inputs through a linear layer.
-            Args:
-                inputs: A float32 tensor with shape [batch_size, length, hidden_size]
-            Returns:
-                float32 tensor with shape [batch_size, length, vocab_size].
+        Args:
+            inputs: A float32 tensor with shape [batch_size, length, hidden_size]
+        Returns:
+            float32 tensor with shape [batch_size, length, vocab_size].
         """
         batch_size = shape_list(inputs)[0]
         length = shape_list(inputs)[1]
@@ -1884,19 +2171,27 @@ class TFBertSelfAttention(tf.keras.layers.Layer):
         self.amp = config.amp
 
         self.query = tf.keras.layers.Dense(
-            self.all_head_size, kernel_initializer=get_initializer(config.initializer_range), name="query"
+            self.all_head_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="query",
         )
         self.key = tf.keras.layers.Dense(
-            self.all_head_size, kernel_initializer=get_initializer(config.initializer_range), name="key"
+            self.all_head_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="key",
         )
         self.value = tf.keras.layers.Dense(
-            self.all_head_size, kernel_initializer=get_initializer(config.initializer_range), name="value"
+            self.all_head_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="value",
         )
 
         self.dropout = tf.keras.layers.Dropout(config.attention_probs_dropout_prob)
 
     def transpose_for_scores(self, x, batch_size):
-        x = tf.reshape(x, (batch_size, -1, self.num_attention_heads, self.attention_head_size))
+        x = tf.reshape(
+            x, (batch_size, -1, self.num_attention_heads, self.attention_head_size)
+        )
         return tf.transpose(x, perm=[0, 2, 1, 3])
 
     def call(self, inputs, training=False):
@@ -1916,7 +2211,9 @@ class TFBertSelfAttention(tf.keras.layers.Layer):
             query_layer, key_layer, transpose_b=True
         )  # (batch size, num_heads, seq_len_q, seq_len_k)
         dk = tf.cast(shape_list(key_layer)[-1], tf.float32)
-        attention_scores = attention_scores / tf.cast(tf.math.sqrt(dk), tf.float16 if self.amp else tf.float32)
+        attention_scores = attention_scores / tf.cast(
+            tf.math.sqrt(dk), tf.float16 if self.amp else tf.float32
+        )
 
         if attention_mask is not None:
             # Apply the attention mask is (precomputed for all layers in TFBertModel call() function)
@@ -1940,7 +2237,11 @@ class TFBertSelfAttention(tf.keras.layers.Layer):
             context_layer, (batch_size, -1, self.all_head_size)
         )  # (batch_size, seq_len_q, all_head_size)
 
-        outputs = (context_layer, attention_probs) if self.output_attentions else (context_layer,)
+        outputs = (
+            (context_layer, attention_probs)
+            if self.output_attentions
+            else (context_layer,)
+        )
         return outputs
 
 
@@ -1948,9 +2249,13 @@ class TFBertSelfOutput(tf.keras.layers.Layer):
     def __init__(self, config, **kwargs):
         super().__init__(**kwargs)
         self.dense = tf.keras.layers.Dense(
-            config.hidden_size, kernel_initializer=get_initializer(config.initializer_range), name="dense"
+            config.hidden_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="dense",
         )
-        self.LayerNorm = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_eps, name="LayerNorm")
+        self.LayerNorm = tf.keras.layers.LayerNormalization(
+            epsilon=config.layer_norm_eps, name="LayerNorm"
+        )
         self.dropout = tf.keras.layers.Dropout(config.hidden_dropout_prob)
 
     def call(self, inputs, training=False):
@@ -1974,9 +2279,15 @@ class TFBertAttention(tf.keras.layers.Layer):
     def call(self, inputs, training=False):
         input_tensor, attention_mask, head_mask = inputs
 
-        self_outputs = self.self_attention([input_tensor, attention_mask, head_mask], training=training)
-        attention_output = self.dense_output([self_outputs[0], input_tensor], training=training)
-        outputs = (attention_output,) + self_outputs[1:]  # add attentions if we output them
+        self_outputs = self.self_attention(
+            [input_tensor, attention_mask, head_mask], training=training
+        )
+        attention_output = self.dense_output(
+            [self_outputs[0], input_tensor], training=training
+        )
+        outputs = (attention_output,) + self_outputs[
+            1:
+        ]  # add attentions if we output them
         return outputs
 
 
@@ -1984,7 +2295,9 @@ class TFBertIntermediate(tf.keras.layers.Layer):
     def __init__(self, config, **kwargs):
         super().__init__(**kwargs)
         self.dense = tf.keras.layers.Dense(
-            config.intermediate_size, kernel_initializer=get_initializer(config.initializer_range), name="dense"
+            config.intermediate_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="dense",
         )
         if isinstance(config.hidden_act, str):
             self.intermediate_act_fn = ACT2FN[config.hidden_act]
@@ -2001,9 +2314,13 @@ class TFBertOutput(tf.keras.layers.Layer):
     def __init__(self, config, **kwargs):
         super().__init__(**kwargs)
         self.dense = tf.keras.layers.Dense(
-            config.hidden_size, kernel_initializer=get_initializer(config.initializer_range), name="dense"
+            config.hidden_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="dense",
         )
-        self.LayerNorm = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_eps, name="LayerNorm")
+        self.LayerNorm = tf.keras.layers.LayerNormalization(
+            epsilon=config.layer_norm_eps, name="LayerNorm"
+        )
         self.dropout = tf.keras.layers.Dropout(config.hidden_dropout_prob)
 
     def call(self, inputs, training=False):
@@ -2025,11 +2342,17 @@ class TFBertLayer(tf.keras.layers.Layer):
     def call(self, inputs, training=False):
         hidden_states, attention_mask, head_mask = inputs
 
-        attention_outputs = self.attention([hidden_states, attention_mask, head_mask], training=training)
+        attention_outputs = self.attention(
+            [hidden_states, attention_mask, head_mask], training=training
+        )
         attention_output = attention_outputs[0]
         intermediate_output = self.intermediate(attention_output)
-        layer_output = self.bert_output([intermediate_output, attention_output], training=training)
-        outputs = (layer_output,) + attention_outputs[1:]  # add attentions if we output them
+        layer_output = self.bert_output(
+            [intermediate_output, attention_output], training=training
+        )
+        outputs = (layer_output,) + attention_outputs[
+            1:
+        ]  # add attentions if we output them
         return outputs
 
 
@@ -2038,7 +2361,10 @@ class TFBertEncoder(tf.keras.layers.Layer):
         super().__init__(**kwargs)
         self.output_attentions = config.output_attentions
         self.output_hidden_states = config.output_hidden_states
-        self.layer = [TFBertLayer(config, name="layer_._{}".format(i)) for i in range(config.num_hidden_layers)]
+        self.layer = [
+            TFBertLayer(config, name="layer_._{}".format(i))
+            for i in range(config.num_hidden_layers)
+        ]
 
     def call(self, inputs, training=False):
         hidden_states, attention_mask, head_mask = inputs
@@ -2049,7 +2375,9 @@ class TFBertEncoder(tf.keras.layers.Layer):
             if self.output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
-            layer_outputs = layer_module([hidden_states, attention_mask, head_mask[i]], training=training)
+            layer_outputs = layer_module(
+                [hidden_states, attention_mask, head_mask[i]], training=training
+            )
             hidden_states = layer_outputs[0]
 
             if self.output_attentions:
@@ -2089,13 +2417,17 @@ class TFBertPredictionHeadTransform(tf.keras.layers.Layer):
     def __init__(self, config, **kwargs):
         super().__init__(**kwargs)
         self.dense = tf.keras.layers.Dense(
-            config.hidden_size, kernel_initializer=get_initializer(config.initializer_range), name="dense"
+            config.hidden_size,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="dense",
         )
         if isinstance(config.hidden_act, str):
             self.transform_act_fn = ACT2FN[config.hidden_act]
         else:
             self.transform_act_fn = config.hidden_act
-        self.LayerNorm = tf.keras.layers.LayerNormalization(epsilon=config.layer_norm_eps, name="LayerNorm")
+        self.LayerNorm = tf.keras.layers.LayerNormalization(
+            epsilon=config.layer_norm_eps, name="LayerNorm"
+        )
 
     def call(self, hidden_states):
         hidden_states = self.dense(hidden_states)
@@ -2115,7 +2447,9 @@ class TFBertLMPredictionHead(tf.keras.layers.Layer):
         self.input_embeddings = input_embeddings
 
     def build(self, input_shape):
-        self.bias = self.add_weight(shape=(self.vocab_size,), initializer="zeros", trainable=True, name="bias")
+        self.bias = self.add_weight(
+            shape=(self.vocab_size,), initializer="zeros", trainable=True, name="bias"
+        )
         super().build(input_shape)
 
     def call(self, hidden_states):
@@ -2128,7 +2462,9 @@ class TFBertLMPredictionHead(tf.keras.layers.Layer):
 class TFBertMLMHead(tf.keras.layers.Layer):
     def __init__(self, config, input_embeddings, **kwargs):
         super().__init__(**kwargs)
-        self.predictions = TFBertLMPredictionHead(config, input_embeddings, name="predictions")
+        self.predictions = TFBertLMPredictionHead(
+            config, input_embeddings, name="predictions"
+        )
 
     def call(self, sequence_output):
         prediction_scores = self.predictions(sequence_output)
@@ -2139,7 +2475,9 @@ class TFBertNSPHead(tf.keras.layers.Layer):
     def __init__(self, config, **kwargs):
         super().__init__(**kwargs)
         self.seq_relationship = tf.keras.layers.Dense(
-            2, kernel_initializer=get_initializer(config.initializer_range), name="seq_relationship"
+            2,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="seq_relationship",
         )
 
     def call(self, pooled_output):
@@ -2166,9 +2504,9 @@ class TFBertMainLayer(tf.keras.layers.Layer):
         raise NotImplementedError
 
     def _prune_heads(self, heads_to_prune):
-        """ Prunes heads of the model.
-            heads_to_prune: dict of {layer_num: list of heads to prune in this layer}
-            See base class PreTrainedModel
+        """Prunes heads of the model.
+        heads_to_prune: dict of {layer_num: list of heads to prune in this layer}
+        See base class PreTrainedModel
         """
         raise NotImplementedError
 
@@ -2202,7 +2540,9 @@ class TFBertMainLayer(tf.keras.layers.Layer):
             input_ids = inputs
 
         if input_ids is not None and inputs_embeds is not None:
-            raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
+            raise ValueError(
+                "You cannot specify both input_ids and inputs_embeds at the same time"
+            )
         elif input_ids is not None:
             input_shape = shape_list(input_ids)
         elif inputs_embeds is not None:
@@ -2242,8 +2582,12 @@ class TFBertMainLayer(tf.keras.layers.Layer):
             head_mask = [None] * self.num_hidden_layers
             # head_mask = tf.constant([0] * self.num_hidden_layers)
 
-        embedding_output = self.embeddings([input_ids, position_ids, token_type_ids, inputs_embeds], training=training)
-        encoder_outputs = self.encoder([embedding_output, extended_attention_mask, head_mask], training=training)
+        embedding_output = self.embeddings(
+            [input_ids, position_ids, token_type_ids, inputs_embeds], training=training
+        )
+        encoder_outputs = self.encoder(
+            [embedding_output, extended_attention_mask, head_mask], training=training
+        )
 
         sequence_output = encoder_outputs[0]
         pooled_output = self.pooler(sequence_output)
@@ -2255,8 +2599,8 @@ class TFBertMainLayer(tf.keras.layers.Layer):
 
 
 class TFBertPreTrainedModel(TFPreTrainedModel):
-    """ An abstract class to handle weights initialization and
-        a simple interface for downloading and loading pretrained models.
+    """An abstract class to handle weights initialization and
+    a simple interface for downloading and loading pretrained models.
     """
 
     config_class = BertConfig
@@ -2347,39 +2691,39 @@ class TFBertModel(TFBertPreTrainedModel):
     @add_start_docstrings_to_callable(BERT_INPUTS_DOCSTRING)
     def call(self, inputs, **kwargs):
         r"""
-    Returns:
-        :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
-        last_hidden_state (:obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`):
-            Sequence of hidden-states at the output of the last layer of the model.
-        pooler_output (:obj:`tf.Tensor` of shape :obj:`(batch_size, hidden_size)`):
-            Last layer hidden-state of the first token of the sequence (classification token)
-            further processed by a Linear layer and a Tanh activation function. The Linear
-            layer weights are trained from the next sentence prediction (classification)
-            objective during Bert pretraining. This output is usually *not* a good summary
-            of the semantic content of the input, you're often better with averaging or pooling
-            the sequence of hidden-states for the whole input sequence.
-        hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
-            tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
-            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+        Returns:
+            :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
+            last_hidden_state (:obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`):
+                Sequence of hidden-states at the output of the last layer of the model.
+            pooler_output (:obj:`tf.Tensor` of shape :obj:`(batch_size, hidden_size)`):
+                Last layer hidden-state of the first token of the sequence (classification token)
+                further processed by a Linear layer and a Tanh activation function. The Linear
+                layer weights are trained from the next sentence prediction (classification)
+                objective during Bert pretraining. This output is usually *not* a good summary
+                of the semantic content of the input, you're often better with averaging or pooling
+                the sequence of hidden-states for the whole input sequence.
+            hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
+                tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
+                of shape :obj:`(batch_size, sequence_length, hidden_size)`.
 
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-        attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
-            tuple of :obj:`tf.Tensor` (one for each layer) of shape
-            :obj:`(batch_size, num_heads, sequence_length, sequence_length)`.
+                Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+            attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
+                tuple of :obj:`tf.Tensor` (one for each layer) of shape
+                :obj:`(batch_size, num_heads, sequence_length, sequence_length)`.
 
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
+                Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
 
 
-    Examples::
+        Examples::
 
-        import tensorflow as tf
-        from transformers import BertTokenizer, TFBertModel
+            import tensorflow as tf
+            from transformers import BertTokenizer, TFBertModel
 
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        model = TFBertModel.from_pretrained('bert-base-uncased')
-        input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
-        outputs = model(input_ids)
-        last_hidden_states = outputs[0]  # The last hidden-state is the first element of the output tuple
+            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            model = TFBertModel.from_pretrained('bert-base-uncased')
+            input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
+            outputs = model(input_ids)
+            last_hidden_states = outputs[0]  # The last hidden-state is the first element of the output tuple
         """
         outputs = self.bert(inputs, **kwargs)
         return outputs
@@ -2404,39 +2748,41 @@ class TFBertForPreTraining(TFBertPreTrainedModel):
     @add_start_docstrings_to_callable(BERT_INPUTS_DOCSTRING)
     def call(self, inputs, **kwargs):
         r"""
-    Return:
-        :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
-        prediction_scores (:obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length, config.vocab_size)`):
-            Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
-        seq_relationship_scores (:obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length, 2)`):
-            Prediction scores of the next sequence prediction (classification) head (scores of True/False continuation before SoftMax).
-        hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
-            tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
-            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+        Return:
+            :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
+            prediction_scores (:obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length, config.vocab_size)`):
+                Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
+            seq_relationship_scores (:obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length, 2)`):
+                Prediction scores of the next sequence prediction (classification) head (scores of True/False continuation before SoftMax).
+            hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
+                tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
+                of shape :obj:`(batch_size, sequence_length, hidden_size)`.
 
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-        attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
-            tuple of :obj:`tf.Tensor` (one for each layer) of shape
-            :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
+                Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+            attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
+                tuple of :obj:`tf.Tensor` (one for each layer) of shape
+                :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
 
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
+                Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
 
-    Examples::
+        Examples::
 
-        import tensorflow as tf
-        from transformers import BertTokenizer, TFBertForPreTraining
+            import tensorflow as tf
+            from transformers import BertTokenizer, TFBertForPreTraining
 
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        model = TFBertForPreTraining.from_pretrained('bert-base-uncased')
-        input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
-        outputs = model(input_ids)
-        prediction_scores, seq_relationship_scores = outputs[:2]
+            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            model = TFBertForPreTraining.from_pretrained('bert-base-uncased')
+            input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
+            outputs = model(input_ids)
+            prediction_scores, seq_relationship_scores = outputs[:2]
 
         """
         outputs = self.bert(inputs, **kwargs)
 
         sequence_output, pooled_output = outputs[:2]
-        prediction_scores = self.mlm(sequence_output, training=kwargs.get("training", False))
+        prediction_scores = self.mlm(
+            sequence_output, training=kwargs.get("training", False)
+        )
         seq_relationship_score = self.nsp(pooled_output)
 
         outputs = (prediction_scores, seq_relationship_score,) + outputs[
@@ -2446,7 +2792,9 @@ class TFBertForPreTraining(TFBertPreTrainedModel):
         return outputs  # prediction_scores, seq_relationship_score, (hidden_states), (attentions)
 
 
-@add_start_docstrings("""Bert Model with a `language modeling` head on top. """, BERT_START_DOCSTRING)
+@add_start_docstrings(
+    """Bert Model with a `language modeling` head on top. """, BERT_START_DOCSTRING
+)
 class TFBertForMaskedLM(TFBertPreTrainedModel):
     def __init__(self, config, *inputs, **kwargs):
         super().__init__(config, *inputs, **kwargs)
@@ -2460,45 +2808,50 @@ class TFBertForMaskedLM(TFBertPreTrainedModel):
     @add_start_docstrings_to_callable(BERT_INPUTS_DOCSTRING)
     def call(self, inputs, **kwargs):
         r"""
-    Return:
-        :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
-        prediction_scores (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length, config.vocab_size)`):
-            Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
-        hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
-            tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
-            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+        Return:
+            :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
+            prediction_scores (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length, config.vocab_size)`):
+                Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
+            hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
+                tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
+                of shape :obj:`(batch_size, sequence_length, hidden_size)`.
 
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-        attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
-            tuple of :obj:`tf.Tensor` (one for each layer) of shape
-            :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
+                Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+            attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
+                tuple of :obj:`tf.Tensor` (one for each layer) of shape
+                :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
 
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
+                Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
 
-    Examples::
+        Examples::
 
-        import tensorflow as tf
-        from transformers import BertTokenizer, TFBertForMaskedLM
+            import tensorflow as tf
+            from transformers import BertTokenizer, TFBertForMaskedLM
 
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        model = TFBertForMaskedLM.from_pretrained('bert-base-uncased')
-        input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
-        outputs = model(input_ids)
-        prediction_scores = outputs[0]
+            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            model = TFBertForMaskedLM.from_pretrained('bert-base-uncased')
+            input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
+            outputs = model(input_ids)
+            prediction_scores = outputs[0]
 
         """
         outputs = self.bert(inputs, **kwargs)
 
         sequence_output = outputs[0]
-        prediction_scores = self.mlm(sequence_output, training=kwargs.get("training", False))
+        prediction_scores = self.mlm(
+            sequence_output, training=kwargs.get("training", False)
+        )
 
-        outputs = (prediction_scores,) + outputs[2:]  # Add hidden states and attention if they are here
+        outputs = (prediction_scores,) + outputs[
+            2:
+        ]  # Add hidden states and attention if they are here
 
         return outputs  # prediction_scores, (hidden_states), (attentions)
 
 
 @add_start_docstrings(
-    """Bert Model with a `next sentence prediction (classification)` head on top. """, BERT_START_DOCSTRING,
+    """Bert Model with a `next sentence prediction (classification)` head on top. """,
+    BERT_START_DOCSTRING,
 )
 class TFBertForNextSentencePrediction(TFBertPreTrainedModel):
     def __init__(self, config, *inputs, **kwargs):
@@ -2510,31 +2863,31 @@ class TFBertForNextSentencePrediction(TFBertPreTrainedModel):
     @add_start_docstrings_to_callable(BERT_INPUTS_DOCSTRING)
     def call(self, inputs, **kwargs):
         r"""
-    Return:
-        :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
-        seq_relationship_scores (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length, 2)`)
-            Prediction scores of the next sequence prediction (classification) head (scores of True/False continuation before SoftMax).
-        hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
-            tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
-            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+        Return:
+            :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
+            seq_relationship_scores (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length, 2)`)
+                Prediction scores of the next sequence prediction (classification) head (scores of True/False continuation before SoftMax).
+            hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
+                tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
+                of shape :obj:`(batch_size, sequence_length, hidden_size)`.
 
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-        attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
-            tuple of :obj:`tf.Tensor` (one for each layer) of shape
-            :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
+                Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+            attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
+                tuple of :obj:`tf.Tensor` (one for each layer) of shape
+                :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
 
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
+                Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
 
-    Examples::
+        Examples::
 
-        import tensorflow as tf
-        from transformers import BertTokenizer, TFBertForNextSentencePrediction
+            import tensorflow as tf
+            from transformers import BertTokenizer, TFBertForNextSentencePrediction
 
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        model = TFBertForNextSentencePrediction.from_pretrained('bert-base-uncased')
-        input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
-        outputs = model(input_ids)
-        seq_relationship_scores = outputs[0]
+            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            model = TFBertForNextSentencePrediction.from_pretrained('bert-base-uncased')
+            input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
+            outputs = model(input_ids)
+            seq_relationship_scores = outputs[0]
 
         """
         outputs = self.bert(inputs, **kwargs)
@@ -2542,7 +2895,9 @@ class TFBertForNextSentencePrediction(TFBertPreTrainedModel):
         pooled_output = outputs[1]
         seq_relationship_score = self.nsp(pooled_output)
 
-        outputs = (seq_relationship_score,) + outputs[2:]  # add hidden states and attention if they are here
+        outputs = (seq_relationship_score,) + outputs[
+            2:
+        ]  # add hidden states and attention if they are here
 
         return outputs  # seq_relationship_score, (hidden_states), (attentions)
 
@@ -2560,47 +2915,53 @@ class TFBertForSequenceClassification(TFBertPreTrainedModel):
         self.bert = TFBertMainLayer(config, name="bert")
         self.dropout = tf.keras.layers.Dropout(config.hidden_dropout_prob)
         self.classifier = tf.keras.layers.Dense(
-            config.num_labels, kernel_initializer=get_initializer(config.initializer_range), name="classifier"
+            config.num_labels,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="classifier",
         )
 
     @add_start_docstrings_to_callable(BERT_INPUTS_DOCSTRING)
     def call(self, inputs, **kwargs):
         r"""
-    Return:
-        :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
-        logits (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, config.num_labels)`):
-            Classification (or regression if config.num_labels==1) scores (before SoftMax).
-        hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
-            tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
-            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+        Return:
+            :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
+            logits (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, config.num_labels)`):
+                Classification (or regression if config.num_labels==1) scores (before SoftMax).
+            hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
+                tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
+                of shape :obj:`(batch_size, sequence_length, hidden_size)`.
 
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-        attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
-            tuple of :obj:`tf.Tensor` (one for each layer) of shape
-            :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
+                Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+            attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
+                tuple of :obj:`tf.Tensor` (one for each layer) of shape
+                :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
 
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
+                Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
 
-    Examples::
+        Examples::
 
-        import tensorflow as tf
-        from transformers import BertTokenizer, TFBertForSequenceClassification
+            import tensorflow as tf
+            from transformers import BertTokenizer, TFBertForSequenceClassification
 
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        model = TFBertForSequenceClassification.from_pretrained('bert-base-uncased')
-        input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
-        outputs = model(input_ids)
-        logits = outputs[0]
+            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            model = TFBertForSequenceClassification.from_pretrained('bert-base-uncased')
+            input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
+            outputs = model(input_ids)
+            logits = outputs[0]
 
         """
         outputs = self.bert(inputs, **kwargs)
 
         pooled_output = outputs[1]
 
-        pooled_output = self.dropout(pooled_output, training=kwargs.get("training", False))
+        pooled_output = self.dropout(
+            pooled_output, training=kwargs.get("training", False)
+        )
         logits = self.classifier(pooled_output)
 
-        outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
+        outputs = (logits,) + outputs[
+            2:
+        ]  # add hidden states and attention if they are here
 
         return outputs  # logits, (hidden_states), (attentions)
 
@@ -2617,12 +2978,14 @@ class TFBertForMultipleChoice(TFBertPreTrainedModel):
         self.bert = TFBertMainLayer(config, name="bert")
         self.dropout = tf.keras.layers.Dropout(config.hidden_dropout_prob)
         self.classifier = tf.keras.layers.Dense(
-            1, kernel_initializer=get_initializer(config.initializer_range), name="classifier"
+            1,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="classifier",
         )
 
     @property
     def dummy_inputs(self):
-        """ Dummy inputs to build the network.
+        """Dummy inputs to build the network.
 
         Returns:
             tf.Tensor with dummy inputs
@@ -2641,34 +3004,34 @@ class TFBertForMultipleChoice(TFBertPreTrainedModel):
         training=False,
     ):
         r"""
-    Return:
-        :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
-        classification_scores (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, num_choices)`:
-            `num_choices` is the size of the second dimension of the input tensors. (see `input_ids` above).
+        Return:
+            :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
+            classification_scores (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, num_choices)`:
+                `num_choices` is the size of the second dimension of the input tensors. (see `input_ids` above).
 
-            Classification scores (before SoftMax).
-        hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
-            tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
-            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+                Classification scores (before SoftMax).
+            hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
+                tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
+                of shape :obj:`(batch_size, sequence_length, hidden_size)`.
 
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-        attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
-            tuple of :obj:`tf.Tensor` (one for each layer) of shape
-            :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
+                Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+            attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
+                tuple of :obj:`tf.Tensor` (one for each layer) of shape
+                :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
 
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
+                Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
 
-    Examples::
+        Examples::
 
-        import tensorflow as tf
-        from transformers import BertTokenizer, TFBertForMultipleChoice
+            import tensorflow as tf
+            from transformers import BertTokenizer, TFBertForMultipleChoice
 
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        model = TFBertForMultipleChoice.from_pretrained('bert-base-uncased')
-        choices = ["Hello, my dog is cute", "Hello, my cat is amazing"]
-        input_ids = tf.constant([tokenizer.encode(s) for s in choices])[None, :]  # Batch size 1, 2 choices
-        outputs = model(input_ids)
-        classification_scores = outputs[0]
+            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            model = TFBertForMultipleChoice.from_pretrained('bert-base-uncased')
+            choices = ["Hello, my dog is cute", "Hello, my cat is amazing"]
+            input_ids = tf.constant([tokenizer.encode(s) for s in choices])[None, :]  # Batch size 1, 2 choices
+            outputs = model(input_ids)
+            classification_scores = outputs[0]
 
         """
         if isinstance(inputs, (tuple, list)):
@@ -2697,10 +3060,24 @@ class TFBertForMultipleChoice(TFBertPreTrainedModel):
             num_choices = shape_list(inputs_embeds)[1]
             seq_length = shape_list(inputs_embeds)[2]
 
-        flat_input_ids = tf.reshape(input_ids, (-1, seq_length)) if input_ids is not None else None
-        flat_attention_mask = tf.reshape(attention_mask, (-1, seq_length)) if attention_mask is not None else None
-        flat_token_type_ids = tf.reshape(token_type_ids, (-1, seq_length)) if token_type_ids is not None else None
-        flat_position_ids = tf.reshape(position_ids, (-1, seq_length)) if position_ids is not None else None
+        flat_input_ids = (
+            tf.reshape(input_ids, (-1, seq_length)) if input_ids is not None else None
+        )
+        flat_attention_mask = (
+            tf.reshape(attention_mask, (-1, seq_length))
+            if attention_mask is not None
+            else None
+        )
+        flat_token_type_ids = (
+            tf.reshape(token_type_ids, (-1, seq_length))
+            if token_type_ids is not None
+            else None
+        )
+        flat_position_ids = (
+            tf.reshape(position_ids, (-1, seq_length))
+            if position_ids is not None
+            else None
+        )
 
         flat_inputs = [
             flat_input_ids,
@@ -2719,7 +3096,9 @@ class TFBertForMultipleChoice(TFBertPreTrainedModel):
         logits = self.classifier(pooled_output)
         reshaped_logits = tf.reshape(logits, (-1, num_choices))
 
-        outputs = (reshaped_logits,) + outputs[2:]  # add hidden states and attention if they are here
+        outputs = (reshaped_logits,) + outputs[
+            2:
+        ]  # add hidden states and attention if they are here
 
         return outputs  # reshaped_logits, (hidden_states), (attentions)
 
@@ -2737,47 +3116,53 @@ class TFBertForTokenClassification(TFBertPreTrainedModel):
         self.bert = TFBertMainLayer(config, name="bert")
         self.dropout = tf.keras.layers.Dropout(config.hidden_dropout_prob)
         self.classifier = tf.keras.layers.Dense(
-            config.num_labels, kernel_initializer=get_initializer(config.initializer_range), name="classifier"
+            config.num_labels,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="classifier",
         )
 
     @add_start_docstrings_to_callable(BERT_INPUTS_DOCSTRING)
     def call(self, inputs, **kwargs):
         r"""
-    Return:
-        :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
-        scores (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length, config.num_labels)`):
-            Classification scores (before SoftMax).
-        hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
-            tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
-            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+        Return:
+            :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
+            scores (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length, config.num_labels)`):
+                Classification scores (before SoftMax).
+            hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
+                tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
+                of shape :obj:`(batch_size, sequence_length, hidden_size)`.
 
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-        attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
-            tuple of :obj:`tf.Tensor` (one for each layer) of shape
-            :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
+                Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+            attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
+                tuple of :obj:`tf.Tensor` (one for each layer) of shape
+                :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
 
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
+                Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
 
-    Examples::
+        Examples::
 
-        import tensorflow as tf
-        from transformers import BertTokenizer, TFBertForTokenClassification
+            import tensorflow as tf
+            from transformers import BertTokenizer, TFBertForTokenClassification
 
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        model = TFBertForTokenClassification.from_pretrained('bert-base-uncased')
-        input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
-        outputs = model(input_ids)
-        scores = outputs[0]
+            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            model = TFBertForTokenClassification.from_pretrained('bert-base-uncased')
+            input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
+            outputs = model(input_ids)
+            scores = outputs[0]
 
         """
         outputs = self.bert(inputs, **kwargs)
 
         sequence_output = outputs[0]
 
-        sequence_output = self.dropout(sequence_output, training=kwargs.get("training", False))
+        sequence_output = self.dropout(
+            sequence_output, training=kwargs.get("training", False)
+        )
         logits = self.classifier(sequence_output)
 
-        outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
+        outputs = (logits,) + outputs[
+            2:
+        ]  # add hidden states and attention if they are here
 
         return outputs  # scores, (hidden_states), (attentions)
 
@@ -2794,39 +3179,41 @@ class TFBertForQuestionAnswering(TFBertPreTrainedModel):
 
         self.bert = TFBertMainLayer(config, name="bert")
         self.qa_outputs = tf.keras.layers.Dense(
-            config.num_labels, kernel_initializer=get_initializer(config.initializer_range), name="qa_outputs"
+            config.num_labels,
+            kernel_initializer=get_initializer(config.initializer_range),
+            name="qa_outputs",
         )
 
     @add_start_docstrings_to_callable(BERT_INPUTS_DOCSTRING)
     def call(self, inputs, **kwargs):
         r"""
-    Return:
-        :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
-        start_scores (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length,)`):
-            Span-start scores (before SoftMax).
-        end_scores (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length,)`):
-            Span-end scores (before SoftMax).
-        hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
-            tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
-            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+        Return:
+            :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
+            start_scores (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length,)`):
+                Span-start scores (before SoftMax).
+            end_scores (:obj:`Numpy array` or :obj:`tf.Tensor` of shape :obj:`(batch_size, sequence_length,)`):
+                Span-end scores (before SoftMax).
+            hidden_states (:obj:`tuple(tf.Tensor)`, `optional`, returned when :obj:`config.output_hidden_states=True`):
+                tuple of :obj:`tf.Tensor` (one for the output of the embeddings + one for the output of each layer)
+                of shape :obj:`(batch_size, sequence_length, hidden_size)`.
 
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-        attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
-            tuple of :obj:`tf.Tensor` (one for each layer) of shape
-            :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
+                Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+            attentions (:obj:`tuple(tf.Tensor)`, `optional`, returned when ``config.output_attentions=True``):
+                tuple of :obj:`tf.Tensor` (one for each layer) of shape
+                :obj:`(batch_size, num_heads, sequence_length, sequence_length)`:
 
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
+                Attentions weights after the attention softmax, used to compute the weighted average in the self-attention heads.
 
-    Examples::
+        Examples::
 
-        import tensorflow as tf
-        from transformers import BertTokenizer, TFBertForQuestionAnswering
+            import tensorflow as tf
+            from transformers import BertTokenizer, TFBertForQuestionAnswering
 
-        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        model = TFBertForQuestionAnswering.from_pretrained('bert-base-uncased')
-        input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
-        outputs = model(input_ids)
-        start_scores, end_scores = outputs[:2]
+            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            model = TFBertForQuestionAnswering.from_pretrained('bert-base-uncased')
+            input_ids = tf.constant(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True))[None, :]  # Batch size 1
+            outputs = model(input_ids)
+            start_scores, end_scores = outputs[:2]
 
         """
         outputs = self.bert(inputs, **kwargs)
@@ -2838,6 +3225,9 @@ class TFBertForQuestionAnswering(TFBertPreTrainedModel):
         start_logits = tf.squeeze(start_logits, axis=-1)
         end_logits = tf.squeeze(end_logits, axis=-1)
 
-        outputs = (start_logits, end_logits,) + outputs[2:]
+        outputs = (
+            start_logits,
+            end_logits,
+        ) + outputs[2:]
 
         return outputs  # start_logits, end_logits, (hidden_states), (attentions)

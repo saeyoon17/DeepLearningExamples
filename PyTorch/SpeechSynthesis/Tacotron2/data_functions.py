@@ -26,43 +26,45 @@
 # *****************************************************************************
 
 import torch
-from tacotron2.data_function import TextMelCollate
-from tacotron2.data_function import TextMelLoader
-from waveglow.data_function import MelAudioLoader
+from tacotron2.data_function import TextMelCollate, TextMelLoader
 from tacotron2.data_function import batch_to_gpu as batch_to_gpu_tacotron2
+from waveglow.data_function import MelAudioLoader
 from waveglow.data_function import batch_to_gpu as batch_to_gpu_waveglow
 
 
 def get_collate_function(model_name, n_frames_per_step=1):
-    if model_name == 'Tacotron2':
+    if model_name == "Tacotron2":
         collate_fn = TextMelCollate(n_frames_per_step)
-    elif model_name == 'WaveGlow':
+    elif model_name == "WaveGlow":
         collate_fn = torch.utils.data.dataloader.default_collate
     else:
         raise NotImplementedError(
-            "unknown collate function requested: {}".format(model_name))
+            "unknown collate function requested: {}".format(model_name)
+        )
 
     return collate_fn
 
 
 def get_data_loader(model_name, dataset_path, audiopaths_and_text, args):
-    if model_name == 'Tacotron2':
+    if model_name == "Tacotron2":
         data_loader = TextMelLoader(dataset_path, audiopaths_and_text, args)
-    elif model_name == 'WaveGlow':
+    elif model_name == "WaveGlow":
         data_loader = MelAudioLoader(dataset_path, audiopaths_and_text, args)
     else:
         raise NotImplementedError(
-            "unknown data loader requested: {}".format(model_name))
+            "unknown data loader requested: {}".format(model_name)
+        )
 
     return data_loader
 
 
 def get_batch_to_gpu(model_name):
-    if model_name == 'Tacotron2':
+    if model_name == "Tacotron2":
         batch_to_gpu = batch_to_gpu_tacotron2
-    elif model_name == 'WaveGlow':
+    elif model_name == "WaveGlow":
         batch_to_gpu = batch_to_gpu_waveglow
     else:
         raise NotImplementedError(
-            "unknown batch_to_gpu requested: {}".format(model_name))
+            "unknown batch_to_gpu requested: {}".format(model_name)
+        )
     return batch_to_gpu

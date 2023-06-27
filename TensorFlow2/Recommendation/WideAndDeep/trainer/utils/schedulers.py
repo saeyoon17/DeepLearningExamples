@@ -17,11 +17,14 @@ import tensorflow as tf
 
 class LearningRateScheduler:
     def __init__(self, args, steps_per_epoch, optimizer):
-        assert args.deep_warmup_epochs <= args.num_epochs, \
-            "Number of warmup epochs cannot be higher than training epochs"
+        assert (
+            args.deep_warmup_epochs <= args.num_epochs
+        ), "Number of warmup epochs cannot be higher than training epochs"
         self.base_lr = args.deep_learning_rate
         self.warmup_steps = args.deep_warmup_epochs * steps_per_epoch
-        bound_epoch = args.deep_warmup_epochs + (args.num_epochs - args.deep_warmup_epochs) / 2
+        bound_epoch = (
+            args.deep_warmup_epochs + (args.num_epochs - args.deep_warmup_epochs) / 2
+        )
 
         self.boundaries = [bound_epoch * steps_per_epoch]
         self.values = [self.base_lr / 4, self.base_lr / 8]

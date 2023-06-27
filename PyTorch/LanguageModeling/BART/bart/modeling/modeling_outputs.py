@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 import torch
-
 from utils.file_utils import ModelOutput
 
 

@@ -1,5 +1,6 @@
 import sys
 from timeit import default_timer as timer
+
 import tensorflow as tf
 
 
@@ -8,7 +9,9 @@ class TimingCallback(tf.keras.callbacks.Callback):
     Custom callback to note training time, latency and throughput
     """
 
-    def __init__(self, ):
+    def __init__(
+        self,
+    ):
         super(TimingCallback, self).__init__()
         self.train_start_time = None
         self.train_end_time = None

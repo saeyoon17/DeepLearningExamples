@@ -35,19 +35,20 @@
 
 import argparse
 
-import dllogger
-import horovod.mxnet as hvd
-
 import dali
 import data
+import dllogger
 import fit
+import horovod.mxnet as hvd
 import models
 from log_utils import setup_logging
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Train classification models on ImageNet",
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description="Train classification models on ImageNet",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
     models.add_model_args(parser)
     fit.add_fit_args(parser)
     data.add_data_args(parser)
@@ -56,13 +57,13 @@ def parse_args():
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parse_args()
-    if 'horovod' in args.kv_store:
+    if "horovod" in args.kv_store:
         hvd.init()
 
     setup_logging(args)
-    dllogger.log(step='PARAMETER', data=vars(args))
+    dllogger.log(step="PARAMETER", data=vars(args))
 
     model = models.get_model(**vars(args))
     data_loader = data.get_data_loader(args)

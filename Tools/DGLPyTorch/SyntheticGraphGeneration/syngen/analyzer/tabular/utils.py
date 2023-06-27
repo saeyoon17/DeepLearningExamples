@@ -66,15 +66,11 @@ def load_data(
 
 
 def dict_to_df(data: Dict[str, Any]):
-    return pd.DataFrame(
-        {"result": list(data.values())}, index=list(data.keys())
-    )
+    return pd.DataFrame({"result": list(data.values())}, index=list(data.keys()))
 
 
 class EvaluationResult(object):
-    def __init__(
-        self, name, content, prefix=None, appendix=None, notebook=False
-    ):
+    def __init__(self, name, content, prefix=None, appendix=None, notebook=False):
         self.name = name
         self.prefix = prefix
         self.content = content

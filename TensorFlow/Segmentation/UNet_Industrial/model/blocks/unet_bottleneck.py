@@ -20,15 +20,18 @@
 # ==============================================================================
 
 import tensorflow as tf
-
-from model import layers
-from model import blocks
+from model import blocks, layers
 
 __all__ = ["bottleneck_unet_block"]
 
 
 def bottleneck_unet_block(
-    inputs, filters, data_format='NCHW', is_training=True, conv2d_hparams=None, block_name='bottleneck_block'
+    inputs,
+    filters,
+    data_format="NCHW",
+    is_training=True,
+    conv2d_hparams=None,
+    block_name="bottleneck_block",
 ):
 
     with tf.variable_scope(block_name):
@@ -38,7 +41,7 @@ def bottleneck_unet_block(
             n_channels=filters,
             kernel_size=(3, 3),
             strides=(1, 1),
-            padding='same',
+            padding="same",
             data_format=data_format,
             use_bias=True,
             trainable=is_training,
@@ -47,7 +50,10 @@ def bottleneck_unet_block(
         )
 
         net = blocks.activation_block(
-            inputs=net, act_fn=conv2d_hparams.activation_fn, trainable=is_training, block_name='act1'
+            inputs=net,
+            act_fn=conv2d_hparams.activation_fn,
+            trainable=is_training,
+            block_name="act1",
         )
 
         net = layers.conv2d(
@@ -55,7 +61,7 @@ def bottleneck_unet_block(
             n_channels=filters,
             kernel_size=(3, 3),
             strides=(1, 1),
-            padding='same',
+            padding="same",
             data_format=data_format,
             use_bias=True,
             trainable=is_training,
@@ -64,14 +70,17 @@ def bottleneck_unet_block(
         )
 
         net = blocks.activation_block(
-            inputs=net, act_fn=conv2d_hparams.activation_fn, trainable=is_training, block_name='act2'
+            inputs=net,
+            act_fn=conv2d_hparams.activation_fn,
+            trainable=is_training,
+            block_name="act2",
         )
 
         net = layers.deconv2d(
             net,
             n_channels=filters / 2,
             kernel_size=(2, 2),
-            padding='same',
+            padding="same",
             data_format=data_format,
             use_bias=True,
             trainable=is_training,
@@ -80,7 +89,10 @@ def bottleneck_unet_block(
         )
 
         net = blocks.activation_block(
-            inputs=net, act_fn=conv2d_hparams.activation_fn, trainable=is_training, block_name='act3'
+            inputs=net,
+            act_fn=conv2d_hparams.activation_fn,
+            trainable=is_training,
+            block_name="act3",
         )
 
         return net

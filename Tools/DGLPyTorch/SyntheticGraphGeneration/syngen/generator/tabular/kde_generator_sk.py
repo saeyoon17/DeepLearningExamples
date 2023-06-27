@@ -12,27 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pickle
 from collections import OrderedDict
 from functools import partial
 from typing import Union
-import pickle
+
 import numpy as np
 import pandas as pd
 import scipy
 from sklearn.neighbors import KernelDensity
 from sklearn.preprocessing import OrdinalEncoder
-
-from syngen.generator.tabular.base_tabular_generator import BaseTabularGenerator
+from syngen.generator.tabular.base_tabular_generator import \
+    BaseTabularGenerator
 
 
 class KDEGeneratorSK(BaseTabularGenerator):
     def __init__(self, **kwargs):
         """
-            A tabular generator based on kernel density estimation
-            the default.
+        A tabular generator based on kernel density estimation
+        the default.
 
-            Categorical and continuous columns are modeled
-            using gaussian KDE
+        Categorical and continuous columns are modeled
+        using gaussian KDE
         """
         super(BaseTabularGenerator).__init__()
 
@@ -83,7 +84,7 @@ class KDEGeneratorSK(BaseTabularGenerator):
             self.cont_fit[column] = {"sampler": kde}
 
         self.fits = {**self.cat_fit, **self.cont_fit}
-    
+
     def sample(self, n, **kwargs):
         data_dict = OrderedDict()
         for column in self.column_order:
@@ -107,11 +108,11 @@ class KDEGeneratorSK(BaseTabularGenerator):
         ...
 
     def save(self, path):
-        with open(path, 'wb') as file_handler:
+        with open(path, "wb") as file_handler:
             pickle.dump(self, file_handler, protocol=pickle.HIGHEST_PROTOCOL)
 
     @classmethod
     def load(cls, path):
-        with open(path, 'rb') as file_handler:
+        with open(path, "rb") as file_handler:
             model = pickle.load(file_handler)
         return model

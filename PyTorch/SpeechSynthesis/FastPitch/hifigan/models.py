@@ -42,11 +42,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from common.stft import STFT
+from common.utils import AttrDict, get_padding, init_weights
 from torch.nn import AvgPool1d, Conv1d, Conv2d, ConvTranspose1d
 from torch.nn.utils import remove_weight_norm, spectral_norm, weight_norm
-
-from common.stft import STFT
-from common.utils import AttrDict, init_weights, get_padding
 
 LRELU_SLOPE = 0.1
 
@@ -68,11 +67,12 @@ class NoAMPConv1d(Conv1d):
 
         with torch.cuda.amp.autocast(enabled=False):
             return self._cast(
-                super().forward(*self._cast(args, torch.float)), args[0].dtype)
+                super().forward(*self._cast(args, torch.float)), args[0].dtype
+            )
 
 
 class ResBlock1(nn.Module):
-    __constants__ = ['lrelu_slope']
+    __constants__ = ["lrelu_slope"]
 
     def __init__(self, conf, channels, kernel_size=3, dilation=(1, 3, 5)):
         super().__init__()
@@ -80,17 +80,27 @@ class ResBlock1(nn.Module):
         self.lrelu_slope = LRELU_SLOPE
 
         ch, ks = channels, kernel_size
-        self.convs1 = nn.Sequential(*[
-            weight_norm(Conv1d(ch, ch, ks, 1, get_padding(ks, dilation[0]), dilation[0])),
-            weight_norm(Conv1d(ch, ch, ks, 1, get_padding(ks, dilation[1]), dilation[1])),
-            weight_norm(Conv1d(ch, ch, ks, 1, get_padding(ks, dilation[2]), dilation[2])),
-        ])
+        self.convs1 = nn.Sequential(
+            *[
+                weight_norm(
+                    Conv1d(ch, ch, ks, 1, get_padding(ks, dilation[0]), dilation[0])
+                ),
+                weight_norm(
+                    Conv1d(ch, ch, ks, 1, get_padding(ks, dilation[1]), dilation[1])
+                ),
+                weight_norm(
+                    Conv1d(ch, ch, ks, 1, get_padding(ks, dilation[2]), dilation[2])
+                ),
+            ]
+        )
 
-        self.convs2 = nn.Sequential(*[
-            weight_norm(Conv1d(ch, ch, ks, 1, get_padding(ks, 1))),
-            weight_norm(Conv1d(ch, ch, ks, 1, get_padding(ks, 1))),
-            weight_norm(Conv1d(ch, ch, ks, 1, get_padding(ks, 1))),
-        ])
+        self.convs2 = nn.Sequential(
+            *[
+                weight_norm(Conv1d(ch, ch, ks, 1, get_padding(ks, 1))),
+                weight_norm(Conv1d(ch, ch, ks, 1, get_padding(ks, 1))),
+                weight_norm(Conv1d(ch, ch, ks, 1, get_padding(ks, 1))),
+            ]
+        )
         self.convs1.apply(init_weights)
         self.convs2.apply(init_weights)
 
@@ -111,17 +121,37 @@ class ResBlock1(nn.Module):
 
 
 class ResBlock2(nn.Module):
-    __constants__ = ['lrelu_slope']
+    __constants__ = ["lrelu_slope"]
 
     def __init__(self, conf, channels, kernel_size=3, dilation=(1, 3)):
         super().__init__()
         self.conf = conf
 
         ch, ks = channels, kernel_size
-        self.convs = nn.ModuleList([
-            weight_norm(Conv1d(ch, ch, ks, 1, get_padding(kernel_size, dilation[0]), dilation[0])),
-            weight_norm(Conv1d(ch, ch, ks, 1, get_padding(kernel_size, dilation[1]), dilation[1])),
-        ])
+        self.convs = nn.ModuleList(
+            [
+                weight_norm(
+                    Conv1d(
+                        ch,
+                        ch,
+                        ks,
+                        1,
+                        get_padding(kernel_size, dilation[0]),
+                        dilation[0],
+                    )
+                ),
+                weight_norm(
+                    Conv1d(
+                        ch,
+                        ch,
+                        ks,
+                        1,
+                        get_padding(kernel_size, dilation[1]),
+                        dilation[1],
+                    )
+                ),
+            ]
+        )
         self.convs.apply(init_weights)
 
     def forward(self, x):
@@ -137,7 +167,7 @@ class ResBlock2(nn.Module):
 
 
 class Generator(nn.Module):
-    __constants__ = ['lrelu_slope', 'num_kernels', 'num_upsamples']
+    __constants__ = ["lrelu_slope", "num_kernels", "num_upsamples"]
 
     def __init__(self, conf):
         super().__init__()
@@ -147,19 +177,28 @@ class Generator(nn.Module):
         self.num_upsamples = len(conf.upsample_rates)
 
         self.conv_pre = weight_norm(
-            Conv1d(80, conf.upsample_initial_channel, 7, 1, padding=3))
+            Conv1d(80, conf.upsample_initial_channel, 7, 1, padding=3)
+        )
 
         self.lrelu_slope = LRELU_SLOPE
 
-        resblock = ResBlock1 if conf.resblock == '1' else ResBlock2
+        resblock = ResBlock1 if conf.resblock == "1" else ResBlock2
 
         self.ups = []
-        for i, (u, k) in enumerate(zip(conf.upsample_rates,
-                                       conf.upsample_kernel_sizes)):
-            self.ups.append(weight_norm(
-                ConvTranspose1d(conf.upsample_initial_channel // (2 ** i),
-                                conf.upsample_initial_channel // (2 ** (i + 1)),
-                                k, u, padding=(k-u)//2)))
+        for i, (u, k) in enumerate(
+            zip(conf.upsample_rates, conf.upsample_kernel_sizes)
+        ):
+            self.ups.append(
+                weight_norm(
+                    ConvTranspose1d(
+                        conf.upsample_initial_channel // (2**i),
+                        conf.upsample_initial_channel // (2 ** (i + 1)),
+                        k,
+                        u,
+                        padding=(k - u) // 2,
+                    )
+                )
+            )
 
         self.ups = nn.Sequential(*self.ups)
 
@@ -168,8 +207,9 @@ class Generator(nn.Module):
             resblock_list = []
 
             ch = conf.upsample_initial_channel // (2 ** (i + 1))
-            for j, (k, d) in enumerate(zip(conf.resblock_kernel_sizes,
-                                           conf.resblock_dilation_sizes)):
+            for j, (k, d) in enumerate(
+                zip(conf.resblock_kernel_sizes, conf.resblock_dilation_sizes)
+            ):
                 resblock_list.append(resblock(conf, ch, k, d))
             resblock_list = nn.Sequential(*resblock_list)
             self.resblocks.append(resblock_list)
@@ -184,7 +224,7 @@ class Generator(nn.Module):
         new_sd = {}
         for k, v in state_dict.items():
             new_k = k
-            if 'resblocks' in k:
+            if "resblocks" in k:
                 parts = k.split(".")
                 # only do this is the checkpoint type is older
                 if len(parts) == 5:
@@ -221,7 +261,7 @@ class Generator(nn.Module):
         return x
 
     def remove_weight_norm(self):
-        print('HiFi-GAN: Removing weight norm.')
+        print("HiFi-GAN: Removing weight norm.")
         for l in self.ups:
             remove_weight_norm(l)
         for group in self.resblocks:
@@ -232,22 +272,31 @@ class Generator(nn.Module):
 
 
 class Denoiser(nn.Module):
-    """ Removes model bias from audio produced with hifigan """
+    """Removes model bias from audio produced with hifigan"""
 
-    def __init__(self, hifigan, filter_length=1024, n_overlap=4,
-                 win_length=1024, mode='zeros', **infer_kw):
+    def __init__(
+        self,
+        hifigan,
+        filter_length=1024,
+        n_overlap=4,
+        win_length=1024,
+        mode="zeros",
+        **infer_kw,
+    ):
         super().__init__()
-        self.stft = STFT(filter_length=filter_length,
-                         hop_length=int(filter_length/n_overlap),
-                         win_length=win_length).cuda()
+        self.stft = STFT(
+            filter_length=filter_length,
+            hop_length=int(filter_length / n_overlap),
+            win_length=win_length,
+        ).cuda()
 
         for name, p in hifigan.named_parameters():
-            if name.endswith('.weight'):
+            if name.endswith(".weight"):
                 dtype = p.dtype
                 device = p.device
                 break
 
-        mel_init = {'zeros': torch.zeros, 'normal': torch.randn}[mode]
+        mel_init = {"zeros": torch.zeros, "normal": torch.randn}[mode]
         mel_input = mel_init((1, 80, 88), dtype=dtype, device=device)
 
         with torch.no_grad():
@@ -261,7 +310,7 @@ class Denoiser(nn.Module):
 
             bias_spec, _ = self.stft.transform(bias_audio)
 
-        self.register_buffer('bias_spec', bias_spec[:, :, 0][:, :, None])
+        self.register_buffer("bias_spec", bias_spec[:, :, 0][:, :, None])
 
     def forward(self, audio, strength=0.1):
         audio_spec, audio_angles = self.stft.transform(audio.cuda().float())
@@ -278,13 +327,15 @@ class DiscriminatorP(nn.Module):
         norm_f = spectral_norm if use_spectral_norm else weight_norm
 
         ks = kernel_size
-        self.convs = nn.ModuleList([
-            norm_f(Conv2d(1, 32, (ks, 1), (stride, 1), (get_padding(5, 1), 0))),
-            norm_f(Conv2d(32, 128, (ks, 1), (stride, 1), (get_padding(5, 1), 0))),
-            norm_f(Conv2d(128, 512, (ks, 1), (stride, 1), (get_padding(5, 1), 0))),
-            norm_f(Conv2d(512, 1024, (ks, 1), (stride, 1), (get_padding(5, 1), 0))),
-            norm_f(Conv2d(1024, 1024, (ks, 1), 1, padding=(2, 0))),
-        ])
+        self.convs = nn.ModuleList(
+            [
+                norm_f(Conv2d(1, 32, (ks, 1), (stride, 1), (get_padding(5, 1), 0))),
+                norm_f(Conv2d(32, 128, (ks, 1), (stride, 1), (get_padding(5, 1), 0))),
+                norm_f(Conv2d(128, 512, (ks, 1), (stride, 1), (get_padding(5, 1), 0))),
+                norm_f(Conv2d(512, 1024, (ks, 1), (stride, 1), (get_padding(5, 1), 0))),
+                norm_f(Conv2d(1024, 1024, (ks, 1), 1, padding=(2, 0))),
+            ]
+        )
         self.conv_post = norm_f(Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
 
     def forward(self, x):
@@ -346,15 +397,57 @@ class DiscriminatorS(nn.Module):
     def __init__(self, use_spectral_norm=False, no_amp_grouped_conv=False):
         super().__init__()
         norm_f = spectral_norm if use_spectral_norm else weight_norm
-        self.convs = nn.ModuleList([
-            norm_f(Conv1d(1, 128, 15, 1, padding=7)),
-            norm_f(Conv1d(128, 128, 41, 2, groups=4, padding=20)),
-            norm_f(NoAMPConv1d(128, 256, 41, 2, groups=16, padding=20, no_amp=no_amp_grouped_conv)),
-            norm_f(NoAMPConv1d(256, 512, 41, 4, groups=16, padding=20, no_amp=no_amp_grouped_conv)),
-            norm_f(NoAMPConv1d(512, 1024, 41, 4, groups=16, padding=20, no_amp=no_amp_grouped_conv)),
-            norm_f(NoAMPConv1d(1024, 1024, 41, 1, groups=16, padding=20, no_amp=no_amp_grouped_conv)),
-            norm_f(Conv1d(1024, 1024, 5, 1, padding=2)),
-        ])
+        self.convs = nn.ModuleList(
+            [
+                norm_f(Conv1d(1, 128, 15, 1, padding=7)),
+                norm_f(Conv1d(128, 128, 41, 2, groups=4, padding=20)),
+                norm_f(
+                    NoAMPConv1d(
+                        128,
+                        256,
+                        41,
+                        2,
+                        groups=16,
+                        padding=20,
+                        no_amp=no_amp_grouped_conv,
+                    )
+                ),
+                norm_f(
+                    NoAMPConv1d(
+                        256,
+                        512,
+                        41,
+                        4,
+                        groups=16,
+                        padding=20,
+                        no_amp=no_amp_grouped_conv,
+                    )
+                ),
+                norm_f(
+                    NoAMPConv1d(
+                        512,
+                        1024,
+                        41,
+                        4,
+                        groups=16,
+                        padding=20,
+                        no_amp=no_amp_grouped_conv,
+                    )
+                ),
+                norm_f(
+                    NoAMPConv1d(
+                        1024,
+                        1024,
+                        41,
+                        1,
+                        groups=16,
+                        padding=20,
+                        no_amp=no_amp_grouped_conv,
+                    )
+                ),
+                norm_f(Conv1d(1024, 1024, 5, 1, padding=2)),
+            ]
+        )
         self.conv_post = norm_f(Conv1d(1024, 1, 3, 1, padding=1))
 
     def forward(self, x):
@@ -373,15 +466,18 @@ class DiscriminatorS(nn.Module):
 class MultiScaleDiscriminator(nn.Module):
     def __init__(self, no_amp_grouped_conv=False, concat_fwd=False):
         super().__init__()
-        self.discriminators = nn.ModuleList([
-            DiscriminatorS(use_spectral_norm=True, no_amp_grouped_conv=no_amp_grouped_conv),
-            DiscriminatorS(no_amp_grouped_conv=no_amp_grouped_conv),
-            DiscriminatorS(no_amp_grouped_conv=no_amp_grouped_conv),
-        ])
-        self.meanpools = nn.ModuleList([
-            AvgPool1d(4, 2, padding=1),
-            AvgPool1d(4, 2, padding=1)
-        ])
+        self.discriminators = nn.ModuleList(
+            [
+                DiscriminatorS(
+                    use_spectral_norm=True, no_amp_grouped_conv=no_amp_grouped_conv
+                ),
+                DiscriminatorS(no_amp_grouped_conv=no_amp_grouped_conv),
+                DiscriminatorS(no_amp_grouped_conv=no_amp_grouped_conv),
+            ]
+        )
+        self.meanpools = nn.ModuleList(
+            [AvgPool1d(4, 2, padding=1), AvgPool1d(4, 2, padding=1)]
+        )
         self.concat_fwd = concat_fwd
 
     def forward(self, y, y_hat):
@@ -393,13 +489,13 @@ class MultiScaleDiscriminator(nn.Module):
             if self.concat_fwd:
                 ys = concat_discr_input(y, y_hat)
                 if i != 0:
-                    ys = self.meanpools[i-1](ys)
+                    ys = self.meanpools[i - 1](ys)
                 y_ds, fmaps = d(ys)
                 y_d_r, y_d_g, fmap_r, fmap_g = split_discr_output(y_ds, fmaps)
             else:
                 if i != 0:
-                    y = self.meanpools[i-1](y)
-                    y_hat = self.meanpools[i-1](y_hat)
+                    y = self.meanpools[i - 1](y)
+                    y_hat = self.meanpools[i - 1](y_hat)
                 y_d_r, fmap_r = d(y)
                 y_d_g, fmap_g = d(y_hat)
             y_d_rs.append(y_d_r)
@@ -427,7 +523,7 @@ def feature_loss(fmap_r, fmap_g):
         for rl, gl in zip(dr, dg):
             loss += torch.mean(torch.abs(rl - gl))
 
-    return loss*2
+    return loss * 2
 
 
 def discriminator_loss(disc_real_outputs, disc_generated_outputs):
@@ -436,9 +532,9 @@ def discriminator_loss(disc_real_outputs, disc_generated_outputs):
     g_losses = []
 
     for dr, dg in zip(disc_real_outputs, disc_generated_outputs):
-        r_loss = torch.mean((1-dr)**2)
+        r_loss = torch.mean((1 - dr) ** 2)
         g_loss = torch.mean(dg**2)
-        loss += (r_loss + g_loss)
+        loss += r_loss + g_loss
         r_losses.append(r_loss.item())
         g_losses.append(g_loss.item())
 
@@ -450,7 +546,7 @@ def generator_loss(disc_outputs):
     gen_losses = []
 
     for dg in disc_outputs:
-        l = torch.mean((1-dg)**2)
+        l = torch.mean((1 - dg) ** 2)
         gen_losses.append(l)
         loss += l
 

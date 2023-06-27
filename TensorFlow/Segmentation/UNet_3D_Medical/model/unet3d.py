@@ -13,13 +13,15 @@
 # limitations under the License.
 
 """ UNet3D model construction """
-from model.layers import downsample_block, upsample_block, output_layer, input_block
+from model.layers import (downsample_block, input_block, output_layer,
+                          upsample_block)
 
 
-class Builder: # pylint: disable=R0903
-    """ Model builder """
-    def __init__(self, n_classes, mode, normalization='none'):
-        """ Configure the unet3d builder
+class Builder:  # pylint: disable=R0903
+    """Model builder"""
+
+    def __init__(self, n_classes, mode, normalization="none"):
+        """Configure the unet3d builder
 
         :param n_classes: Number of output channels
         :param mode: Estimator's execution mode
@@ -30,66 +32,91 @@ class Builder: # pylint: disable=R0903
         self._normalization = normalization
 
     def __call__(self, features):
-        """ Build UNet3D
+        """Build UNet3D
 
         :param features: Input features
         :return: Output of the graph
         """
-        skip_128 = input_block(inputs=features,
-                               out_channels=32,
-                               normalization=self._normalization,
-                               mode=self._mode)
+        skip_128 = input_block(
+            inputs=features,
+            out_channels=32,
+            normalization=self._normalization,
+            mode=self._mode,
+        )
 
-        skip_64 = downsample_block(inputs=skip_128,
-                                   out_channels=64,
-                                   normalization=self._normalization,
-                                   mode=self._mode)
+        skip_64 = downsample_block(
+            inputs=skip_128,
+            out_channels=64,
+            normalization=self._normalization,
+            mode=self._mode,
+        )
 
-        skip_32 = downsample_block(inputs=skip_64,
-                                   out_channels=128,
-                                   normalization=self._normalization,
-                                   mode=self._mode)
+        skip_32 = downsample_block(
+            inputs=skip_64,
+            out_channels=128,
+            normalization=self._normalization,
+            mode=self._mode,
+        )
 
-        skip_16 = downsample_block(inputs=skip_32,
-                                   out_channels=256,
-                                   normalization=self._normalization,
-                                   mode=self._mode)
+        skip_16 = downsample_block(
+            inputs=skip_32,
+            out_channels=256,
+            normalization=self._normalization,
+            mode=self._mode,
+        )
 
-        skip_8 = downsample_block(inputs=skip_16,
-                                  out_channels=320,
-                                  normalization=self._normalization,
-                                  mode=self._mode)
+        skip_8 = downsample_block(
+            inputs=skip_16,
+            out_channels=320,
+            normalization=self._normalization,
+            mode=self._mode,
+        )
 
-        out = downsample_block(inputs=skip_8,
-                               out_channels=320,
-                               normalization=self._normalization,
-                               mode=self._mode)
+        out = downsample_block(
+            inputs=skip_8,
+            out_channels=320,
+            normalization=self._normalization,
+            mode=self._mode,
+        )
 
-        out = upsample_block(out, skip_8,
-                             out_channels=320,
-                             normalization=self._normalization,
-                             mode=self._mode)
+        out = upsample_block(
+            out,
+            skip_8,
+            out_channels=320,
+            normalization=self._normalization,
+            mode=self._mode,
+        )
 
-        out = upsample_block(out, skip_16,
-                             out_channels=256,
-                             normalization=self._normalization,
-                             mode=self._mode)
+        out = upsample_block(
+            out,
+            skip_16,
+            out_channels=256,
+            normalization=self._normalization,
+            mode=self._mode,
+        )
 
-        out = upsample_block(out, skip_32,
-                             out_channels=128,
-                             normalization=self._normalization,
-                             mode=self._mode)
+        out = upsample_block(
+            out,
+            skip_32,
+            out_channels=128,
+            normalization=self._normalization,
+            mode=self._mode,
+        )
 
-        out = upsample_block(out, skip_64,
-                             out_channels=64,
-                             normalization=self._normalization,
-                             mode=self._mode)
+        out = upsample_block(
+            out,
+            skip_64,
+            out_channels=64,
+            normalization=self._normalization,
+            mode=self._mode,
+        )
 
-        out = upsample_block(out, skip_128,
-                             out_channels=32,
-                             normalization=self._normalization,
-                             mode=self._mode)
+        out = upsample_block(
+            out,
+            skip_128,
+            out_channels=32,
+            normalization=self._normalization,
+            mode=self._mode,
+        )
 
-        return output_layer(out,
-                            out_channels=self._n_classes,
-                            activation='softmax')
+        return output_layer(out, out_channels=self._n_classes, activation="softmax")

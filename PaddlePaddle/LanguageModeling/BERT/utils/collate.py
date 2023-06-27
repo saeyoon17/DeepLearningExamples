@@ -54,10 +54,11 @@ class Stack:
                  [7, 8, 9]]
                 '''
         """
-        data = np.stack(
-            data,
-            axis=self._axis).astype(self._dtype) if self._dtype else np.stack(
-                data, axis=self._axis)
+        data = (
+            np.stack(data, axis=self._axis).astype(self._dtype)
+            if self._dtype
+            else np.stack(data, axis=self._axis)
+        )
         return data
 
 
@@ -94,14 +95,9 @@ class Pad:
              [5, 6, 7, 0],
              [8, 9, 0, 0]]
             '''
-     """
+    """
 
-    def __init__(self,
-                 pad_val=0,
-                 axis=0,
-                 ret_length=None,
-                 dtype=None,
-                 pad_right=True):
+    def __init__(self, pad_val=0, axis=0, ret_length=None, dtype=None, pad_right=True):
         self._pad_val = pad_val
         self._axis = axis
         self._ret_length = ret_length
@@ -128,11 +124,12 @@ class Pad:
         max_size = max(original_length)
         ret_shape = list(arrs[0].shape)
         ret_shape[self._axis] = max_size
-        ret_shape = (len(arrs), ) + tuple(ret_shape)
+        ret_shape = (len(arrs),) + tuple(ret_shape)
         ret = np.full(
             shape=ret_shape,
             fill_value=self._pad_val,
-            dtype=arrs[0].dtype if self._dtype is None else self._dtype)
+            dtype=arrs[0].dtype if self._dtype is None else self._dtype,
+        )
         for i, arr in enumerate(arrs):
             if arr.shape[self._axis] == max_size:
                 ret[i] = arr
@@ -142,16 +139,18 @@ class Pad:
                     slices[self._axis] = slice(0, arr.shape[self._axis])
                 else:
                     slices[self._axis] = slice(
-                        max_size - arr.shape[self._axis], max_size)
+                        max_size - arr.shape[self._axis], max_size
+                    )
 
                 if slices[self._axis].start != slices[self._axis].stop:
                     slices = [slice(i, i + 1)] + slices
                     ret[tuple(slices)] = arr
         if self._ret_length:
             return ret, np.asarray(
-                original_length,
-                dtype="int32") if self._ret_length == True else np.asarray(
-                    original_length, self._ret_length)
+                original_length, dtype="int32"
+            ) if self._ret_length == True else np.asarray(
+                original_length, self._ret_length
+            )
         else:
             return ret
 
@@ -178,12 +177,14 @@ class Tuple:
 
     def __init__(self, fn, *args):
         if isinstance(fn, (list, tuple)):
-            assert len(args) == 0, f"Input pattern not understood. The input of Tuple can be " \
-                                   f"Tuple(A, B, C) or Tuple([A, B, C]) or Tuple((A, B, C)). " \
-                                   f"Received fn={fn}, args={args}"
+            assert len(args) == 0, (
+                f"Input pattern not understood. The input of Tuple can be "
+                f"Tuple(A, B, C) or Tuple([A, B, C]) or Tuple((A, B, C)). "
+                f"Received fn={fn}, args={args}"
+            )
             self._fn = fn
         else:
-            self._fn = (fn, ) + args
+            self._fn = (fn,) + args
         for i, ele_fn in enumerate(self._fn):
             assert callable(
                 ele_fn
@@ -199,9 +200,10 @@ class Tuple:
             tuple: A tuple composed of results from all including batchifying functions.
         """
 
-        assert len(data[0]) == len(self._fn), \
-            f"The number of attributes in each data sample should contain" \
+        assert len(data[0]) == len(self._fn), (
+            f"The number of attributes in each data sample should contain"
             f" {len(self._fn)} elements"
+        )
         ret = []
         for i, ele_fn in enumerate(self._fn):
             result = ele_fn([ele[i] for ele in data])

@@ -17,7 +17,6 @@ import logging
 import cudf
 import dask_cudf
 import pandas as pd
-
 from syngen.preprocessing.base_preprocessing import BasePreprocessing
 from syngen.utils.types import MetaData
 
@@ -96,16 +95,12 @@ class CreditPreprocessing(BasePreprocessing):
         continuous_columns = [
             c
             for c in data.columns
-            if c
-               in self.graph_info[MetaData.EDGE_DATA][MetaData.CONTINUOUS_COLUMNS]
+            if c in self.graph_info[MetaData.EDGE_DATA][MetaData.CONTINUOUS_COLUMNS]
         ]
         categorical_columns = [
             c
             for c in data.columns
-            if c
-               in self.graph_info[MetaData.EDGE_DATA][
-                   MetaData.CATEGORICAL_COLUMNS
-               ]
+            if c in self.graph_info[MetaData.EDGE_DATA][MetaData.CATEGORICAL_COLUMNS]
         ]
 
         columns_to_select = categorical_columns + continuous_columns

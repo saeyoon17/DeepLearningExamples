@@ -7,6 +7,7 @@ from maskrcnn_benchmark.utils.env import setup_environment  # noqa F401 isort:sk
 import argparse
 import os
 
+import dllogger
 import torch
 from maskrcnn_benchmark.config import cfg
 from maskrcnn_benchmark.data import make_data_loader
@@ -14,12 +15,10 @@ from maskrcnn_benchmark.engine.inference import inference
 from maskrcnn_benchmark.modeling.detector import build_detection_model
 from maskrcnn_benchmark.utils.checkpoint import DetectronCheckpointer
 from maskrcnn_benchmark.utils.collect_env import collect_env_info
-from maskrcnn_benchmark.utils.comm import synchronize, get_rank, is_main_process
-from maskrcnn_benchmark.utils.logger import setup_logger
+from maskrcnn_benchmark.utils.comm import (get_rank, is_main_process,
+                                           synchronize)
+from maskrcnn_benchmark.utils.logger import format_step, setup_logger
 from maskrcnn_benchmark.utils.miscellaneous import mkdir
-from maskrcnn_benchmark.utils.logger import format_step
-import dllogger
-
 
 
 def main():
@@ -30,11 +29,13 @@ def main():
         metavar="FILE",
         help="path to config file",
     )
-    parser.add_argument("--local_rank", type=int, default=os.getenv('LOCAL_RANK', 0))
-    parser.add_argument("--json-summary",
-                        help="Out file for DLLogger",
-                        default="dllogger_inference.out",
-                        type=str)
+    parser.add_argument("--local_rank", type=int, default=os.getenv("LOCAL_RANK", 0))
+    parser.add_argument(
+        "--json-summary",
+        help="Out file for DLLogger",
+        default="dllogger_inference.out",
+        type=str,
+    )
     parser.add_argument(
         "--skip-eval",
         dest="skip_eval",
@@ -52,10 +53,8 @@ def main():
         action="store_true",
     )
     parser.add_argument(
-        "--infer_steps",
-        help="Total inference steps",
-        default=-1,
-        type=int)
+        "--infer_steps", help="Total inference steps", default=-1, type=int
+    )
     parser.add_argument(
         "opts",
         help="Modify config options using the command-line",
@@ -70,21 +69,26 @@ def main():
 
     if distributed:
         torch.cuda.set_device(args.local_rank)
-        torch.distributed.init_process_group(
-            backend="nccl", init_method="env://"
-        )
+        torch.distributed.init_process_group(backend="nccl", init_method="env://")
         synchronize()
 
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     cfg.freeze()
-    
+
     save_dir = ""
     logger = setup_logger("maskrcnn_benchmark", save_dir, get_rank())
     if is_main_process():
-        dllogger.init(backends=[dllogger.JSONStreamBackend(verbosity=dllogger.Verbosity.VERBOSE,
-                                filename=args.json_summary),
-                                dllogger.StdOutBackend(verbosity=dllogger.Verbosity.VERBOSE, step_format=format_step)])
+        dllogger.init(
+            backends=[
+                dllogger.JSONStreamBackend(
+                    verbosity=dllogger.Verbosity.VERBOSE, filename=args.json_summary
+                ),
+                dllogger.StdOutBackend(
+                    verbosity=dllogger.Verbosity.VERBOSE, step_format=format_step
+                ),
+            ]
+        )
     else:
         dllogger.init(backends=[])
 
@@ -98,7 +102,7 @@ def main():
     dllogger.metadata("latency_99", {"unit": "s"})
 
     save_dir = ""
-    dllogger.log(step="PARAMETER", data={"config":cfg})
+    dllogger.log(step="PARAMETER", data={"config": cfg})
     dllogger.log(step="PARAMETER", data={"gpu_count": num_gpus})
     # dllogger.log(step="PARAMETER", data={"env_info": collect_env_info()})
     model = build_detection_model(cfg)
@@ -127,7 +131,9 @@ def main():
     data_loaders_val = make_data_loader(cfg, is_train=False, is_distributed=distributed)
 
     results = []
-    for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
+    for output_folder, dataset_name, data_loader_val in zip(
+        output_folders, dataset_names, data_loaders_val
+    ):
         if use_mixed_precision:
             with torch.cuda.amp.autocast():
                 result = inference(
@@ -142,31 +148,32 @@ def main():
                     output_folder=output_folder,
                     skip_eval=args.skip_eval,
                     dllogger=dllogger,
-                    steps=args.infer_steps
+                    steps=args.infer_steps,
                 )
         else:
             result = inference(
-                    model,
-                    data_loader_val,
-                    dataset_name=dataset_name,
-                    iou_types=iou_types,
-                    box_only=cfg.MODEL.RPN_ONLY,
-                    device=cfg.MODEL.DEVICE,
-                    expected_results=cfg.TEST.EXPECTED_RESULTS,
-                    expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
-                    output_folder=output_folder,
-                    skip_eval=args.skip_eval,
-                    dllogger=dllogger,
-                    steps=args.infer_steps
-                )
+                model,
+                data_loader_val,
+                dataset_name=dataset_name,
+                iou_types=iou_types,
+                box_only=cfg.MODEL.RPN_ONLY,
+                device=cfg.MODEL.DEVICE,
+                expected_results=cfg.TEST.EXPECTED_RESULTS,
+                expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
+                output_folder=output_folder,
+                skip_eval=args.skip_eval,
+                dllogger=dllogger,
+                steps=args.infer_steps,
+            )
         synchronize()
         results.append(result)
-    
+
     if is_main_process() and not args.skip_eval:
         map_results, raw_results = results[0]
-        bbox_map = map_results.results["bbox"]['AP']
-        segm_map = map_results.results["segm"]['AP']
+        bbox_map = map_results.results["bbox"]["AP"]
+        segm_map = map_results.results["segm"]["AP"]
         dllogger.log(step=tuple(), data={"BBOX_mAP": bbox_map, "MASK_mAP": segm_map})
+
 
 if __name__ == "__main__":
     main()

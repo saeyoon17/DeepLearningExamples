@@ -34,25 +34,23 @@ import re
 import subprocess
 
 import tensorflow as tf
-
 from tensorflow.core.protobuf import saver_pb2
 from tensorflow.python.lib.io import file_io
 from tensorflow.python.training import checkpoint_management as cm
 
 
 def get_all_checkpoints(output_dir):
-  """docstring."""
-  ckpt = cm.get_checkpoint_state(output_dir, None)
-  res = []
-  if not ckpt:
-    return None
-  for path in ckpt.all_model_checkpoint_paths:
-    # Look for either a V2 path or a V1 path, with priority for V2.
-    v2_path = cm._prefix_to_checkpoint_path(path, saver_pb2.SaverDef.V2)
-    v1_path = cm._prefix_to_checkpoint_path(path, saver_pb2.SaverDef.V1)
-    if file_io.get_matching_files(v2_path) or file_io.get_matching_files(
-        v1_path):
-      res.append(path)
-    else:
-      tf.logging.error("Couldn't match files for checkpoint %s", path)
-  return res
+    """docstring."""
+    ckpt = cm.get_checkpoint_state(output_dir, None)
+    res = []
+    if not ckpt:
+        return None
+    for path in ckpt.all_model_checkpoint_paths:
+        # Look for either a V2 path or a V1 path, with priority for V2.
+        v2_path = cm._prefix_to_checkpoint_path(path, saver_pb2.SaverDef.V2)
+        v1_path = cm._prefix_to_checkpoint_path(path, saver_pb2.SaverDef.V1)
+        if file_io.get_matching_files(v2_path) or file_io.get_matching_files(v1_path):
+            res.append(path)
+        else:
+            tf.logging.error("Couldn't match files for checkpoint %s", path)
+    return res

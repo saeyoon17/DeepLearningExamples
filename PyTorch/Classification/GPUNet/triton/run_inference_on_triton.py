@@ -54,19 +54,52 @@ LOGGER = logging.getLogger("run_inference_on_triton")
 
 
 def _parse_args():
-    parser = argparse.ArgumentParser(description="Infer model on Triton server", allow_abbrev=False)
-    parser.add_argument(
-        "--server-url", type=str, default="localhost:8001", help="Inference server URL (default localhost:8001)"
+    parser = argparse.ArgumentParser(
+        description="Infer model on Triton server", allow_abbrev=False
     )
-    parser.add_argument("--model-name", help="The name of the model used for inference.", required=True)
-    parser.add_argument("--model-version", help="The version of the model used for inference.", required=True)
-    parser.add_argument("--dataloader", help="Path to python file containing dataloader.", required=True)
-    parser.add_argument("--dump-labels", help="Dump labels to output dir", action="store_true", default=False)
-    parser.add_argument("--dump-inputs", help="Dump inputs to output dir", action="store_true", default=False)
-    parser.add_argument("-v", "--verbose", help="Verbose logs", action="store_true", default=True)
-    parser.add_argument("--output-dir", required=True, help="Path to directory where outputs will be saved")
     parser.add_argument(
-        "--response-wait-time", required=False, help="Maximal time to wait for response", default=120, type=float
+        "--server-url",
+        type=str,
+        default="localhost:8001",
+        help="Inference server URL (default localhost:8001)",
+    )
+    parser.add_argument(
+        "--model-name", help="The name of the model used for inference.", required=True
+    )
+    parser.add_argument(
+        "--model-version",
+        help="The version of the model used for inference.",
+        required=True,
+    )
+    parser.add_argument(
+        "--dataloader", help="Path to python file containing dataloader.", required=True
+    )
+    parser.add_argument(
+        "--dump-labels",
+        help="Dump labels to output dir",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--dump-inputs",
+        help="Dump inputs to output dir",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "-v", "--verbose", help="Verbose logs", action="store_true", default=True
+    )
+    parser.add_argument(
+        "--output-dir",
+        required=True,
+        help="Path to directory where outputs will be saved",
+    )
+    parser.add_argument(
+        "--response-wait-time",
+        required=False,
+        help="Maximal time to wait for response",
+        default=120,
+        type=float,
     )
     parser.add_argument(
         "--max-unresponded-requests",
@@ -76,12 +109,17 @@ def _parse_args():
         type=int,
     )
     parser.add_argument(
-        "--synchronous", help="Enable synchronous calls to Triton Server", action="store_true", default=False
+        "--synchronous",
+        help="Enable synchronous calls to Triton Server",
+        action="store_true",
+        default=False,
     )
 
     args, *_ = parser.parse_known_args()
 
-    get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+    get_dataloader_fn = load_from_file(
+        args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+    )
     ArgParserGenerator(get_dataloader_fn).update_argparser(parser)
     args = parser.parse_args()
 
@@ -99,7 +137,9 @@ def main():
     for key, value in vars(args).items():
         LOGGER.info(f"    {key} = {value}")
 
-    get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+    get_dataloader_fn = load_from_file(
+        args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+    )
     dataloader_fn = ArgParserGenerator(get_dataloader_fn).from_args(args)
 
     try:

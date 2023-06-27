@@ -31,18 +31,16 @@
 """https://github.com/NVIDIA/tacotron2"""
 
 import os
-from numpy import finfo
 
 import torch
-from tacotron2.distributed import apply_gradient_allreduce
 import torch.distributed as dist
-from torch.utils.data.distributed import DistributedSampler
-from torch.utils.data import DataLoader
-
+from numpy import finfo
+from tacotron2.distributed import apply_gradient_allreduce
 from tacotron2.model import Tacotron2
+from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
 
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def reduce_tensor(tensor, n_gpus):
@@ -61,8 +59,12 @@ def init_distributed(hparams, n_gpus, rank, group_name):
 
     # Initialize distributed communication
     dist.init_process_group(
-        backend=hparams.dist_backend, init_method=hparams.dist_url,
-        world_size=n_gpus, rank=rank, group_name=group_name)
+        backend=hparams.dist_backend,
+        init_method=hparams.dist_url,
+        world_size=n_gpus,
+        rank=rank,
+        group_name=group_name,
+    )
 
     print("Done initializing distributed")
 
@@ -70,7 +72,7 @@ def init_distributed(hparams, n_gpus, rank, group_name):
 def load_model(hparams):
     model = Tacotron2(hparams).to(device)
     if hparams.fp16_run:
-        model.decoder.attention_layer.score_mask_value = finfo('float16').min
+        model.decoder.attention_layer.score_mask_value = finfo("float16").min
 
     if hparams.distributed_run:
         model = apply_gradient_allreduce(model)
@@ -81,11 +83,10 @@ def load_model(hparams):
 def warm_start_model(checkpoint_path, model, ignore_layers):
     assert os.path.isfile(checkpoint_path)
     print("Warm starting model from checkpoint '{}'".format(checkpoint_path))
-    checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
-    model_dict = checkpoint_dict['state_dict']
+    checkpoint_dict = torch.load(checkpoint_path, map_location="cpu")
+    model_dict = checkpoint_dict["state_dict"]
     if len(ignore_layers) > 0:
-        model_dict = {k: v for k, v in model_dict.items()
-                      if k not in ignore_layers}
+        model_dict = {k: v for k, v in model_dict.items() if k not in ignore_layers}
         dummy_dict = model.state_dict()
         dummy_dict.update(model_dict)
         model_dict = dummy_dict
@@ -96,34 +97,57 @@ def warm_start_model(checkpoint_path, model, ignore_layers):
 def load_checkpoint(checkpoint_path, model, optimizer):
     assert os.path.isfile(checkpoint_path)
     print("Loading checkpoint '{}'".format(checkpoint_path))
-    checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
-    model.load_state_dict(checkpoint_dict['state_dict'])
-    optimizer.load_state_dict(checkpoint_dict['optimizer'])
-    learning_rate = checkpoint_dict['learning_rate']
-    iteration = checkpoint_dict['iteration']
-    print("Loaded checkpoint '{}' from iteration {}" .format(
-        checkpoint_path, iteration))
+    checkpoint_dict = torch.load(checkpoint_path, map_location="cpu")
+    model.load_state_dict(checkpoint_dict["state_dict"])
+    optimizer.load_state_dict(checkpoint_dict["optimizer"])
+    learning_rate = checkpoint_dict["learning_rate"]
+    iteration = checkpoint_dict["iteration"]
+    print("Loaded checkpoint '{}' from iteration {}".format(checkpoint_path, iteration))
     return model, optimizer, learning_rate, iteration
 
 
 def save_checkpoint(model, optimizer, learning_rate, iteration, filepath):
-    print("Saving model and optimizer state at iteration {} to {}".format(
-        iteration, filepath))
-    torch.save({'iteration': iteration,
-                'state_dict': model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'learning_rate': learning_rate}, filepath)
+    print(
+        "Saving model and optimizer state at iteration {} to {}".format(
+            iteration, filepath
+        )
+    )
+    torch.save(
+        {
+            "iteration": iteration,
+            "state_dict": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "learning_rate": learning_rate,
+        },
+        filepath,
+    )
 
 
-def validate(model, criterion, valset, iteration, batch_size, n_gpus,
-             collate_fn, logger, distributed_run, rank):
+def validate(
+    model,
+    criterion,
+    valset,
+    iteration,
+    batch_size,
+    n_gpus,
+    collate_fn,
+    logger,
+    distributed_run,
+    rank,
+):
     """Handles all the validation scoring and printing"""
     model.eval()
     with torch.no_grad():
         val_sampler = DistributedSampler(valset) if distributed_run else None
-        val_loader = DataLoader(valset, sampler=val_sampler, num_workers=1,
-                                shuffle=False, batch_size=batch_size,
-                                pin_memory=False, collate_fn=collate_fn)
+        val_loader = DataLoader(
+            valset,
+            sampler=val_sampler,
+            num_workers=1,
+            shuffle=False,
+            batch_size=batch_size,
+            pin_memory=False,
+            collate_fn=collate_fn,
+        )
 
         val_loss = 0.0
         for i, batch in enumerate(val_loader):

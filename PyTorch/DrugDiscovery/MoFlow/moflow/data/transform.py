@@ -36,14 +36,16 @@
 
 import json
 import logging
-import numpy as np
 import os
 from typing import Dict, Tuple
 
+import numpy as np
 from moflow.config import CODE_TO_BOND, DUMMY_CODE, Config
 
 
-def _onehot(data: np.ndarray, codes_dict: Dict[int, int], dtype=np.float32) -> np.ndarray:
+def _onehot(
+    data: np.ndarray, codes_dict: Dict[int, int], dtype=np.float32
+) -> np.ndarray:
     shape = [len(codes_dict), *data.shape]
     encoded = np.zeros(shape, dtype=dtype)
     for obj_key, code in codes_dict.items():
@@ -53,18 +55,20 @@ def _onehot(data: np.ndarray, codes_dict: Dict[int, int], dtype=np.float32) -> n
 
 def encode_nodes(atomic_nums: np.ndarray, config: Config) -> np.ndarray:
     padded_data = np.full(config.max_num_nodes, DUMMY_CODE, dtype=np.uint8)
-    padded_data[:len(atomic_nums)] = atomic_nums
+    padded_data[: len(atomic_nums)] = atomic_nums
     encoded = _onehot(padded_data, config.dataset_config.atomic_to_code).T
     return encoded
 
 
 def encode_edges(adj: np.ndarray, config: Config) -> np.ndarray:
-    padded_data = np.full((config.max_num_nodes, config.max_num_nodes), DUMMY_CODE, dtype=np.uint8)
+    padded_data = np.full(
+        (config.max_num_nodes, config.max_num_nodes), DUMMY_CODE, dtype=np.uint8
+    )
     n, m = adj.shape
-    assert n == m, 'adjecency matrix should be square'
+    assert n == m, "adjecency matrix should be square"
     padded_data[:n, :n] = adj
     # we already store codes in the file - bond types are rdkit objects
-    encoded = _onehot(padded_data, {k:k for k in CODE_TO_BOND})
+    encoded = _onehot(padded_data, {k: k for k in CODE_TO_BOND})
     return encoded
 
 
@@ -77,9 +81,9 @@ def transform_fn(data: Tuple[np.ndarray], config: Config) -> Tuple[np.ndarray]:
 
 def get_val_ids(config: Config, data_dir: str):
     file_path = os.path.join(data_dir, config.dataset_config.valid_idx_file)
-    logging.info('loading train/valid split information from: {}'.format(file_path))
+    logging.info("loading train/valid split information from: {}".format(file_path))
     with open(file_path) as json_data:
         data = json.load(json_data)
 
-    val_ids = [int(idx)-1 for idx in data]
+    val_ids = [int(idx) - 1 for idx in data]
     return val_ids

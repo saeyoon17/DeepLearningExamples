@@ -16,21 +16,22 @@
 from __future__ import absolute_import, division, print_function
 
 import tensorflow as tf
-
 from mrcnn_tf2.utils import box_utils
 
 
-def _propose_rois_gpu(scores,
-                      boxes,
-                      anchor_boxes,
-                      height,
-                      width,
-                      scale,
-                      rpn_pre_nms_topn,
-                      rpn_post_nms_topn,
-                      rpn_nms_threshold,
-                      rpn_min_size,
-                      bbox_reg_weights):
+def _propose_rois_gpu(
+    scores,
+    boxes,
+    anchor_boxes,
+    height,
+    width,
+    scale,
+    rpn_pre_nms_topn,
+    rpn_post_nms_topn,
+    rpn_nms_threshold,
+    rpn_min_size,
+    bbox_reg_weights,
+):
     """Proposes RoIs giva group of candidates (GPU version).
 
     Args:
@@ -73,17 +74,14 @@ def _propose_rois_gpu(scores,
 
     if rpn_min_size > 0.0:
         boxes, scores = box_utils.filter_boxes(
-            boxes,
-            tf.expand_dims(scores, axis=-1),
-            rpn_min_size,
-            height,
-            width,
-            scale
+            boxes, tf.expand_dims(scores, axis=-1), rpn_min_size, height, width, scale
         )
 
         scores = tf.squeeze(scores, axis=-1)
 
-    post_nms_topk_limit = topk_limit if topk_limit < rpn_post_nms_topn else rpn_post_nms_topn
+    post_nms_topk_limit = (
+        topk_limit if topk_limit < rpn_post_nms_topn else rpn_post_nms_topn
+    )
 
     if rpn_nms_threshold > 0:
         # Normalize coordinates as combined_non_max_suppression currently
@@ -96,7 +94,7 @@ def _propose_rois_gpu(scores,
         pre_nms_boxes = tf.cast(pre_nms_boxes, dtype=tf.float32)
         pre_nms_scores = tf.cast(pre_nms_scores, dtype=tf.float32)
 
-        with tf.device('CPU:0'):
+        with tf.device("CPU:0"):
             boxes, scores, _, _ = tf.image.combined_non_max_suppression(
                 pre_nms_boxes,
                 pre_nms_scores,
@@ -104,27 +102,31 @@ def _propose_rois_gpu(scores,
                 max_total_size=post_nms_topk_limit,
                 iou_threshold=rpn_nms_threshold,
                 score_threshold=0.0,
-                pad_per_class=False
+                pad_per_class=False,
             )
 
         boxes = box_utils.to_absolute_coordinates(boxes, height, width)
 
     else:
-        scores, boxes = box_utils.top_k(scores, k=post_nms_topk_limit, boxes_list=[boxes])
+        scores, boxes = box_utils.top_k(
+            scores, k=post_nms_topk_limit, boxes_list=[boxes]
+        )
         boxes = boxes[0]
 
     return scores, boxes
 
 
-def multilevel_propose_rois(scores_outputs,
-                            box_outputs,
-                            all_anchors,
-                            image_info,
-                            rpn_pre_nms_topn,
-                            rpn_post_nms_topn,
-                            rpn_nms_threshold,
-                            rpn_min_size,
-                            bbox_reg_weights):
+def multilevel_propose_rois(
+    scores_outputs,
+    box_outputs,
+    all_anchors,
+    image_info,
+    rpn_pre_nms_topn,
+    rpn_post_nms_topn,
+    rpn_nms_threshold,
+    rpn_min_size,
+    bbox_reg_weights,
+):
     """Proposes RoIs given a group of candidates from different FPN levels.
 
     Args:
@@ -161,7 +163,7 @@ def multilevel_propose_rois(scores_outputs,
       representing the boxes of the proposals. The boxes are in normalized
       coordinates with a form of [ymin, xmin, ymax, xmax].
     """
-    with tf.name_scope('multilevel_propose_rois'):
+    with tf.name_scope("multilevel_propose_rois"):
 
         levels = scores_outputs.keys()
         scores = []
@@ -174,22 +176,28 @@ def multilevel_propose_rois(scores_outputs,
 
         for level in levels:
 
-            with tf.name_scope('level_%d' % level) as scope:
+            with tf.name_scope("level_%d" % level) as scope:
 
-                batch_size, feature_h, feature_w, num_anchors_per_location = scores_outputs[level].get_shape().as_list()
+                batch_size, feature_h, feature_w, num_anchors_per_location = (
+                    scores_outputs[level].get_shape().as_list()
+                )
                 num_boxes = feature_h * feature_w * num_anchors_per_location
 
-                this_level_scores = tf.reshape(scores_outputs[level], [batch_size, num_boxes])
+                this_level_scores = tf.reshape(
+                    scores_outputs[level], [batch_size, num_boxes]
+                )
                 this_level_scores = tf.sigmoid(this_level_scores)
-                this_level_boxes = tf.reshape(box_outputs[level], [batch_size, num_boxes, 4])
+                this_level_boxes = tf.reshape(
+                    box_outputs[level], [batch_size, num_boxes, 4]
+                )
 
                 this_level_anchors = tf.cast(
                     tf.reshape(
-                        tf.expand_dims(anchor_boxes[level], axis=0) *
-                        tf.ones([batch_size, 1, 1, 1]),
-                        [batch_size, num_boxes, 4]
+                        tf.expand_dims(anchor_boxes[level], axis=0)
+                        * tf.ones([batch_size, 1, 1, 1]),
+                        [batch_size, num_boxes, 4],
                     ),
-                    dtype=this_level_scores.dtype
+                    dtype=this_level_scores.dtype,
                 )
 
                 this_level_scores, this_level_boxes = _propose_rois_gpu(
@@ -203,7 +211,7 @@ def multilevel_propose_rois(scores_outputs,
                     rpn_post_nms_topn,
                     rpn_nms_threshold,
                     rpn_min_size,
-                    bbox_reg_weights
+                    bbox_reg_weights,
                 )
 
                 scores.append(this_level_scores)
@@ -212,15 +220,13 @@ def multilevel_propose_rois(scores_outputs,
     scores = tf.concat(scores, axis=1)
     rois = tf.concat(rois, axis=1)
 
-    with tf.name_scope('roi_post_nms_topk'):
+    with tf.name_scope("roi_post_nms_topk"):
 
         post_nms_num_anchors = scores.shape[1]
         post_nms_topk_limit = min(post_nms_num_anchors, rpn_post_nms_topn)
 
         top_k_scores, top_k_rois = box_utils.top_k(
-            scores,
-            k=post_nms_topk_limit,
-            boxes_list=[rois]
+            scores, k=post_nms_topk_limit, boxes_list=[rois]
         )
 
         top_k_rois = top_k_rois[0]

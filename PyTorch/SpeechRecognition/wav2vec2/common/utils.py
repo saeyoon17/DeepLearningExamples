@@ -23,9 +23,9 @@ def print_once(*msg, local_rank=0):
     if dist.is_initialized():
         if dist.get_rank() == 0:
             print(*msg)
-    elif int(os.environ.get('WORLD_SIZE', 1)) == 1:
+    elif int(os.environ.get("WORLD_SIZE", 1)) == 1:
         print(*msg)
-    elif int(os.environ.get('RANK', 0)) == 0 and local_rank == 0:
+    elif int(os.environ.get("RANK", 0)) == 0 and local_rank == 0:
         print(*msg)
 
 
@@ -51,7 +51,7 @@ def reduce_tensor(tensor, world_size, mean=True):
     return rt
 
 
-def all_reduce_cpu_scalars(data, device=torch.device('cuda')):
+def all_reduce_cpu_scalars(data, device=torch.device("cuda")):
     data_keys = list(data.keys())
     data_vals = list(data.values())
     tensor_vals = torch.tensor(data_vals, dtype=torch.double, device=device)
@@ -61,12 +61,12 @@ def all_reduce_cpu_scalars(data, device=torch.device('cuda')):
 
 
 def setup_distributed(local_rank):
-    multi_gpu = int(os.environ.get('WORLD_SIZE', 1)) > 1
+    multi_gpu = int(os.environ.get("WORLD_SIZE", 1)) > 1
     if multi_gpu:
         torch.cuda.set_device(local_rank)
-        dist.init_process_group(backend='nccl', init_method='env://')
+        dist.init_process_group(backend="nccl", init_method="env://")
         world_size = dist.get_world_size()
-        print_once(f'Distributed training with {world_size} GPUs\n')
+        print_once(f"Distributed training with {world_size} GPUs\n")
     else:
         world_size = 1
 

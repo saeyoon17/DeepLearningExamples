@@ -24,21 +24,27 @@
 
 import sys
 
-import torch
-
-import tensorrt as trt
-from fastspeech.trt import TRT_BASE_PATH, TRT_LOGGER
 import fastspeech.trt.common as common
+import pycuda.driver as cuda
+import tensorrt as trt
+import torch
+from fastspeech.inferencer.denoiser import Denoiser
+from fastspeech.inferencer.waveglow_inferencer import WaveGlowInferencer
+from fastspeech.trt import TRT_BASE_PATH, TRT_LOGGER
 from fastspeech.utils.logging import tprint
 from fastspeech.utils.pytorch import to_cpu_numpy, to_gpu_async
-from fastspeech.inferencer.waveglow_inferencer import WaveGlowInferencer
-from fastspeech.inferencer.denoiser import Denoiser
-import pycuda.driver as cuda
 
 
 class WaveGlowTRTInferencer(object):
-
-    def __init__(self, ckpt_file, engine_file, use_fp16=False, use_denoiser=False, stride=256, n_groups=8):
+    def __init__(
+        self,
+        ckpt_file,
+        engine_file,
+        use_fp16=False,
+        use_denoiser=False,
+        stride=256,
+        n_groups=8,
+    ):
         self.ckpt_file = ckpt_file
         self.engine_file = engine_file
         self.use_fp16 = use_fp16
@@ -47,13 +53,13 @@ class WaveGlowTRTInferencer(object):
         self.n_groups = n_groups
 
         if self.use_denoiser:
-            sys.path.append('waveglow')
-            waveglow = torch.load(self.ckpt_file)['model']
+            sys.path.append("waveglow")
+            waveglow = torch.load(self.ckpt_file)["model"]
             waveglow = waveglow.remove_weightnorm(waveglow)
             waveglow.eval()
             self.denoiser = Denoiser(waveglow)
             self.denoiser = to_gpu_async(self.denoiser)
-            tprint('Using WaveGlow denoiser.')
+            tprint("Using WaveGlow denoiser.")
 
             # after initialization, we don't need WaveGlow PyTorch checkpoint
             # anymore - deleting
@@ -65,10 +71,10 @@ class WaveGlowTRTInferencer(object):
             self.engine = runtime.deserialize_cuda_engine(f.read())
 
         if self.engine:
-            tprint('TRT Engine Loaded from {} successfully.'.format(self.engine_file))
+            tprint("TRT Engine Loaded from {} successfully.".format(self.engine_file))
             return
         else:
-            tprint('Loading TRT Engine from {} failed.'.format(self.engine_file))
+            tprint("Loading TRT Engine from {} failed.".format(self.engine_file))
 
     def __enter__(self):
         self.context = self.engine.create_execution_context()
@@ -80,7 +86,9 @@ class WaveGlowTRTInferencer(object):
     def infer(self, mels):
         batch_size, _, mel_size = mels.shape
         mels = mels.unsqueeze(3)
-        z = torch.randn(batch_size, self.n_groups, mel_size * self.stride // self.n_groups, 1)
+        z = torch.randn(
+            batch_size, self.n_groups, mel_size * self.stride // self.n_groups, 1
+        )
         wavs = torch.zeros(batch_size, mel_size * self.stride)
 
         if self.use_fp16:

@@ -43,18 +43,23 @@ LOGGER = logging.getLogger("triton_inference_runner.grpc")
 class SyncInferenceRunner(BaseRunner):
     def __iter__(self):
         LOGGER.debug(f"Connecting to {self._server_url}")
-        client = grpc_client.InferenceServerClient(url=self._server_url, verbose=self._verbose)
+        client = grpc_client.InferenceServerClient(
+            url=self._server_url, verbose=self._verbose
+        )
 
         error = self._verify_triton_state(client)
         if error:
             raise RuntimeError(f"Could not communicate to Triton Server: {error}")
 
         LOGGER.debug(
-            f"Triton server {self._server_url} and model {self._model_name}:{self._model_version} " f"are up and ready!"
+            f"Triton server {self._server_url} and model {self._model_name}:{self._model_version} "
+            f"are up and ready!"
         )
 
         model_config = client.get_model_config(self._model_name, self._model_version)
-        model_metadata = client.get_model_metadata(self._model_name, self._model_version)
+        model_metadata = client.get_model_metadata(
+            self._model_name, self._model_version
+        )
         LOGGER.info(f"Model config {model_config}")
         LOGGER.info(f"Model metadata {model_metadata}")
 
@@ -110,7 +115,9 @@ class AsyncInferenceRunner(BaseRunner):
             response_wait_time=response_wait_time,
         )
         self._max_unresp_reqs = (
-            self.DEFAULT_MAX_UNRESP_REQS if max_unresponded_requests is None else max_unresponded_requests
+            self.DEFAULT_MAX_UNRESP_REQS
+            if max_unresponded_requests is None
+            else max_unresponded_requests
         )
 
         self._results = queue.Queue()
@@ -141,9 +148,7 @@ class AsyncInferenceRunner(BaseRunner):
     def _on_result(self, ids, x, y_real, output_names, result, error):
         with self._sync:
             request_id = str(ids[0])
-            NOT_MATCHING_REQUEST_ID_MSG = (
-                "Error during processing result - request_id doesn't match. This shouldn't have happened."
-            )
+            NOT_MATCHING_REQUEST_ID_MSG = "Error during processing result - request_id doesn't match. This shouldn't have happened."
             if error:
                 response_id = error.get_response().id
                 if response_id != request_id:
@@ -160,18 +165,23 @@ class AsyncInferenceRunner(BaseRunner):
 
     def req_loop(self):
         LOGGER.debug(f"Connecting to {self._server_url}")
-        client = grpc_client.InferenceServerClient(url=self._server_url, verbose=self._verbose)
+        client = grpc_client.InferenceServerClient(
+            url=self._server_url, verbose=self._verbose
+        )
 
         self._errors = self._verify_triton_state(client)
         if self._errors:
             return
 
         LOGGER.debug(
-            f"Triton server {self._server_url} and model {self._model_name}:{self._model_version} " f"are up and ready!"
+            f"Triton server {self._server_url} and model {self._model_name}:{self._model_version} "
+            f"are up and ready!"
         )
 
         model_config = client.get_model_config(self._model_name, self._model_version)
-        model_metadata = client.get_model_metadata(self._model_name, self._model_version)
+        model_metadata = client.get_model_metadata(
+            self._model_name, self._model_version
+        )
         LOGGER.info(f"Model config {model_config}")
         LOGGER.info(f"Model metadata {model_metadata}")
 
@@ -201,7 +211,9 @@ class AsyncInferenceRunner(BaseRunner):
                 def _check_can_send():
                     return self._num_waiting_for < self._max_unresp_reqs
 
-                can_send = self._sync.wait_for(_check_can_send, timeout=self._response_wait_t)
+                can_send = self._sync.wait_for(
+                    _check_can_send, timeout=self._response_wait_t
+                )
                 if not can_send:
                     error_msg = f"Runner could not send new requests for {self._response_wait_t}s"
                     self._errors.append(error_msg)
@@ -209,7 +221,9 @@ class AsyncInferenceRunner(BaseRunner):
                     break
 
                 request_id = str(ids[0])
-                callback = functools.partial(AsyncInferenceRunner._on_result, self, ids, x, y_real, output_names)
+                callback = functools.partial(
+                    AsyncInferenceRunner._on_result, self, ids, x, y_real, output_names
+                )
                 client.async_infer(
                     model_name=self._model_name,
                     model_version=self._model_version,
@@ -228,7 +242,9 @@ class AsyncInferenceRunner(BaseRunner):
                 LOGGER.debug(f"wait for {self._num_waiting_for} unprocessed jobs")
                 return self._num_waiting_for == 0
 
-            self._processed_all = self._sync.wait_for(_all_processed, self._max_wait_time)
+            self._processed_all = self._sync.wait_for(
+                _all_processed, self._max_wait_time
+            )
             if not self._processed_all:
                 error_msg = f"Runner {self._response_wait_t}s timeout received while waiting for results from server"
                 self._errors.append(error_msg)

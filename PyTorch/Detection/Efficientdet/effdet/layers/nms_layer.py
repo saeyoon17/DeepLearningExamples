@@ -17,11 +17,12 @@ Detectron2 is licensed Apache 2.0, Copyright Facebook Inc.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-from typing import List
 import time
+from typing import List
 
 import effdet_ext._C as _C
+import torch
+
 
 def pairwise_iou(boxes1, boxes2) -> torch.Tensor:
     """
@@ -58,8 +59,8 @@ def soft_nms(
     scores,
     method_gaussian: bool = True,
     sigma: float = 0.5,
-    iou_threshold: float = .5,
-    score_threshold: float = 0.005
+    iou_threshold: float = 0.5,
+    score_threshold: float = 0.005,
 ):
     """
     Soft non-max suppression algorithm.
@@ -72,7 +73,7 @@ def soft_nms(
            if RotatedBoxes, in (x_ctr, y_ctr, width, height, angle_degrees) format
         scores_remain (Tensor[N]):
            scores for each one of the boxes
-        method_gaussian (bool): use gaussian method if True, otherwise linear        
+        method_gaussian (bool): use gaussian method if True, otherwise linear
         sigma (float):
            parameter for Gaussian penalty function
         iou_threshold (float):
@@ -96,12 +97,14 @@ def soft_nms(
     idxs_out = torch.zeros(num_elem, dtype=torch.int64, device=device)
     scores_out = torch.zeros(num_elem, dtype=torch.float32, device=device)
     area = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
-    boxes_remain = torch.cat((boxes_remain, area.unsqueeze(1)), dim=1) # [N, 5] BS, x1, y1, x2, y2, area
+    boxes_remain = torch.cat(
+        (boxes_remain, area.unsqueeze(1)), dim=1
+    )  # [N, 5] BS, x1, y1, x2, y2, area
     count: int = 0
     # print("[SOFTMAX] before loop starts in softnms {}".format(time.perf_counter() - st))
     while scores_remain.numel() > 0:
         # st1 = time.perf_counter()
-        top_idx = 0 # torch.argmax(scores_remain)
+        top_idx = 0  # torch.argmax(scores_remain)
         idxs_out[count] = idxs[top_idx]
         scores_out[count] = scores_remain[top_idx]
         count += 1
@@ -135,8 +138,11 @@ def soft_nms(
 
 
 def batched_nms(
-    boxes, scores, idxs,
-    iou_threshold: float = .5,):
+    boxes,
+    scores,
+    idxs,
+    iou_threshold: float = 0.5,
+):
     if boxes.numel() == 0:
         return (
             torch.empty((0,), dtype=torch.int64, device=boxes.device),
@@ -149,17 +155,18 @@ def batched_nms(
     max_coordinate = boxes.max()
     offsets = idxs.to(boxes) * (max_coordinate + 1)
     boxes_for_nms = boxes + offsets[:, None]
-    return _C.nms(
-        boxes_for_nms, scores, iou_threshold
-    )
+    return _C.nms(boxes_for_nms, scores, iou_threshold)
 
 
 def batched_soft_nms(
-    boxes, scores, idxs,
+    boxes,
+    scores,
+    idxs,
     method_gaussian: bool = True,
     sigma: float = 0.5,
-    iou_threshold: float = .5,
-    score_threshold: float = 0.001):
+    iou_threshold: float = 0.5,
+    score_threshold: float = 0.001,
+):
 
     """
     Performs soft non-maximum suppression in a batched fashion.
@@ -204,6 +211,10 @@ def batched_soft_nms(
     offsets = idxs.to(boxes) * (max_coordinate + 1)
     boxes_for_nms = boxes + offsets[:, None]
     return soft_nms(
-        boxes_for_nms, scores, method_gaussian=method_gaussian, sigma=sigma,
-        iou_threshold=iou_threshold, score_threshold=score_threshold
+        boxes_for_nms,
+        scores,
+        method_gaussian=method_gaussian,
+        sigma=sigma,
+        iou_threshold=iou_threshold,
+        score_threshold=score_threshold,
     )

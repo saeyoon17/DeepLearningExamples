@@ -22,28 +22,29 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import os
 import pathlib
 
 import fire
+import numpy as np
+import tacotron2.hparams
+import tacotron2.train
 import torch
-from tqdm import tqdm
+from fastspeech import DEFAULT_DEVICE
+from fastspeech import hparam as hp
 from fastspeech.data_load import PadDataLoader
 from fastspeech.dataset.ljspeech_dataset import LJSpeechDataset
-import tacotron2.train
-import tacotron2.hparams
-from fastspeech import hparam as hp, DEFAULT_DEVICE
-import os
-import numpy as np
-
 from fastspeech.utils.logging import tprint
-from fastspeech.utils.pytorch import to_device_async, to_cpu_numpy
+from fastspeech.utils.pytorch import to_cpu_numpy, to_device_async
+from tqdm import tqdm
 
 
 def get_tacotron2(device, is_training=False):
     hparams = tacotron2.hparams.create_hparams()
     model = tacotron2.train.load_model(hparams)
-    model.load_state_dict(torch.load(
-        hp.tacotron2_path, map_location=torch.device(device))["state_dict"])
+    model.load_state_dict(
+        torch.load(hp.tacotron2_path, map_location=torch.device(device))["state_dict"]
+    )
     if is_training:
         model.train()
     else:
@@ -57,8 +58,7 @@ def get_duration(texts, text_lens, mels, mel_lens, tacotron2, device):
     mels = to_device_async(mels, device)
     mel_lens = to_device_async(mel_lens, device)
 
-    _, _, _, aligns = tacotron2.forward(
-        (texts, text_lens, mels, None, mel_lens))
+    _, _, _, aligns = tacotron2.forward((texts, text_lens, mels, None, mel_lens))
 
     aligns = to_cpu_numpy(aligns)
     durs = torch.FloatTensor([compute_duration(align) for align in aligns])
@@ -80,10 +80,8 @@ def compute_duration(align):
     return dur
 
 
-def preprocess_aligns(
-        hparam="base.yaml",
-        device=DEFAULT_DEVICE):
-    """ The script for preprocessing alignments.
+def preprocess_aligns(hparam="base.yaml", device=DEFAULT_DEVICE):
+    """The script for preprocessing alignments.
 
     By default, this script assumes to load parameters in the default config file, fastspeech/hparams/base.yaml.
 
@@ -107,21 +105,21 @@ def preprocess_aligns(
 
     dataset = LJSpeechDataset(hp.dataset_path)
     dataloader = PadDataLoader(
-        dataset, batch_size=1, shuffle=False, num_workers=32, drop_last=True)
+        dataset, batch_size=1, shuffle=False, num_workers=32, drop_last=True
+    )
 
     tacotron2 = get_tacotron2(device, is_training=True)
     to_device_async(tacotron2, device)
 
     for batched in tqdm(dataloader):
-        names = batched['name']
-        texts = batched['text_encoded']
-        text_lens = batched['text_len']
-        mels = batched['mel']
-        mel_lens = batched['mel_len']
+        names = batched["name"]
+        texts = batched["text_encoded"]
+        text_lens = batched["text_len"]
+        mels = batched["mel"]
+        mel_lens = batched["mel_len"]
 
-        tprint("Processing {}.".format(', '.join(names)))
-        durs = get_duration(texts, text_lens, mels,
-                            mel_lens, tacotron2, device)
+        tprint("Processing {}.".format(", ".join(names)))
+        durs = get_duration(texts, text_lens, mels, mel_lens, tacotron2, device)
 
         for i, (name, dur) in enumerate(zip(names, durs)):
             save_path = os.path.join(hp.aligns_path, name + ".align.npy")
@@ -133,5 +131,5 @@ def preprocess_aligns(
             # assert sum(duration) == len(align)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     fire.Fire(preprocess_aligns)

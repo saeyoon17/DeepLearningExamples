@@ -27,7 +27,10 @@ convolutions = {
 class KaimingNormal(tf.keras.initializers.VarianceScaling):
     def __init__(self, negative_slope, seed=None):
         super().__init__(
-            scale=2.0 / (1 + negative_slope**2), mode="fan_in", distribution="untruncated_normal", seed=seed
+            scale=2.0 / (1 + negative_slope**2),
+            mode="fan_in",
+            distribution="untruncated_normal",
+            seed=seed,
         )
 
     def get_config(self):

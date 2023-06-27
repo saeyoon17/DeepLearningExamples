@@ -13,17 +13,20 @@
 
 import horovod.tensorflow.keras as hvd
 
+
 def get_rank():
     try:
         return hvd.rank()
     except:
         return 0
 
+
 def get_world_size():
     try:
         return hvd.size()
     except:
         return 1
+
 
 def is_main_process():
     return get_rank() == 0

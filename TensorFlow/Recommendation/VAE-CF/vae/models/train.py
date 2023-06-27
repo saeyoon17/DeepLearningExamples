@@ -12,45 +12,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import horovod.tensorflow as hvd
-import scipy.sparse as sparse
-import tensorflow as tf
-import numpy as np
-import time
 import logging
-import dllogger
-
-from sklearn.preprocessing import normalize
+import time
 from collections import defaultdict
 
-from vae.models.vae import _VAEGraph, TRAINING, QUERY, VALIDATION
+import dllogger
+import horovod.tensorflow as hvd
+import numpy as np
+import scipy.sparse as sparse
+import tensorflow as tf
+from sklearn.preprocessing import normalize
+from vae.models.vae import QUERY, TRAINING, VALIDATION, _VAEGraph
 from vae.utils.round import round_8
 
 LOG = logging.getLogger("VAE")
 
 
 class VAE:
-    def __init__(self,
-                 train_data,
-                 encoder_dims,
-                 decoder_dims=None,
-                 batch_size_train=500,
-                 batch_size_validation=2000,
-                 lam=3e-2,
-                 lr=1e-3,
-                 beta1=0.9,
-                 beta2=0.999,
-                 total_anneal_steps=200000,
-                 anneal_cap=0.2,
-                 xla=True,
-                 activation='tanh',
-                 checkpoint_dir=None,
-                 trace=False,
-                 top_results=100):
+    def __init__(
+        self,
+        train_data,
+        encoder_dims,
+        decoder_dims=None,
+        batch_size_train=500,
+        batch_size_validation=2000,
+        lam=3e-2,
+        lr=1e-3,
+        beta1=0.9,
+        beta2=0.999,
+        total_anneal_steps=200000,
+        anneal_cap=0.2,
+        xla=True,
+        activation="tanh",
+        checkpoint_dir=None,
+        trace=False,
+        top_results=100,
+    ):
 
         if decoder_dims is None:
             decoder_dims = encoder_dims[::-1]
-        for i in encoder_dims + decoder_dims + [batch_size_train, batch_size_validation]:
+        for i in (
+            encoder_dims + decoder_dims + [batch_size_train, batch_size_validation]
+        ):
             if i != round_8(i):
                 raise ValueError("all dims and batch sizes should be divisible by 8")
 
@@ -70,9 +73,7 @@ class VAE:
         self.trace = trace
         self.top_results = top_results
         self.checkpoint_dir = checkpoint_dir if hvd.rank() == 0 else None
-        self._create_dataset(train_data,
-                             batch_size_train,
-                             encoder_dims)
+        self._create_dataset(train_data, batch_size_train, encoder_dims)
         self._setup_model()
 
         self.metrics_history = defaultdict(lambda: [])
@@ -81,17 +82,23 @@ class VAE:
         self.training_throughputs = []
         self.inference_throughputs = []
 
-
     def _create_dataset(self, train_data, batch_size_train, encoder_dims):
-        generator, self.n_batch_per_train = self.batch_iterator(train_data,
-                                                                None,
-                                                                batch_size_train,
-                                                                thread_idx=hvd.rank(),
-                                                                thread_num=hvd.size())
-        dataset = tf.data.Dataset \
-            .from_generator(generator, output_types=(tf.int64, tf.float32)) \
-            .map(lambda i, v: tf.SparseTensor(i, v, (batch_size_train, encoder_dims[0]))) \
+        generator, self.n_batch_per_train = self.batch_iterator(
+            train_data,
+            None,
+            batch_size_train,
+            thread_idx=hvd.rank(),
+            thread_num=hvd.size(),
+        )
+        dataset = (
+            tf.data.Dataset.from_generator(
+                generator, output_types=(tf.int64, tf.float32)
+            )
+            .map(
+                lambda i, v: tf.SparseTensor(i, v, (batch_size_train, encoder_dims[0]))
+            )
             .prefetch(10)
+        )
         self.iter = dataset.make_initializable_iterator()
         self.inputs_train = self.iter.get_next()
 
@@ -102,30 +109,39 @@ class VAE:
 
         hooks = [hvd.BroadcastGlobalVariablesHook(0)]
         if self.trace:
-            hooks.append(tf.train.ProfilerHook(save_steps=1, output_dir='.'))
+            hooks.append(tf.train.ProfilerHook(save_steps=1, output_dir="."))
 
         if self.xla:
-            LOG.info('Enabling XLA')
-            config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+            LOG.info("Enabling XLA")
+            config.graph_options.optimizer_options.global_jit_level = (
+                tf.OptimizerOptions.ON_1
+            )
         else:
-            LOG.info('XLA disabled')
+            LOG.info("XLA disabled")
 
         self._build_graph()
-        self.session = tf.train.MonitoredTrainingSession(config=config,
-                                                         checkpoint_dir=self.checkpoint_dir,
-                                                         save_checkpoint_secs=10,
-                                                         hooks=hooks)
+        self.session = tf.train.MonitoredTrainingSession(
+            config=config,
+            checkpoint_dir=self.checkpoint_dir,
+            save_checkpoint_secs=10,
+            hooks=hooks,
+        )
 
     def _build_optimizer(self, loss):
-        optimizer= tf.train.AdamOptimizer(learning_rate=self.lr, beta1=self.beta1, beta2=self.beta2)
+        optimizer = tf.train.AdamOptimizer(
+            learning_rate=self.lr, beta1=self.beta1, beta2=self.beta2
+        )
         return hvd.DistributedOptimizer(optimizer).minimize(
-            loss, global_step=tf.train.get_or_create_global_step())
+            loss, global_step=tf.train.get_or_create_global_step()
+        )
 
     def close_session(self):
         if self.session is not None:
             self.session.close()
 
-    def batch_iterator(self, data_input, data_true=None, batch_size=500, thread_idx=0, thread_num=1):
+    def batch_iterator(
+        self, data_input, data_true=None, batch_size=500, thread_idx=0, thread_num=1
+    ):
         training = data_true is None
 
         data_input = normalize(data_input)
@@ -136,7 +152,11 @@ class VAE:
         if training:
             # crop the data so that each gpu has the same number of batches
             stop = data_input.shape[0] // global_batch_size * global_batch_size
-            LOG.info('Cropping each epoch from: {} to {} samples'.format(data_input.shape[0], stop))
+            LOG.info(
+                "Cropping each epoch from: {} to {} samples".format(
+                    data_input.shape[0], stop
+                )
+            )
         else:
             stop = data_input.shape[0]
 
@@ -150,8 +170,10 @@ class VAE:
                     np.random.shuffle(indices)
                     data_in = data_in[indices]
 
-                for st_idx in range(thread_idx * batch_size, stop, thread_num * batch_size):
-                    batch = data_in[st_idx:st_idx + batch_size].copy()
+                for st_idx in range(
+                    thread_idx * batch_size, stop, thread_num * batch_size
+                ):
+                    batch = data_in[st_idx : st_idx + batch_size].copy()
                     batch = batch.tocoo()
                     idxs = np.stack([batch.row, batch.col], axis=1)
                     vals = batch.data
@@ -160,10 +182,10 @@ class VAE:
                         nnz = vals.shape[0]
 
                         # dropout with keep_prob=0.5
-                        vals *= (2 * np.random.randint(2, size=nnz))
+                        vals *= 2 * np.random.randint(2, size=nnz)
                         yield (idxs, vals)
                     else:
-                        yield idxs, vals, data_true[st_idx:st_idx + batch_size]
+                        yield idxs, vals, data_true[st_idx : st_idx + batch_size]
                 if not training:
                     break
                 epoch += 1
@@ -177,13 +199,18 @@ class VAE:
 
         self.inputs_validation = tf.sparse.placeholder(
             dtype=tf.float32,
-            shape=np.array([self.batch_size_validation, self.vae.input_dim], dtype=np.int32))
+            shape=np.array(
+                [self.batch_size_validation, self.vae.input_dim], dtype=np.int32
+            ),
+        )
         self.inputs_query = tf.sparse.placeholder(
-            dtype=tf.float32,
-            shape=np.array([1, self.vae.input_dim], dtype=np.int32))
+            dtype=tf.float32, shape=np.array([1, self.vae.input_dim], dtype=np.int32)
+        )
 
         self.top_k_validation = self._gen_handlers(mode=VALIDATION)
-        self.logits_train, self.loss_train, self.optimizer = self._gen_handlers(mode=TRAINING)
+        self.logits_train, self.loss_train, self.optimizer = self._gen_handlers(
+            mode=TRAINING
+        )
         self.top_k_query = self._gen_handlers(mode=QUERY)
 
         global_step = tf.train.get_or_create_global_step()
@@ -214,28 +241,34 @@ class VAE:
         if mode in [VALIDATION, QUERY]:
             mask = tf.ones_like(inputs.values) * (-np.inf)
             logits = tf.tensor_scatter_nd_update(logits, inputs.indices, mask)
-            top_k_values, top_k_indices = tf.math.top_k(logits, sorted=True, k=self.top_results)
+            top_k_values, top_k_indices = tf.math.top_k(
+                logits, sorted=True, k=self.top_results
+            )
             return top_k_indices
 
         softmax = tf.nn.log_softmax(logits)
 
         anneal = tf.math.minimum(
-            tf.cast(tf.train.get_or_create_global_step(), tf.float32) /
-            self.total_anneal_steps, self.anneal_cap)
+            tf.cast(tf.train.get_or_create_global_step(), tf.float32)
+            / self.total_anneal_steps,
+            self.anneal_cap,
+        )
 
         # KL divergence
         KL = tf.reduce_mean(
             tf.reduce_sum(
-                (-latent_log_var + tf.exp(latent_log_var) + latent_mean ** 2 - 1)
-                / 2,
-                axis=1))
+                (-latent_log_var + tf.exp(latent_log_var) + latent_mean**2 - 1) / 2,
+                axis=1,
+            )
+        )
 
         # per-user average negative log-likelihood part of loss
         ll_loss = -tf.reduce_sum(tf.gather_nd(softmax, inputs.indices)) / batch_size
 
         # regularization part of loss
         reg_loss = 2 * tf.reduce_sum(
-            tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
+            tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+        )
 
         loss = ll_loss + self.lam * reg_loss + anneal * KL
 
@@ -243,12 +276,12 @@ class VAE:
         return logits, ll_loss, train_op
 
     def train(
-            self,
-            n_epochs: int,
-            validation_data_input: sparse.csr_matrix,
-            validation_data_true: sparse.csr_matrix,
-            metrics: dict,  # Dict[str, matrix -> matrix -> float]
-            validation_step: 10,
+        self,
+        n_epochs: int,
+        validation_data_input: sparse.csr_matrix,
+        validation_data_true: sparse.csr_matrix,
+        metrics: dict,  # Dict[str, matrix -> matrix -> float]
+        validation_step: 10,
     ):
         """
         Train the model
@@ -272,19 +305,27 @@ class VAE:
 
             training_duration = time.time() - init_time
             self.time_elapsed_training_history.append(training_duration)
-            training_throughput = num_workers * batches_per_epoch * self.batch_size_train / training_duration
+            training_throughput = (
+                num_workers
+                * batches_per_epoch
+                * self.batch_size_train
+                / training_duration
+            )
             self.training_throughputs.append(training_throughput)
 
-            dllogger.log(data={"train_epoch_time" : training_duration,
-                               "train_throughput" : training_throughput},
-                         step=(epoch,))
+            dllogger.log(
+                data={
+                    "train_epoch_time": training_duration,
+                    "train_throughput": training_throughput,
+                },
+                step=(epoch,),
+            )
 
             if (epoch % validation_step == 0 or epoch == n_epochs) and hvd.rank() == 0:
                 init_time = time.time()
-                metrics_scores = self.test(validation_data_input,
-                                           validation_data_true,
-                                           metrics,
-                                           epoch=epoch)
+                metrics_scores = self.test(
+                    validation_data_input, validation_data_true, metrics, epoch=epoch
+                )
 
                 for name, score in metrics_scores.items():
                     self.metrics_history[name].append(score)
@@ -292,8 +333,7 @@ class VAE:
                 validation_duration = time.time() - init_time
                 self.time_elapsed_validation_history.append(validation_duration)
 
-                dllogger.log(data={"valid_time" : validation_duration},
-                             step=(epoch,))
+                dllogger.log(data={"valid_time": validation_duration}, step=(epoch,))
 
                 self.log_metrics(epoch, metrics_scores, n_epochs)
         self.total_time = time.time() - self.total_time_start
@@ -301,11 +341,11 @@ class VAE:
             self.log_final_stats()
 
     def test(
-            self,
-            test_data_input,
-            test_data_true,
-            metrics,
-            epoch=0,
+        self,
+        test_data_input,
+        test_data_true,
+        metrics,
+        epoch=0,
     ):
         """
         Test the performance of the model
@@ -317,18 +357,23 @@ class VAE:
             inference_begin = time.time()
 
             if self.trace:
-                pred_val, _ = self.session.run([self.top_k_validation, self.increment_global_step],
-                                            feed_dict={self.inputs_validation: (idxs, vals)})
+                pred_val, _ = self.session.run(
+                    [self.top_k_validation, self.increment_global_step],
+                    feed_dict={self.inputs_validation: (idxs, vals)},
+                )
             else:
-                pred_val = self.session.run(self.top_k_validation,
-                                            feed_dict={self.inputs_validation: (idxs, vals)})
+                pred_val = self.session.run(
+                    self.top_k_validation,
+                    feed_dict={self.inputs_validation: (idxs, vals)},
+                )
             elapsed = time.time() - inference_begin
             pred_val = np.copy(pred_val)
 
             inference_throughput = self.batch_size_validation / elapsed
             self.inference_throughputs.append(inference_throughput)
-            dllogger.log(data={"inference_throughput" : inference_throughput},
-                         step=(epoch,))
+            dllogger.log(
+                data={"inference_throughput": inference_throughput}, step=(epoch,)
+            )
 
             for name, metric in metrics.items():
                 metrics_scores[name].append(metric(X_true, pred_val))
@@ -337,7 +382,7 @@ class VAE:
         # the test set might contain samples that have no true items to be predicted.
         # At least one such sample is present in about 7% of all possible test sets.
         # We decided not to change the preprocessing to remain comparable to the original implementation.
-        # Therefore we're using the nan-aware mean from numpy to ignore users with no items to be predicted. 
+        # Therefore we're using the nan-aware mean from numpy to ignore users with no items to be predicted.
         return {name: np.nanmean(scores) for name, scores in metrics_scores.items()}
 
     def query(self, indices: np.ndarray):
@@ -352,14 +397,13 @@ class VAE:
         values = values.reshape(-1)
 
         res = self.session.run(
-            self.top_k_query,
-            feed_dict={self.inputs_query: (indices,
-                                           values)})
+            self.top_k_query, feed_dict={self.inputs_query: (indices, values)}
+        )
         return res
 
     def _increment_global_step(self):
         res = self.session.run(self.increment_global_step)
-        print('increment global step result: ', res)
+        print("increment global step result: ", res)
 
     def batch_iterator_train(self, data_input):
         """
@@ -377,10 +421,12 @@ class VAE:
         def generator():
             while True:
                 for st_idx in range(0, csize, self.batch_size_train):
-                    idxs, vals = self.next_batch(data_input,st_idx, self.batch_size_train)
+                    idxs, vals = self.next_batch(
+                        data_input, st_idx, self.batch_size_train
+                    )
 
                     nnz = vals.shape[0]
-                    vals *= (2 * np.random.randint(2, size=nnz))
+                    vals *= 2 * np.random.randint(2, size=nnz)
                     yield (idxs, vals)
 
         return generator, int(np.ceil(csize / self.batch_size_train))
@@ -397,24 +443,30 @@ class VAE:
 
         def generator():
             for st_idx in range(0, csize, self.batch_size_validation):
-                idxs, vals = self.next_batch(data_input, st_idx, self.batch_size_validation)
-                yield idxs, vals, data_true[st_idx:st_idx + self.batch_size_validation]
+                idxs, vals = self.next_batch(
+                    data_input, st_idx, self.batch_size_validation
+                )
+                yield idxs, vals, data_true[
+                    st_idx : st_idx + self.batch_size_validation
+                ]
 
         return generator
 
     def next_batch(self, data_input, st_idx, batch_size):
-        batch = data_input[st_idx:st_idx + batch_size].copy()
+        batch = data_input[st_idx : st_idx + batch_size].copy()
         batch = batch.tocoo()
         idxs = np.stack([batch.row, batch.col], axis=1)
         vals = batch.data
-        return idxs,vals
+        return idxs, vals
 
     def log_metrics(self, epoch, metrics_scores, n_epochs):
         dllogger.log(data=metrics_scores, step=(epoch,))
 
     def log_final_stats(self):
-        data = {"mean_training_throughput": np.mean(self.training_throughputs[10:]),
-                "mean_inference_throughput": np.mean(self.inference_throughputs[2:])}
+        data = {
+            "mean_training_throughput": np.mean(self.training_throughputs[10:]),
+            "mean_inference_throughput": np.mean(self.inference_throughputs[2:]),
+        }
 
         for metric_name, metric_values in self.metrics_history.items():
             data["final_" + metric_name] = metric_values[-1]

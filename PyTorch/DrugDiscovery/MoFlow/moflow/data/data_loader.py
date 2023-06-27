@@ -34,8 +34,8 @@
 # IN THE SOFTWARE.
 
 
-import os
 import logging
+import os
 from typing import Any, Callable, Iterable, Optional, Tuple
 
 import numpy as np
@@ -45,25 +45,26 @@ from torch.utils.data import Dataset
 class NumpyTupleDataset(Dataset):
     """Dataset of a tuple of datasets.
 
-        It combines multiple datasets into one dataset. Each example is represented
-        by a tuple whose ``i``-th item corresponds to the i-th dataset.
-        And each ``i``-th dataset is expected to be an instance of numpy.ndarray.
+    It combines multiple datasets into one dataset. Each example is represented
+    by a tuple whose ``i``-th item corresponds to the i-th dataset.
+    And each ``i``-th dataset is expected to be an instance of numpy.ndarray.
 
-        Args:
-            datasets: Underlying datasets. The ``i``-th one is used for the
-                ``i``-th item of each example. All datasets must have the same
-                length.
-            transform: An optional function applied to an item bofre returning
-        """
+    Args:
+        datasets: Underlying datasets. The ``i``-th one is used for the
+            ``i``-th item of each example. All datasets must have the same
+            length.
+        transform: An optional function applied to an item bofre returning
+    """
 
-    def __init__(self, datasets: Iterable[np.ndarray], transform: Optional[Callable] = None) -> None:
+    def __init__(
+        self, datasets: Iterable[np.ndarray], transform: Optional[Callable] = None
+    ) -> None:
         if not datasets:
-            raise ValueError('no datasets are given')
+            raise ValueError("no datasets are given")
         length = len(datasets[0])
         for i, dataset in enumerate(datasets):
             if len(dataset) != length:
-                raise ValueError(
-                    'dataset of the index {} has a wrong length'.format(i))
+                raise ValueError("dataset of the index {} has a wrong length".format(i))
         self._datasets = datasets
         self._length = length
         self.transform = transform
@@ -81,7 +82,6 @@ class NumpyTupleDataset(Dataset):
     def get_datasets(self) -> Tuple[np.ndarray]:
         return self._datasets
 
-
     def save(self, filepath: str) -> None:
         """save the dataset to filepath in npz format
 
@@ -90,18 +90,18 @@ class NumpyTupleDataset(Dataset):
                 with '.npz' extension.
         """
         np.savez(filepath, *self._datasets)
-        logging.info('Save {} done.'.format(filepath))
+        logging.info("Save {} done.".format(filepath))
 
     @classmethod
     def load(cls, filepath: str, transform: Optional[Callable] = None):
-        logging.info('Loading file {}'.format(filepath))
+        logging.info("Loading file {}".format(filepath))
         if not os.path.exists(filepath):
-            raise ValueError('Invalid filepath {} for dataset'.format(filepath))
+            raise ValueError("Invalid filepath {} for dataset".format(filepath))
         load_data = np.load(filepath)
         result = []
         i = 0
         while True:
-            key = 'arr_{}'.format(i)
+            key = "arr_{}".format(i)
             if key in load_data.keys():
                 result.append(load_data[key])
                 i += 1

@@ -14,7 +14,8 @@
 
 import time
 
-class PerformanceMeter():
+
+class PerformanceMeter:
     def __init__(self):
         self.reset()
 
@@ -34,7 +35,7 @@ class PerformanceMeter():
             self.avg = self.count / self.total_time
         self.last_update_time = time.time()
 
-        return n/delta
+        return n / delta
 
     def reset_current_lap(self):
         self.last_update_time = time.time()
@@ -43,4 +44,3 @@ class PerformanceMeter():
         assert i <= 100
         idx = int(len(self.intervals) * i / 100)
         return sorted(self.intervals)[idx]
-

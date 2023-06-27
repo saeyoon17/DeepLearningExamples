@@ -34,17 +34,16 @@
 # IN THE SOFTWARE.
 
 
-from logging import getLogger
 import traceback
+from logging import getLogger
 from typing import List
 
 import numpy as np
 import pandas as pd
+from moflow.data.data_loader import NumpyTupleDataset
+from moflow.data.encoding import EncodingError, MolEncoder
 from rdkit import Chem
 from tqdm import tqdm
-
-from moflow.data.encoding import MolEncoder, EncodingError
-from moflow.data.data_loader import NumpyTupleDataset
 
 
 class DataFrameParser:
@@ -57,9 +56,9 @@ class DataFrameParser:
         smiles_col (str): smiles column
     """
 
-    def __init__(self, encoder: MolEncoder,
-                 labels: List[str],
-                 smiles_col: str = 'smiles'):
+    def __init__(
+        self, encoder: MolEncoder, labels: List[str], smiles_col: str = "smiles"
+    ):
         super(DataFrameParser, self).__init__()
         self.labels = labels
         self.smiles_col = smiles_col
@@ -71,7 +70,7 @@ class DataFrameParser:
 
         Labels are extracted from `labels` columns and input features are
         extracted from smiles information in `smiles` column.
-        """        
+        """
         all_nodes = []
         all_edges = []
 
@@ -92,18 +91,26 @@ class DataFrameParser:
                 fail_count += 1
                 continue
             except Exception as e:
-                self.logger.warning('parse(), type: {}, {}'
-                                .format(type(e).__name__, e.args))
+                self.logger.warning(
+                    "parse(), type: {}, {}".format(type(e).__name__, e.args)
+                )
                 self.logger.info(traceback.format_exc())
                 fail_count += 1
                 continue
             all_nodes.append(nodes)
             all_edges.append(edges)
             success_count += 1
-        
-        result = [np.array(all_nodes), np.array(all_edges), *(df[label_col].values for label_col in self.labels)]
-        self.logger.info('Preprocess finished. FAIL {}, SUCCESS {}, TOTAL {}'
-                    .format(fail_count, success_count, total_count))
-  
+
+        result = [
+            np.array(all_nodes),
+            np.array(all_edges),
+            *(df[label_col].values for label_col in self.labels),
+        ]
+        self.logger.info(
+            "Preprocess finished. FAIL {}, SUCCESS {}, TOTAL {}".format(
+                fail_count, success_count, total_count
+            )
+        )
+
         dataset = NumpyTupleDataset(result)
         return dataset

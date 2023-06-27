@@ -1,5 +1,6 @@
-import timer
 from collections import defaultdict
+
+import timer
 
 
 class Metrics(defaultdict):

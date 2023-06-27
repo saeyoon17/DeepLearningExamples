@@ -39,7 +39,7 @@ _logger = logging.getLogger(__name__)
 
 
 class ModelEmaV2(nn.Module):
-    """ Model Exponential Moving Average V2
+    """Model Exponential Moving Average V2
 
     Keep a moving average of everything in the model state_dict (parameters and buffers).
     V2 of this module is simpler, it does not match params/buffers based on name but simply
@@ -58,16 +58,22 @@ class ModelEmaV2(nn.Module):
             self.module.to(device=device)
 
     def update(self, model):
-        update_fn = lambda ema_v, model_v: self.decay * ema_v + (1.0 - self.decay) * model_v
+        update_fn = (
+            lambda ema_v, model_v: self.decay * ema_v + (1.0 - self.decay) * model_v
+        )
         with torch.no_grad():
-            for ema_v, model_v in zip(self.module.state_dict().values(), model.state_dict().values()):
+            for ema_v, model_v in zip(
+                self.module.state_dict().values(), model.state_dict().values()
+            ):
                 if self.device is not None:
                     model_v = model_v.to(device=self.device)
                 ema_v.copy_(update_fn(ema_v, model_v))
 
     def set(self, model):
         with torch.no_grad():
-            for ema_v, model_v in zip(self.module.state_dict().values(), model.state_dict().values()):
+            for ema_v, model_v in zip(
+                self.module.state_dict().values(), model.state_dict().values()
+            ):
                 if self.device is not None:
                     model_v = model_v.to(device=self.device)
                 ema_v.copy_(model_v)

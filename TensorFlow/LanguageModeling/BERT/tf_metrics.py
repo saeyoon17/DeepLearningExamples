@@ -12,8 +12,9 @@ import tensorflow as tf
 from tensorflow.python.ops.metrics_impl import _streaming_confusion_matrix
 
 
-def precision(labels, predictions, num_classes, pos_indices=None,
-              weights=None, average='micro'):
+def precision(
+    labels, predictions, num_classes, pos_indices=None, weights=None, average="micro"
+):
     """Multi-class precision metric for Tensorflow
     Parameters
     ----------
@@ -41,17 +42,15 @@ def precision(labels, predictions, num_classes, pos_indices=None,
     -------
     tuple of (scalar float Tensor, update_op)
     """
-    cm, op = _streaming_confusion_matrix(
-        labels, predictions, num_classes, weights)
-    pr, _, _ = metrics_from_confusion_matrix(
-        cm, pos_indices, average=average)
-    op, _, _ = metrics_from_confusion_matrix(
-        op, pos_indices, average=average)
+    cm, op = _streaming_confusion_matrix(labels, predictions, num_classes, weights)
+    pr, _, _ = metrics_from_confusion_matrix(cm, pos_indices, average=average)
+    op, _, _ = metrics_from_confusion_matrix(op, pos_indices, average=average)
     return (pr, op)
 
 
-def recall(labels, predictions, num_classes, pos_indices=None, weights=None,
-           average='micro'):
+def recall(
+    labels, predictions, num_classes, pos_indices=None, weights=None, average="micro"
+):
     """Multi-class recall metric for Tensorflow
     Parameters
     ----------
@@ -79,23 +78,27 @@ def recall(labels, predictions, num_classes, pos_indices=None, weights=None,
     -------
     tuple of (scalar float Tensor, update_op)
     """
-    cm, op = _streaming_confusion_matrix(
-        labels, predictions, num_classes, weights)
-    _, re, _ = metrics_from_confusion_matrix(
-        cm, pos_indices, average=average)
-    _, op, _ = metrics_from_confusion_matrix(
-        op, pos_indices, average=average)
+    cm, op = _streaming_confusion_matrix(labels, predictions, num_classes, weights)
+    _, re, _ = metrics_from_confusion_matrix(cm, pos_indices, average=average)
+    _, op, _ = metrics_from_confusion_matrix(op, pos_indices, average=average)
     return (re, op)
 
 
-def f1(labels, predictions, num_classes, pos_indices=None, weights=None,
-       average='micro'):
-    return fbeta(labels, predictions, num_classes, pos_indices, weights,
-                 average)
+def f1(
+    labels, predictions, num_classes, pos_indices=None, weights=None, average="micro"
+):
+    return fbeta(labels, predictions, num_classes, pos_indices, weights, average)
 
 
-def fbeta(labels, predictions, num_classes, pos_indices=None, weights=None,
-          average='micro', beta=1):
+def fbeta(
+    labels,
+    predictions,
+    num_classes,
+    pos_indices=None,
+    weights=None,
+    average="micro",
+    beta=1,
+):
     """Multi-class fbeta metric for Tensorflow
     Parameters
     ----------
@@ -125,12 +128,13 @@ def fbeta(labels, predictions, num_classes, pos_indices=None, weights=None,
     -------
     tuple of (scalar float Tensor, update_op)
     """
-    cm, op = _streaming_confusion_matrix(
-        labels, predictions, num_classes, weights)
+    cm, op = _streaming_confusion_matrix(labels, predictions, num_classes, weights)
     _, _, fbeta = metrics_from_confusion_matrix(
-        cm, pos_indices, average=average, beta=beta)
+        cm, pos_indices, average=average, beta=beta
+    )
     _, _, op = metrics_from_confusion_matrix(
-        op, pos_indices, average=average, beta=beta)
+        op, pos_indices, average=average, beta=beta
+    )
     return (fbeta, op)
 
 
@@ -160,13 +164,12 @@ def pr_re_fbeta(cm, pos_indices, beta=1):
 
     pr = safe_div(diag_sum, tot_pred)
     re = safe_div(diag_sum, tot_gold)
-    fbeta = safe_div((1. + beta**2) * pr * re, beta**2 * pr + re)
+    fbeta = safe_div((1.0 + beta**2) * pr * re, beta**2 * pr + re)
 
     return pr, re, fbeta
 
 
-def metrics_from_confusion_matrix(cm, pos_indices=None, average='micro',
-                                  beta=1):
+def metrics_from_confusion_matrix(cm, pos_indices=None, average="micro", beta=1):
     """Precision, Recall and F1 from the confusion matrix
     Parameters
     ----------
@@ -183,9 +186,9 @@ def metrics_from_confusion_matrix(cm, pos_indices=None, average='micro',
     if pos_indices is None:
         pos_indices = [i for i in range(num_classes)]
 
-    if average == 'micro':
+    if average == "micro":
         return pr_re_fbeta(cm, pos_indices, beta)
-    elif average in {'macro', 'weighted'}:
+    elif average in {"macro", "weighted"}:
         precisions, recalls, fbetas, n_golds = [], [], [], []
         for idx in pos_indices:
             pr, re, fbeta = pr_re_fbeta(cm, [idx], beta)
@@ -196,12 +199,12 @@ def metrics_from_confusion_matrix(cm, pos_indices=None, average='micro',
             cm_mask[idx, :] = 1
             n_golds.append(tf.to_float(tf.reduce_sum(cm * cm_mask)))
 
-        if average == 'macro':
+        if average == "macro":
             pr = tf.reduce_mean(precisions)
             re = tf.reduce_mean(recalls)
             fbeta = tf.reduce_mean(fbetas)
             return pr, re, fbeta
-        if average == 'weighted':
+        if average == "weighted":
             n_gold = tf.reduce_sum(n_golds)
             pr_sum = sum(p * n for p, n in zip(precisions, n_golds))
             pr = safe_div(pr_sum, n_gold)

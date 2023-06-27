@@ -13,28 +13,36 @@
 # limitations under the License.
 
 import argparse
-import torch
 from collections import OrderedDict
 
+import torch
 
-parser = argparse.ArgumentParser(description='PyTorch ImageNet Validation')
-parser.add_argument('--checkpoint_path', default='/checkpoints/model_best.pth.tar', help='path to checkpoint')
-parser.add_argument('--state_dict_path', default='/checkpoints/Effdet_B0.pth', help='path to save processed checkpoint state_dict to.')
+parser = argparse.ArgumentParser(description="PyTorch ImageNet Validation")
+parser.add_argument(
+    "--checkpoint_path",
+    default="/checkpoints/model_best.pth.tar",
+    help="path to checkpoint",
+)
+parser.add_argument(
+    "--state_dict_path",
+    default="/checkpoints/Effdet_B0.pth",
+    help="path to save processed checkpoint state_dict to.",
+)
 
 args = parser.parse_args()
 ckpt = torch.load(args.checkpoint_path)
 
 print("Checkpoint keys {}".format([k for k in ckpt.keys()]))
 
-if 'state_dict_ema' in ckpt:
+if "state_dict_ema" in ckpt:
     print("... state_dict found in ckpt")
-    state_dict = ckpt['state_dict_ema']
+    state_dict = ckpt["state_dict_ema"]
     new_state_dict = OrderedDict()
     for k, v in state_dict.items():
         # strip `module.` prefix
-        if k.startswith('module'):
+        if k.startswith("module"):
             name = k[7:]
-        elif k.startswith('model'):
+        elif k.startswith("model"):
             name = k[6:]
         else:
             name = k

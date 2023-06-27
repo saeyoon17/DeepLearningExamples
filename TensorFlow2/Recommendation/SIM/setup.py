@@ -14,9 +14,10 @@
 
 from setuptools import find_packages, setup
 
-setup(name="sim",
-      package_dir={'sim': 'sim'},
-      version="1.0.0",
-      description="Reimplementation of Search-based User Interest Modeling",
-      packages=find_packages()
-      )
+setup(
+    name="sim",
+    package_dir={"sim": "sim"},
+    version="1.0.0",
+    description="Reimplementation of Search-based User Interest Modeling",
+    packages=find_packages(),
+)

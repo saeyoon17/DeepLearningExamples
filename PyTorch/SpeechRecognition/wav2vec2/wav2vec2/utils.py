@@ -25,12 +25,10 @@ from functools import reduce
 from pathlib import Path
 
 import torch
-
 import wav2vec2.arg_parser
 from common.fairseq.data import AddTargetDataset, FileAudioDataset
 from common.utils import AttrDict, print_once
-from wav2vec2.model import Wav2Vec2Model, Wav2VecEncoder, Wav2VecCtc
-
+from wav2vec2.model import Wav2Vec2Model, Wav2VecCtc, Wav2VecEncoder
 
 blank_symbol = "<s>"  # for CTC
 
@@ -52,15 +50,14 @@ class PhoneLabelEncoder:
         return torch.IntTensor([int(id) for id in label.split()])
 
 
-def load_dataset(split, args, target_dictionary=None, with_labels=False,
-                 training=True):
+def load_dataset(split, args, target_dictionary=None, with_labels=False, training=True):
 
     dataset = FileAudioDataset(
-        manifest_path=Path(args.data, f'{split}.tsv'),
+        manifest_path=Path(args.data, f"{split}.tsv"),
         sample_rate=args.sample_rate,
         min_sample_size=args.min_sample_size if training else None,
         max_sample_size=args.max_sample_size if training else None,
-        pad=(hasattr(args, 'labels') or args.enable_padding),
+        pad=(hasattr(args, "labels") or args.enable_padding),
         normalize=args.normalize,
         num_buckets=args.num_batch_buckets,
         compute_mask_indices=False,
@@ -69,7 +66,7 @@ def load_dataset(split, args, target_dictionary=None, with_labels=False,
 
     if with_labels:
         assert args.labels
-        assert hasattr(args, 'labels')
+        assert hasattr(args, "labels")
 
         skip_inds = getattr(dataset, "skipped_indices", set())
         with open(Path(args.data, f"{split}.{args.labels}")) as f:
@@ -87,7 +84,7 @@ def load_dataset(split, args, target_dictionary=None, with_labels=False,
             eos=target_dictionary.eos(),
             batch_targets=True,
             process_label=LabelEncoder(target_dictionary),
-            add_to_input=False
+            add_to_input=False,
         )
 
     return dataset
@@ -113,26 +110,24 @@ def load_phone_classification_dataset(split, args):
     return dataset
 
 
-def _prune_infer_state_dict_prefix(state_dict,
-                                   prefix='w2v_encoder.w2v_model.'):
+def _prune_infer_state_dict_prefix(state_dict, prefix="w2v_encoder.w2v_model."):
     pref_len = len(prefix)
     return {
-        (k[pref_len:] if k.startswith(prefix) else k): v
-        for k, v in state_dict.items()
+        (k[pref_len:] if k.startswith(prefix) else k): v for k, v in state_dict.items()
     }
 
 
-def build_model(args, mode='pretrain', target_dictionary=None):
+def build_model(args, mode="pretrain", target_dictionary=None):
 
     cfg = AttrDict(vars(args))
-    if mode == 'pretrain':
+    if mode == "pretrain":
         assert target_dictionary is None
         model = Wav2Vec2Model(cfg)
-    elif mode == 'finetune':
-        state = torch.load(args.w2v_path, map_location='cpu')['model']
+    elif mode == "finetune":
+        state = torch.load(args.w2v_path, map_location="cpu")["model"]
         enc = Wav2VecEncoder(cfg, state, output_size=len(target_dictionary))
         model = Wav2VecCtc(cfg, enc)
-    elif mode == 'infer':
+    elif mode == "infer":
         enc = Wav2VecEncoder(cfg, None, output_size=len(target_dictionary))
         model = Wav2VecCtc(cfg, enc)
     else:
@@ -165,10 +160,10 @@ def get_ckpt_args(ckpt):
     """
     if "cfg" in ckpt:
         import omegaconf
+
         w2v_args = omegaconf.OmegaConf.to_container(ckpt["cfg"])
         # Flatten nested dicts (hopefully matching keys have same values)
-        w2v_args = reduce(lambda a, b: {**(a or {}), **(b or {})},
-                          w2v_args.values())
+        w2v_args = reduce(lambda a, b: {**(a or {}), **(b or {})}, w2v_args.values())
     else:  # Legacy checkpoints
         w2v_args = ckpt["args"]
         if type(w2v_args) is argparse.Namespace:
@@ -186,8 +181,10 @@ def update_args_for_finetuning(args, w2v_path_for_args):
     for arg in my_args:
         if arg in w2v_args and my_args[arg] != w2v_args[arg]:
             fname = Path(args.w2v_path).name
-            print_once(f'Setting from {fname}: {arg}={w2v_args[arg]}',
-                       local_rank=args.local_rank)
+            print_once(
+                f"Setting from {fname}: {arg}={w2v_args[arg]}",
+                local_rank=args.local_rank,
+            )
             setattr(args, arg, w2v_args[arg])
         else:
             setattr(args, arg, my_args[arg])

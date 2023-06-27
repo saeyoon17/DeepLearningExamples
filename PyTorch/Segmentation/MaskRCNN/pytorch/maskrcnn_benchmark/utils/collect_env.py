@@ -1,6 +1,5 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 import PIL
-
 from torch.utils.collect_env import get_pretty_env_info
 
 

@@ -34,12 +34,12 @@ python ./triton/run_inference_on_triton.py \
 """
 
 import argparse
+import copy
 import functools
 import logging
 import queue
 import threading
 import time
-import copy
 import traceback
 from pathlib import Path
 from typing import Optional
@@ -49,9 +49,11 @@ from tqdm import tqdm
 # pytype: disable=import-error
 try:
     from tritonclient import utils as client_utils  # noqa: F401
-    from tritonclient.grpc import InferenceServerClient, InferInput, InferRequestedOutput
+    from tritonclient.grpc import (InferenceServerClient, InferInput,
+                                   InferRequestedOutput)
 except ImportError:
-    from tritongrpcclient import InferenceServerClient, InferInput, InferRequestedOutput
+    from tritongrpcclient import (InferenceServerClient, InferInput,
+                                  InferRequestedOutput)
 # pytype: enable=import-error
 
 # method from PEP-366 to support relative import in executed modules
@@ -83,7 +85,9 @@ class SyncGRPCTritonRunner:
         self._model_version = model_version
         self._dataloader = dataloader
         self._verbose = verbose
-        self._response_wait_t = self.DEFAULT_MAX_RESP_WAIT_S if resp_wait_s is None else resp_wait_s
+        self._response_wait_t = (
+            self.DEFAULT_MAX_RESP_WAIT_S if resp_wait_s is None else resp_wait_s
+        )
 
     def __iter__(self):
         client = InferenceServerClient(self._server_url, verbose=self._verbose)
@@ -92,11 +96,14 @@ class SyncGRPCTritonRunner:
             raise RuntimeError(f"Could not communicate to Triton Server: {error}")
 
         LOGGER.debug(
-            f"Triton server {self._server_url} and model {self._model_name}:{self._model_version} " f"are up and ready!"
+            f"Triton server {self._server_url} and model {self._model_name}:{self._model_version} "
+            f"are up and ready!"
         )
 
         model_config = client.get_model_config(self._model_name, self._model_version)
-        model_metadata = client.get_model_metadata(self._model_name, self._model_version)
+        model_metadata = client.get_model_metadata(
+            self._model_name, self._model_version
+        )
         LOGGER.info(f"Model config {model_config}")
         LOGGER.info(f"Model metadata {model_metadata}")
 
@@ -158,8 +165,14 @@ class AsyncGRPCTritonRunner:
         self._model_version = model_version
         self._dataloader = dataloader
         self._verbose = verbose
-        self._response_wait_t = self.DEFAULT_MAX_RESP_WAIT_S if resp_wait_s is None else resp_wait_s
-        self._max_unresp_reqs = self.DEFAULT_MAX_UNRESP_REQS if max_unresponded_reqs is None else max_unresponded_reqs
+        self._response_wait_t = (
+            self.DEFAULT_MAX_RESP_WAIT_S if resp_wait_s is None else resp_wait_s
+        )
+        self._max_unresp_reqs = (
+            self.DEFAULT_MAX_UNRESP_REQS
+            if max_unresponded_reqs is None
+            else max_unresponded_reqs
+        )
 
         self._results = queue.Queue()
         self._processed_all = False
@@ -189,9 +202,7 @@ class AsyncGRPCTritonRunner:
     def _on_result(self, ids, x, y_real, output_names, result, error):
         with self._sync:
             request_id = str(ids[0])
-            NOT_MATCHING_REQUEST_ID_MSG = (
-                "Error during processing result - request_id doesn't match. This shouldn't have happened."
-            )
+            NOT_MATCHING_REQUEST_ID_MSG = "Error during processing result - request_id doesn't match. This shouldn't have happened."
             if error:
                 response_id = error.get_response().id
                 if response_id != request_id:
@@ -213,11 +224,14 @@ class AsyncGRPCTritonRunner:
             return
 
         LOGGER.debug(
-            f"Triton server {self._server_url} and model {self._model_name}:{self._model_version} " f"are up and ready!"
+            f"Triton server {self._server_url} and model {self._model_name}:{self._model_version} "
+            f"are up and ready!"
         )
 
         model_config = client.get_model_config(self._model_name, self._model_version)
-        model_metadata = client.get_model_metadata(self._model_name, self._model_version)
+        model_metadata = client.get_model_metadata(
+            self._model_name, self._model_version
+        )
         LOGGER.info(f"Model config {model_config}")
         LOGGER.info(f"Model metadata {model_metadata}")
 
@@ -246,7 +260,9 @@ class AsyncGRPCTritonRunner:
                 def _check_can_send():
                     return self._num_waiting_for < self._max_unresp_reqs
 
-                can_send = self._sync.wait_for(_check_can_send, timeout=self._response_wait_t)
+                can_send = self._sync.wait_for(
+                    _check_can_send, timeout=self._response_wait_t
+                )
                 if not can_send:
                     error_msg = f"Runner could not send new requests for {self._response_wait_t}s"
                     self._errors.append(error_msg)
@@ -254,7 +270,9 @@ class AsyncGRPCTritonRunner:
                     break
 
                 request_id = str(ids[0])
-                callback = functools.partial(AsyncGRPCTritonRunner._on_result, self, ids, x, y_real, output_names)
+                callback = functools.partial(
+                    AsyncGRPCTritonRunner._on_result, self, ids, x, y_real, output_names
+                )
                 client.async_infer(
                     model_name=self._model_name,
                     model_version=self._model_version,
@@ -273,7 +291,9 @@ class AsyncGRPCTritonRunner:
                 LOGGER.debug(f"wait for {self._num_waiting_for} unprocessed jobs")
                 return self._num_waiting_for == 0
 
-            self._processed_all = self._sync.wait_for(_all_processed, self.DEFAULT_MAX_FINISH_WAIT_S)
+            self._processed_all = self._sync.wait_for(
+                _all_processed, self.DEFAULT_MAX_FINISH_WAIT_S
+            )
             if not self._processed_all:
                 error_msg = f"Runner {self._response_wait_t}s timeout received while waiting for results from server"
                 self._errors.append(error_msg)
@@ -289,24 +309,59 @@ class AsyncGRPCTritonRunner:
         elif not triton_client.is_server_ready():
             errors.append(f"Triton server {self._server_url} is not ready")
         elif not triton_client.is_model_ready(self._model_name, self._model_version):
-            errors.append(f"Model {self._model_name}:{self._model_version} is not ready")
+            errors.append(
+                f"Model {self._model_name}:{self._model_version} is not ready"
+            )
         return errors
 
 
 def _parse_args():
-    parser = argparse.ArgumentParser(description="Infer model on Triton server", allow_abbrev=False)
-    parser.add_argument(
-        "--server-url", type=str, default="localhost:8001", help="Inference server URL (default localhost:8001)"
+    parser = argparse.ArgumentParser(
+        description="Infer model on Triton server", allow_abbrev=False
     )
-    parser.add_argument("--model-name", help="The name of the model used for inference.", required=True)
-    parser.add_argument("--model-version", help="The version of the model used for inference.", required=True)
-    parser.add_argument("--dataloader", help="Path to python file containing dataloader.", required=True)
-    parser.add_argument("--dump-labels", help="Dump labels to output dir", action="store_true", default=False)
-    parser.add_argument("--dump-inputs", help="Dump inputs to output dir", action="store_true", default=False)
-    parser.add_argument("-v", "--verbose", help="Verbose logs", action="store_true", default=True)
-    parser.add_argument("--output-dir", required=True, help="Path to directory where outputs will be saved")
     parser.add_argument(
-        "--response-wait-time", required=False, help="Maximal time to wait for response", default=120, type=float
+        "--server-url",
+        type=str,
+        default="localhost:8001",
+        help="Inference server URL (default localhost:8001)",
+    )
+    parser.add_argument(
+        "--model-name", help="The name of the model used for inference.", required=True
+    )
+    parser.add_argument(
+        "--model-version",
+        help="The version of the model used for inference.",
+        required=True,
+    )
+    parser.add_argument(
+        "--dataloader", help="Path to python file containing dataloader.", required=True
+    )
+    parser.add_argument(
+        "--dump-labels",
+        help="Dump labels to output dir",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--dump-inputs",
+        help="Dump inputs to output dir",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "-v", "--verbose", help="Verbose logs", action="store_true", default=True
+    )
+    parser.add_argument(
+        "--output-dir",
+        required=True,
+        help="Path to directory where outputs will be saved",
+    )
+    parser.add_argument(
+        "--response-wait-time",
+        required=False,
+        help="Maximal time to wait for response",
+        default=120,
+        type=float,
     )
     parser.add_argument(
         "--max-unresponded-requests",
@@ -316,12 +371,17 @@ def _parse_args():
         type=int,
     )
     parser.add_argument(
-        "--synchronous", help="Enable synchronous calls to Triton Server", action="store_true", default=False
+        "--synchronous",
+        help="Enable synchronous calls to Triton Server",
+        action="store_true",
+        default=False,
     )
 
     args, *_ = parser.parse_known_args()
 
-    get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+    get_dataloader_fn = load_from_file(
+        args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+    )
     ArgParserGenerator(get_dataloader_fn).update_argparser(parser)
     args = parser.parse_args()
 
@@ -339,7 +399,9 @@ def main():
     for key, value in vars(args).items():
         LOGGER.info(f"    {key} = {value}")
 
-    get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+    get_dataloader_fn = load_from_file(
+        args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+    )
     dataloader_fn = ArgParserGenerator(get_dataloader_fn).from_args(args)
 
     try:

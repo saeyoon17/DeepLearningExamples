@@ -9,17 +9,17 @@
 # LICENSE file in the root directory of this source tree.
 ##############################################################################
 
-import os
+import argparse
 import glob
 import ntpath
-
-import argparse
-
+import os
 from collections import defaultdict
 
 parser = argparse.ArgumentParser(description="DAGM2007_preprocessing")
 
-parser.add_argument('--data_dir', required=True, type=str, help="Path to DAGM 2007 private dataset")
+parser.add_argument(
+    "--data_dir", required=True, type=str, help="Path to DAGM 2007 private dataset"
+)
 
 DEFECTIVE_COUNT = defaultdict(lambda: defaultdict(int))
 
@@ -47,7 +47,7 @@ EXPECTED_DEFECTIVE_SAMPLES_PER_CLASS = {
         8: 150,
         9: 150,
         10: 150,
-    }
+    },
 }
 
 if __name__ == "__main__":
@@ -62,7 +62,9 @@ if __name__ == "__main__":
         raise ValueError("Invalid command line arg(s)")
 
     if not os.path.exists(FLAGS.data_dir):
-        raise ValueError('The dataset directory received `%s` does not exists' % FLAGS.data_dir)
+        raise ValueError(
+            "The dataset directory received `%s` does not exists" % FLAGS.data_dir
+        )
 
     for challenge_id in range(10):
         challenge_name = "Class%d" % (challenge_id + 1)
@@ -71,17 +73,22 @@ if __name__ == "__main__":
         print("[DAGM Preprocessing] Parsing Class ID: %02d ..." % (challenge_id + 1))
 
         if not os.path.exists(challenge_folder_path):
-            raise ValueError('The folder `%s` does not exists' % challenge_folder_path)
+            raise ValueError("The folder `%s` does not exists" % challenge_folder_path)
 
         for data_set in ["Train", "Test"]:
 
             challenge_set_folder_path = os.path.join(challenge_folder_path, data_set)
 
             if not os.path.exists(challenge_set_folder_path):
-                raise ValueError('The folder `%s` does not exists' % challenge_set_folder_path)
+                raise ValueError(
+                    "The folder `%s` does not exists" % challenge_set_folder_path
+                )
 
-            with open(os.path.join(challenge_folder_path, "%s_list.csv" % data_set.lower()), 'w') as data_list_file:
-                data_list_file.write('image_filepath,lbl_image_filepath,is_defective\n')
+            with open(
+                os.path.join(challenge_folder_path, "%s_list.csv" % data_set.lower()),
+                "w",
+            ) as data_list_file:
+                data_list_file.write("image_filepath,lbl_image_filepath,is_defective\n")
 
                 files = glob.glob(os.path.join(challenge_set_folder_path, "*.PNG"))
 
@@ -102,13 +109,22 @@ if __name__ == "__main__":
                     if defective:
                         DEFECTIVE_COUNT[data_set][challenge_id + 1] += 1
 
-                    data_list_file.write('%s,%s,%d\n' % (fullname, lbl_filename, defective))
+                    data_list_file.write(
+                        "%s,%s,%d\n" % (fullname, lbl_filename, defective)
+                    )
 
-                if DEFECTIVE_COUNT[data_set][challenge_id +
-                                             1] != EXPECTED_DEFECTIVE_SAMPLES_PER_CLASS[data_set][challenge_id + 1]:
+                if (
+                    DEFECTIVE_COUNT[data_set][challenge_id + 1]
+                    != EXPECTED_DEFECTIVE_SAMPLES_PER_CLASS[data_set][challenge_id + 1]
+                ):
                     raise RuntimeError(
-                        "There should be `%d` defective samples instead of `%d` in challenge (%s): %d" % (
+                        "There should be `%d` defective samples instead of `%d` in challenge (%s): %d"
+                        % (
                             DEFECTIVE_COUNT[data_set][challenge_id + 1],
-                            EXPECTED_DEFECTIVE_SAMPLES_PER_CLASS[data_set][challenge_id + 1], data_set, challenge_id + 1
+                            EXPECTED_DEFECTIVE_SAMPLES_PER_CLASS[data_set][
+                                challenge_id + 1
+                            ],
+                            data_set,
+                            challenge_id + 1,
                         )
                     )

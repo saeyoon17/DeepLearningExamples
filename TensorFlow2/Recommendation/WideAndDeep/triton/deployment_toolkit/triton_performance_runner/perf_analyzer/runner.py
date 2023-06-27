@@ -36,7 +36,9 @@ if LooseVersion(sys.version) >= LooseVersion("3.8.0"):
 else:
     import pkg_resources
 
-    TRITON_CLIENT_VERSION = LooseVersion(pkg_resources.get_distribution("tritonclient").version)
+    TRITON_CLIENT_VERSION = LooseVersion(
+        pkg_resources.get_distribution("tritonclient").version
+    )
 
 LOGGER = logging.getLogger("triton_performance_runner.perf_analyzer")
 
@@ -109,9 +111,7 @@ class PerfAnalyzerRunner:
         results: List[Dict] = []
         for batch_size in self._batch_sizes:
             for concurrency in self._concurrency:
-                performance_partial_file = (
-                    f"{self._evaluation_mode.value.lower()}_partial_{batch_size}_{concurrency}.csv"
-                )
+                performance_partial_file = f"{self._evaluation_mode.value.lower()}_partial_{batch_size}_{concurrency}.csv"
 
                 params = {
                     "model-name": self._model_name,
@@ -130,15 +130,20 @@ class PerfAnalyzerRunner:
 
                 if TRITON_CLIENT_VERSION >= LooseVersion("2.11.0"):
                     params["measurement-mode"] = self._measurement_mode.value
-                    params["measurement-request-count"] = self._measurement_request_count
+                    params[
+                        "measurement-request-count"
+                    ] = self._measurement_request_count
 
                 if self._evaluation_mode == EvaluationMode.OFFLINE:
                     params["shared-memory"] = self._offline_mode.value
-                    params["output-shared-memory-size"] = self._output_shared_memory_size
+                    params[
+                        "output-shared-memory-size"
+                    ] = self._output_shared_memory_size
 
                 if self._verbose:
                     log_dict(
-                        f"Perf Analyzer config for batch_size: {batch_size} and concurrency: {concurrency}", params
+                        f"Perf Analyzer config for batch_size: {batch_size} and concurrency: {concurrency}",
+                        params,
                     )
 
                 config = PerfAnalyzerConfig()
@@ -150,7 +155,9 @@ class PerfAnalyzerRunner:
 
                 perf_analyzer = PerfAnalyzer(config=config, timeout=self._timeout)
                 perf_analyzer.run()
-                self._update_performance_data(results, batch_size, performance_partial_file)
+                self._update_performance_data(
+                    results, batch_size, performance_partial_file
+                )
                 os.remove(performance_partial_file)
 
         results = sort_results(results=results)
@@ -173,7 +180,9 @@ class PerfAnalyzerRunner:
 
         return avg_latency
 
-    def _update_performance_data(self, results: List, batch_size: int, performance_partial_file: str):
+    def _update_performance_data(
+        self, results: List, batch_size: int, performance_partial_file: str
+    ):
         row: Dict = {"Batch": batch_size}
         with open(performance_partial_file) as csvfile:
             reader = csv.DictReader(csvfile)

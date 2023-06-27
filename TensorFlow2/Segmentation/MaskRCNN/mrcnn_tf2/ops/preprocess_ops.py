@@ -15,7 +15,6 @@
 import math
 
 import tensorflow as tf
-
 from mrcnn_tf2.object_detection import preprocessor
 
 
@@ -96,8 +95,7 @@ def resize_and_pad(image, target_size, stride, boxes=None, masks=None):
     """
 
     input_height, input_width, _ = tf.unstack(
-        tf.cast(tf.shape(input=image), dtype=tf.float32),
-        axis=0
+        tf.cast(tf.shape(input=image), dtype=tf.float32), axis=0
     )
 
     target_height, target_width = target_size
@@ -110,7 +108,9 @@ def resize_and_pad(image, target_size, stride, boxes=None, masks=None):
     scaled_height = tf.cast(scale * input_height, dtype=tf.int32)
     scaled_width = tf.cast(scale * input_width, dtype=tf.int32)
 
-    image = tf.image.resize(image, [scaled_height, scaled_width], method=tf.image.ResizeMethod.BILINEAR)
+    image = tf.image.resize(
+        image, [scaled_height, scaled_width], method=tf.image.ResizeMethod.BILINEAR
+    )
 
     padded_height = int(math.ceil(target_height * 1.0 / stride) * stride)
     padded_width = int(math.ceil(target_width * 1.0 / stride) * stride)
@@ -118,17 +118,21 @@ def resize_and_pad(image, target_size, stride, boxes=None, masks=None):
     image = tf.image.pad_to_bounding_box(image, 0, 0, padded_height, padded_width)
     image.set_shape([padded_height, padded_width, 3])
 
-    image_info = tf.stack([
-        tf.cast(scaled_height, dtype=tf.float32),
-        tf.cast(scaled_width, dtype=tf.float32),
-        1.0 / scale,
-        input_height,
-        input_width]
+    image_info = tf.stack(
+        [
+            tf.cast(scaled_height, dtype=tf.float32),
+            tf.cast(scaled_width, dtype=tf.float32),
+            1.0 / scale,
+            input_height,
+            input_width,
+        ]
     )
 
     if boxes is not None:
         normalized_box_list = preprocessor.box_list.BoxList(boxes)
-        scaled_boxes = preprocessor.box_list_scale(normalized_box_list, scaled_height, scaled_width).get()
+        scaled_boxes = preprocessor.box_list_scale(
+            normalized_box_list, scaled_height, scaled_width
+        ).get()
 
     else:
         scaled_boxes = None
@@ -137,14 +141,16 @@ def resize_and_pad(image, target_size, stride, boxes=None, masks=None):
         scaled_masks = tf.image.resize(
             tf.expand_dims(masks, -1),
             [scaled_height, scaled_width],
-            method=tf.image.ResizeMethod.NEAREST_NEIGHBOR
+            method=tf.image.ResizeMethod.NEAREST_NEIGHBOR,
         )
         # Check if there is any instance in this image or not.
         num_masks = tf.shape(input=scaled_masks)[0]
         scaled_masks = tf.cond(
             pred=tf.greater(num_masks, 0),
-            true_fn=lambda: tf.image.pad_to_bounding_box(scaled_masks, 0, 0, padded_height, padded_width),
-            false_fn=lambda: tf.zeros([0, padded_height, padded_width, 1])
+            true_fn=lambda: tf.image.pad_to_bounding_box(
+                scaled_masks, 0, 0, padded_height, padded_width
+            ),
+            false_fn=lambda: tf.zeros([0, padded_height, padded_width, 1]),
         )
 
     else:
@@ -157,7 +163,9 @@ def crop_gt_masks(instance_masks, boxes, gt_mask_size, image_size):
     """Crops the ground truth binary masks and resize to fixed-size masks."""
     num_masks = tf.shape(input=instance_masks)[0]
 
-    scale_sizes = tf.convert_to_tensor(value=[image_size[0], image_size[1]] * 2, dtype=tf.float32)
+    scale_sizes = tf.convert_to_tensor(
+        value=[image_size[0], image_size[1]] * 2, dtype=tf.float32
+    )
 
     boxes = boxes / scale_sizes
 
@@ -166,13 +174,14 @@ def crop_gt_masks(instance_masks, boxes, gt_mask_size, image_size):
         boxes=boxes,
         box_indices=tf.range(num_masks, dtype=tf.int32),
         crop_size=[gt_mask_size, gt_mask_size],
-        method='bilinear')[:, :, :, 0]
+        method="bilinear",
+    )[:, :, :, 0]
 
     cropped_gt_masks = tf.pad(
         tensor=cropped_gt_masks,
         paddings=tf.constant([[0, 0], [2, 2], [2, 2]]),
-        mode='CONSTANT',
-        constant_values=0.
+        mode="CONSTANT",
+        constant_values=0.0,
     )
 
     return cropped_gt_masks

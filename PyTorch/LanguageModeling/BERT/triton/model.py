@@ -10,20 +10,31 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limitations under the License. 
+# limitations under the License.
 
 
 import os
 from argparse import Namespace
-# 
+
+#
 import torch
 from modeling import BertConfig, BertForQuestionAnswering
 
 
 def update_argparser(parser):
-    parser.add_argument("--precision", type=str, choices=["fp16", "fp32"], default="fp32")
-    parser.add_argument("--checkpoint", type=str, default='', help="The checkpoint of the model.")
-    parser.add_argument("--config-file", default=None, type=str, required=True, help="The BERT model config.")
+    parser.add_argument(
+        "--precision", type=str, choices=["fp16", "fp32"], default="fp32"
+    )
+    parser.add_argument(
+        "--checkpoint", type=str, default="", help="The checkpoint of the model."
+    )
+    parser.add_argument(
+        "--config-file",
+        default=None,
+        type=str,
+        required=True,
+        help="The BERT model config.",
+    )
     parser.add_argument("--fixed-batch-dim", default=False, action="store_true")
     parser.add_argument("--cpu", default=False, action="store_true")
 
@@ -35,7 +46,11 @@ def get_model_from_args(args):
 
     class BertForQuestionAnswering_int32_inputs(BertForQuestionAnswering):
         def forward(self, input_ids, segment_ids, attention_mask):
-            input_ids, segment_ids, attention_mask = input_ids.long(), segment_ids.long(), attention_mask.long()
+            input_ids, segment_ids, attention_mask = (
+                input_ids.long(),
+                segment_ids.long(),
+                attention_mask.long(),
+            )
             return super().forward(input_ids, segment_ids, attention_mask)
 
     model = BertForQuestionAnswering_int32_inputs(config)
@@ -59,7 +74,9 @@ def get_model(**model_args):
 
     args = Namespace(**model_args)
     model = get_model_from_args(args)
-    tensor_names = {"inputs": ["input__0", "input__1", "input__2"], "outputs": ["output__0", "output__1"]}
+    tensor_names = {
+        "inputs": ["input__0", "input__1", "input__2"],
+        "outputs": ["output__0", "output__1"],
+    }
 
     return model, tensor_names
-

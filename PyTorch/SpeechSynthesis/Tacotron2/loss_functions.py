@@ -32,13 +32,14 @@ from waveglow.loss_function import WaveGlowLoss
 
 
 def get_loss_function(loss_function, sigma=1.0):
-    if loss_function == 'Tacotron2':
+    if loss_function == "Tacotron2":
         loss = Tacotron2Loss()
-    elif loss_function == 'WaveGlow':
+    elif loss_function == "WaveGlow":
         loss = WaveGlowLoss(sigma=sigma)
     else:
         raise NotImplementedError(
-            "unknown loss function requested: {}".format(loss_function))
+            "unknown loss function requested: {}".format(loss_function)
+        )
 
     loss.cuda()
     return loss

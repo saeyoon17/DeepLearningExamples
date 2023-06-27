@@ -17,19 +17,44 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
 
 parser = ArgumentParser(ArgumentDefaultsHelpFormatter)
-parser.add_argument("--mode", type=str, required=True, choices=["train", "predict"], help="Benchmarking mode")
+parser.add_argument(
+    "--mode",
+    type=str,
+    required=True,
+    choices=["train", "predict"],
+    help="Benchmarking mode",
+)
 parser.add_argument("--task", type=str, default="01", help="Task code")
 parser.add_argument("--gpus", type=int, default=1, help="Number of GPUs to use")
 parser.add_argument("--nodes", type=int, default=1, help="Number of nodes to use")
 parser.add_argument("--dim", type=int, required=True, help="Dimension of UNet")
 parser.add_argument("--batch_size", type=int, required=True, help="Batch size")
-parser.add_argument("--amp", action="store_true", help="Enable automatic mixed precision")
-parser.add_argument("--bind", action="store_true", help="Bind CPUs for each GPU. Improves throughput for multi-GPU.")
-parser.add_argument("--train_batches", type=int, default=200, help="Number of batches for training")
-parser.add_argument("--test_batches", type=int, default=200, help="Number of batches for inference")
-parser.add_argument("--warmup", type=int, default=100, help="Warmup iterations before collecting statistics")
-parser.add_argument("--results", type=str, default="/results", help="Path to results directory")
-parser.add_argument("--logname", type=str, default="perf.json", help="Name of dlloger output")
+parser.add_argument(
+    "--amp", action="store_true", help="Enable automatic mixed precision"
+)
+parser.add_argument(
+    "--bind",
+    action="store_true",
+    help="Bind CPUs for each GPU. Improves throughput for multi-GPU.",
+)
+parser.add_argument(
+    "--train_batches", type=int, default=200, help="Number of batches for training"
+)
+parser.add_argument(
+    "--test_batches", type=int, default=200, help="Number of batches for inference"
+)
+parser.add_argument(
+    "--warmup",
+    type=int,
+    default=100,
+    help="Warmup iterations before collecting statistics",
+)
+parser.add_argument(
+    "--results", type=str, default="/results", help="Path to results directory"
+)
+parser.add_argument(
+    "--logname", type=str, default="perf.json", help="Name of dlloger output"
+)
 
 if __name__ == "__main__":
     args = parser.parse_args()

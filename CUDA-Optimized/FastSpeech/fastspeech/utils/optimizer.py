@@ -25,8 +25,8 @@
 import numpy as np
 
 
-class ScheduledOptim():
-    ''' A simple wrapper class for learning rate scheduling '''
+class ScheduledOptim:
+    """A simple wrapper class for learning rate scheduling"""
 
     def __init__(self, optimizer, d_model, n_warmup_steps, current_steps):
         self._optimizer = optimizer
@@ -36,7 +36,7 @@ class ScheduledOptim():
 
     def step_and_update_lr_frozen(self, learning_rate_frozen):
         for param_group in self._optimizer.param_groups:
-            param_group['lr'] = learning_rate_frozen
+            param_group["lr"] = learning_rate_frozen
         self._optimizer.step()
 
     def step_and_update_lr(self):
@@ -46,7 +46,7 @@ class ScheduledOptim():
     def get_learning_rate(self):
         learning_rate = 0.0
         for param_group in self._optimizer.param_groups:
-            learning_rate = param_group['lr']
+            learning_rate = param_group["lr"]
 
         return learning_rate
 
@@ -55,15 +55,18 @@ class ScheduledOptim():
         self._optimizer.zero_grad()
 
     def _get_lr_scale(self):
-        return np.min([
-            np.power(self.n_current_steps, -0.5),
-            np.power(self.n_warmup_steps, -1.5) * self.n_current_steps])
+        return np.min(
+            [
+                np.power(self.n_current_steps, -0.5),
+                np.power(self.n_warmup_steps, -1.5) * self.n_current_steps,
+            ]
+        )
 
     def _update_learning_rate(self):
-        ''' Learning rate scheduling per step '''
+        """Learning rate scheduling per step"""
 
         self.n_current_steps += 1
         lr = self.init_lr * self._get_lr_scale()
 
         for param_group in self._optimizer.param_groups:
-            param_group['lr'] = lr
+            param_group["lr"] = lr

@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import logging
+import sys
+
 from paddle import optimizer as optim
 
 
@@ -44,7 +45,8 @@ class Momentum:
             weight_decay=self.weight_decay,
             grad_clip=self.grad_clip,
             multi_precision=self.multi_precision,
-            parameters=parameters)
+            parameters=parameters,
+        )
         return opt
 
 

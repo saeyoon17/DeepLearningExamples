@@ -23,11 +23,8 @@ import torch.nn.functional as F
     https://arxiv.org/abs/1710.10903
 """
 from syngen.benchmark.models.layers.gat_layers import (
-    CustomGATLayer,
-    CustomGATLayerEdgeReprFeat,
-    CustomGATLayerIsotropic,
-    GATLayer,
-)
+    CustomGATLayer, CustomGATLayerEdgeReprFeat, CustomGATLayerIsotropic,
+    GATLayer)
 from syngen.benchmark.models.layers.score_predictor import ScorePredictor
 
 
@@ -90,9 +87,7 @@ class GATEC(nn.Module):
             "isotropic": CustomGATLayerIsotropic,
         }.get(layer_type, GATLayer)
 
-        self.embedding_h = nn.Linear(
-            self.in_dim, self.hidden_dim * self.n_heads
-        )
+        self.embedding_h = nn.Linear(self.in_dim, self.hidden_dim * self.n_heads)
 
         if self.layer_type != GATLayer:
             self.edge_feat = edge_feat

@@ -17,7 +17,7 @@ from functools import partial
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from data.outbrain.features import get_features_keys, MULTIHOT_COLUMNS
+from data.outbrain.features import MULTIHOT_COLUMNS, get_features_keys
 
 
 def prepare_df(df):

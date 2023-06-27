@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pickle
 import logging
 import os
+import pickle
 import warnings
 from collections import defaultdict
 from pathlib import PosixPath
@@ -35,14 +35,9 @@ except ImportError:
     from sklearn.preprocessing import OrdinalEncoder as LabelEncoder
 
 from syngen.graph_aligner.base_graph_aligner import BaseGraphAligner
-from syngen.graph_aligner.utils import (
-    get_features,
-    get_graph,
-    get_preproc_dict,
-    get_preproc_fn,
-    merge_dfs,
-    spread_ranks,
-)
+from syngen.graph_aligner.utils import (get_features, get_graph,
+                                        get_preproc_dict, get_preproc_fn,
+                                        merge_dfs, spread_ranks)
 from syngen.utils.types import ColumnType, DataFrameType, MetaData
 from syngen.utils.utils import df_to_cudf, df_to_dask_cudf, df_to_pandas
 
@@ -50,7 +45,7 @@ from syngen.utils.utils import df_to_cudf, df_to_dask_cudf, df_to_pandas
 numba_logger = logging.getLogger("numba")
 numba_logger.setLevel(logging.WARNING)
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 
 
 class XGBoostAligner(BaseGraphAligner):
@@ -151,9 +146,7 @@ class XGBoostAligner(BaseGraphAligner):
         edge_features = None
         edge_data = data[MetaData.EDGE_DATA]
         edge_list = edge_data[[self.src_col, self.dst_col]]
-        feature_cols = list(
-            set(edge_data.columns) - {self.src_col, self.dst_col}
-        )
+        feature_cols = list(set(edge_data.columns) - {self.src_col, self.dst_col})
         if len(feature_cols) > 0:
             edge_features = edge_data[feature_cols]
             self.fit_edge(
@@ -192,10 +185,14 @@ class XGBoostAligner(BaseGraphAligner):
 
         # - store params for align function
         self.edge_columns = list(edge_df.columns)
-        
+
         if self.features_to_correlate_edge is None:
-            print("`features_to_correlate_edge` was not provided... aligning on all features and treating them as continuous")
-            self.features_to_correlate_edge = {col: ColumnType.CONTINUOUS for col in self.edge_columns}
+            print(
+                "`features_to_correlate_edge` was not provided... aligning on all features and treating them as continuous"
+            )
+            self.features_to_correlate_edge = {
+                col: ColumnType.CONTINUOUS for col in self.edge_columns
+            }
 
         # - create graph
         table_el_df = df_to_cudf(table_el_df)
@@ -305,8 +302,12 @@ class XGBoostAligner(BaseGraphAligner):
         # - store params for align function
         self.node_columns = list(node_df.columns)
         if self.features_to_correlate_node is None:
-            print("`features_to_correlate_node` was not provided... aligning on all features and treating them as continuous")
-            self.features_to_correlate_node = {col: ColumnType.CONTINUOUS for col in self.node_columns}
+            print(
+                "`features_to_correlate_node` was not provided... aligning on all features and treating them as continuous"
+            )
+            self.features_to_correlate_node = {
+                col: ColumnType.CONTINUOUS for col in self.node_columns
+            }
         # - create graph
         table_el_df = df_to_cudf(table_el_df)
         if self.use_dask:
@@ -391,7 +392,7 @@ class XGBoostAligner(BaseGraphAligner):
     def align(
         self, data: Dict[str, DataFrameType], src_col: str, dst_col: str, **kwargs
     ) -> pd.DataFrame:
-        """ Align given features onto graph defined in `data[MetaData.EDGE_LIST]`
+        """Align given features onto graph defined in `data[MetaData.EDGE_LIST]`
 
         Args:
             data (Dict[str, DataFrameType]): dictionary containing graph edge list and edge/node
@@ -532,9 +533,7 @@ class XGBoostAligner(BaseGraphAligner):
             preproc_fn = None
             if preproc_dict:
                 try:
-                    preproc_fn = get_preproc_fn(
-                        preproc_dict[col_name]["preproc"]
-                    )
+                    preproc_fn = get_preproc_fn(preproc_dict[col_name]["preproc"])
                 except:
                     pass
 
@@ -563,9 +562,7 @@ class XGBoostAligner(BaseGraphAligner):
                 unique_preds = cupy.unique(all_preds)
                 unique_preds = cupy.asnumpy(unique_preds)
                 unique_generated = cupy.unique(y_generated)
-                present_unique = [
-                    up for up in unique_preds if up in unique_generated
-                ]
+                present_unique = [up for up in unique_preds if up in unique_generated]
                 idxs = cupy.arange(0, len(y_generated))
                 pred_assigned = cupy.zeros(len(all_preds), dtype="bool")
                 gen_assigned = cupy.zeros(len(y_generated), dtype="bool")
@@ -611,15 +608,11 @@ class XGBoostAligner(BaseGraphAligner):
                 enumerate(chunks), total=len(chunks), desc=f"Assigning {mode}"
             ):
                 idxs = cupy.ones((len(y_generated),), dtype=cupy.bool)
-                chunk = chunk / cupy.linalg.norm(chunk, ord=2, axis=1).reshape(
-                    -1, 1
-                )
+                chunk = chunk / cupy.linalg.norm(chunk, ord=2, axis=1).reshape(-1, 1)
                 sim = cupy.einsum("ij,kj->ik", chunk, y_generated)
                 chunk_ranks = cupy.argsort(sim, axis=1)[:, -topk:]
                 rand_sel = cupy.random.randint(0, topk, len(chunk_ranks))
-                chunk_ranks = chunk_ranks[
-                    cupy.arange(len(chunk_ranks)), rand_sel
-                ]
+                chunk_ranks = chunk_ranks[cupy.arange(len(chunk_ranks)), rand_sel]
                 cupy.put(idxs, chunk_ranks, False)
                 y_generated = y_generated[idxs]
                 ranks[
@@ -665,15 +658,11 @@ class XGBoostAligner(BaseGraphAligner):
 
         if hasattr(self, "edge_trained_models"):
             for k, v in self.edge_trained_models.items():
-                v.save_model(
-                    os.path.join(save_dir, f"{k}_xgb_aligner_edge.json")
-                )
+                v.save_model(os.path.join(save_dir, f"{k}_xgb_aligner_edge.json"))
 
         if hasattr(self, "node_trained_models"):
             for k, v in self.node_trained_models.items():
-                v.save_model(
-                    os.path.join(save_dir, f"{k}_xgb_aligner_node.json")
-                )
+                v.save_model(os.path.join(save_dir, f"{k}_xgb_aligner_node.json"))
 
         meta_data = {
             "features_to_correlate_edge": self.features_to_correlate_edge,
@@ -691,7 +680,7 @@ class XGBoostAligner(BaseGraphAligner):
                 "col_maps_node": self.col_maps_node,
                 "edge_columns": self.edge_columns,
                 "node_columns": self.node_columns,
-            }
+            },
         }
         with open(os.path.join(save_dir, "xgb_aligner_meta.pkl"), "wb") as file_handler:
             pickle.dump(meta_data, file_handler, protocol=pickle.HIGHEST_PROTOCOL)
@@ -701,8 +690,8 @@ class XGBoostAligner(BaseGraphAligner):
         with open(os.path.join(dir_path, "xgb_aligner_meta.pkl"), "rb") as file_handler:
             meta_data = pickle.load(file_handler)
 
-        fitted_data = meta_data['fitted_data']
-        meta_data.pop('fitted_data')
+        fitted_data = meta_data["fitted_data"]
+        meta_data.pop("fitted_data")
 
         instance = cls(**meta_data)
         for k, v in fitted_data.items():

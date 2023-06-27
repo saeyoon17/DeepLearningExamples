@@ -18,11 +18,9 @@ import cudf
 import numpy as np
 import pandas as pd
 from sklearn.mixture import BayesianGaussianMixture
-
+from syngen.generator.tabular.data_transformer.base_data_transformer import \
+    BaseDataTransformer
 from syngen.generator.tabular.transforms import OneHotEncoding
-from syngen.generator.tabular.data_transformer.base_data_transformer import (
-    BaseDataTransformer,
-)
 
 SpanInfo = namedtuple("SpanInfo", ["dim", "activation_fn"])
 ColumnTransformInfo = namedtuple(
@@ -125,9 +123,7 @@ class CTGANDataTransformer(BaseDataTransformer):
             if not isinstance(raw_column_data, np.ndarray):
                 raw_column_data = raw_column_data.get()  # cupy to numpy
             if column_name in discrete_columns:
-                column_transform_info = self._fit_discrete(
-                    column_name, raw_column_data
-                )
+                column_transform_info = self._fit_discrete(column_name, raw_column_data)
             else:
                 column_transform_info = self._fit_continuous(
                     column_name, raw_column_data
@@ -163,9 +159,7 @@ class CTGANDataTransformer(BaseDataTransformer):
         selected_normalized_value = normalized_values[
             np.arange(len(raw_column_data)), selected_component
         ].reshape([-1, 1])
-        selected_normalized_value = np.clip(
-            selected_normalized_value, -0.99, 0.99
-        )
+        selected_normalized_value = np.clip(selected_normalized_value, -0.99, 0.99)
 
         selected_component_onehot = np.zeros_like(component_probs)
         selected_component_onehot[
@@ -210,17 +204,11 @@ class CTGANDataTransformer(BaseDataTransformer):
 
         if sigmas is not None:
             sig = sigmas[st]
-            selected_normalized_value = np.random.normal(
-                selected_normalized_value, sig
-            )
+            selected_normalized_value = np.random.normal(selected_normalized_value, sig)
 
         selected_normalized_value = np.clip(selected_normalized_value, -1, 1)
-        component_probs = (
-            np.ones((len(column_data), self._max_clusters)) * -100
-        )
-        component_probs[
-            :, valid_component_indicator
-        ] = selected_component_probs
+        component_probs = np.ones((len(column_data), self._max_clusters)) * -100
+        component_probs[:, valid_component_indicator] = selected_component_probs
 
         means = gm.means_.reshape([-1])
         stds = np.sqrt(gm.covariances_).reshape([-1])
@@ -264,9 +252,9 @@ class CTGANDataTransformer(BaseDataTransformer):
             st += dim
 
         recovered_data = np.column_stack(recovered_column_data_list)
-        recovered_data = pd.DataFrame(
-            recovered_data, columns=column_names
-        ).astype(self._column_raw_dtypes)
+        recovered_data = pd.DataFrame(recovered_data, columns=column_names).astype(
+            self._column_raw_dtypes
+        )
         if not self.dataframe:
             recovered_data = recovered_data.values
 
@@ -286,9 +274,7 @@ class CTGANDataTransformer(BaseDataTransformer):
                 f"The column_name `{column_name}` doesn't exist in the data."
             )
 
-        one_hot = column_transform_info.transform.transform(np.array([value]))[
-            0
-        ]
+        one_hot = column_transform_info.transform.transform(np.array([value]))[0]
 
         if sum(one_hot) == 0:
             raise ValueError(

@@ -12,6 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from model import layers
-from model import blocks
-from model import resnet
+from model import blocks, layers, resnet

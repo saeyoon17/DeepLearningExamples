@@ -26,20 +26,26 @@ class TrivialModel(nn.Module):
         self.predict_steps = self.example_length - self.encoder_length
         self.output_dim = len(config.get("quantiles", [""]))
 
-    
     def forward(self, batch):
         t = next(t for t in batch.values() if t is not None)
         bs = t.shape[0]
-        return torch.ones([bs, self.example_length - self.encoder_length, self.output_dim]).to(device=t.device) + self.bias
+        return (
+            torch.ones(
+                [bs, self.example_length - self.encoder_length, self.output_dim]
+            ).to(device=t.device)
+            + self.bias
+        )
 
     def predict(self, batch):
         targets = batch["target"].clone()
         prev_predictions = targets.roll(1, 1)
         return prev_predictions[:, -self.predict_steps :, :]
 
-    # TODO: reenable usage of such functions 
+    # TODO: reenable usage of such functions
     def test_with_last(self, batch):
-        bs = max([tensor.shape[0] if tensor is not None else 0 for tensor in batch.values()])
+        bs = max(
+            [tensor.shape[0] if tensor is not None else 0 for tensor in batch.values()]
+        )
         values = (
             # TODO: this will become disfuntional after removing "targer_masked" from dataset. Seed comment in data_utils.py
             batch["target_masked"]

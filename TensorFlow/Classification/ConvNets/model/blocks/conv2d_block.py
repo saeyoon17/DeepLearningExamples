@@ -16,10 +16,9 @@
 # limitations under the License.
 
 import tensorflow as tf
-
 from model import layers
 
-__all__ = ['conv2d_block']
+__all__ = ["conv2d_block"]
 
 
 def conv2d_block(
@@ -27,21 +26,24 @@ def conv2d_block(
     n_channels,
     kernel_size=(3, 3),
     strides=(2, 2),
-    mode='SAME',
+    mode="SAME",
     use_batch_norm=True,
-    activation='relu',
+    activation="relu",
     is_training=True,
-    data_format='NHWC',
+    data_format="NHWC",
     conv2d_hparams=None,
     batch_norm_hparams=None,
-    name='conv2d',
+    name="conv2d",
     cardinality=1,
 ):
 
     if not isinstance(conv2d_hparams, tf.contrib.training.HParams):
         raise ValueError("The paramater `conv2d_hparams` is not of type `HParams`")
 
-    if not isinstance(batch_norm_hparams, tf.contrib.training.HParams) and use_batch_norm:
+    if (
+        not isinstance(batch_norm_hparams, tf.contrib.training.HParams)
+        and use_batch_norm
+    ):
         raise ValueError("The paramater `conv2d_hparams` is not of type `HParams`")
 
     with tf.variable_scope(name):
@@ -56,18 +58,22 @@ def conv2d_block(
                 use_bias=not use_batch_norm,
                 trainable=is_training,
                 kernel_initializer=conv2d_hparams.kernel_initializer,
-                bias_initializer=conv2d_hparams.bias_initializer)
+                bias_initializer=conv2d_hparams.bias_initializer,
+            )
         else:
             group_filter = tf.get_variable(
-                name=name + 'group_filter',
+                name=name + "group_filter",
                 shape=[3, 3, n_channels // cardinality, n_channels],
                 trainable=is_training,
-                dtype=tf.float32)
-            net = tf.nn.conv2d(inputs,
-                               group_filter,
-                               strides=strides,
-                               padding='SAME',
-                               data_format=data_format)
+                dtype=tf.float32,
+            )
+            net = tf.nn.conv2d(
+                inputs,
+                group_filter,
+                strides=strides,
+                padding="SAME",
+                data_format=data_format,
+            )
         if use_batch_norm:
             net = layers.batch_norm(
                 net,
@@ -77,16 +83,16 @@ def conv2d_block(
                 center=batch_norm_hparams.center,
                 is_training=is_training,
                 data_format=data_format,
-                param_initializers=batch_norm_hparams.param_initializers
+                param_initializers=batch_norm_hparams.param_initializers,
             )
 
-        if activation == 'relu':
-            net = layers.relu(net, name='relu')
+        if activation == "relu":
+            net = layers.relu(net, name="relu")
 
-        elif activation == 'tanh':
-            net = layers.tanh(net, name='tanh')
+        elif activation == "tanh":
+            net = layers.tanh(net, name="tanh")
 
-        elif activation != 'linear' and activation is not None:
-            raise KeyError('Invalid activation type: `%s`' % activation)
+        elif activation != "linear" and activation is not None:
+            raise KeyError("Invalid activation type: `%s`" % activation)
 
         return net

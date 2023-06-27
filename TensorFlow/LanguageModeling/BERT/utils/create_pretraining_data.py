@@ -16,169 +16,228 @@
 
 """Create masked LM/next sentence masked_lm TF examples for BERT."""
 
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
 import argparse
+import collections
 import logging
 import os
 import random
 from io import open
+
 import h5py
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
+import tokenization as tokenization
+from tokenization import BertTokenizer
 from tqdm import tqdm, trange
 
-from tokenization import BertTokenizer
-import tokenization as tokenization
-
-import random
-import collections
 
 class TrainingInstance(object):
-  """A single training instance (sentence pair)."""
+    """A single training instance (sentence pair)."""
 
-  def __init__(self, tokens, segment_ids, masked_lm_positions, masked_lm_labels,
-               is_random_next):
-    self.tokens = tokens
-    self.segment_ids = segment_ids
-    self.is_random_next = is_random_next
-    self.masked_lm_positions = masked_lm_positions
-    self.masked_lm_labels = masked_lm_labels
+    def __init__(
+        self, tokens, segment_ids, masked_lm_positions, masked_lm_labels, is_random_next
+    ):
+        self.tokens = tokens
+        self.segment_ids = segment_ids
+        self.is_random_next = is_random_next
+        self.masked_lm_positions = masked_lm_positions
+        self.masked_lm_labels = masked_lm_labels
 
-  def __str__(self):
-    s = ""
-    s += "tokens: %s\n" % (" ".join(
-        [tokenization.printable_text(x) for x in self.tokens]))
-    s += "segment_ids: %s\n" % (" ".join([str(x) for x in self.segment_ids]))
-    s += "is_random_next: %s\n" % self.is_random_next
-    s += "masked_lm_positions: %s\n" % (" ".join(
-        [str(x) for x in self.masked_lm_positions]))
-    s += "masked_lm_labels: %s\n" % (" ".join(
-        [tokenization.printable_text(x) for x in self.masked_lm_labels]))
-    s += "\n"
-    return s
+    def __str__(self):
+        s = ""
+        s += "tokens: %s\n" % (
+            " ".join([tokenization.printable_text(x) for x in self.tokens])
+        )
+        s += "segment_ids: %s\n" % (" ".join([str(x) for x in self.segment_ids]))
+        s += "is_random_next: %s\n" % self.is_random_next
+        s += "masked_lm_positions: %s\n" % (
+            " ".join([str(x) for x in self.masked_lm_positions])
+        )
+        s += "masked_lm_labels: %s\n" % (
+            " ".join([tokenization.printable_text(x) for x in self.masked_lm_labels])
+        )
+        s += "\n"
+        return s
 
-  def __repr__(self):
-    return self.__str__()
+    def __repr__(self):
+        return self.__str__()
 
 
-def write_instance_to_example_files(instances, tokenizer, max_seq_length,
-                                    max_predictions_per_seq, output_files, output_formats="tfrecord"):
-  """Create TF example files from `TrainingInstance`s."""
-  writers = []
-  for output_file in output_files:
-    writers.append(tf.python_io.TFRecordWriter(output_file))
+def write_instance_to_example_files(
+    instances,
+    tokenizer,
+    max_seq_length,
+    max_predictions_per_seq,
+    output_files,
+    output_formats="tfrecord",
+):
+    """Create TF example files from `TrainingInstance`s."""
+    writers = []
+    for output_file in output_files:
+        writers.append(tf.python_io.TFRecordWriter(output_file))
 
-  writer_index = 0
+    writer_index = 0
 
-  total_written = 0
-  if 'hdf5' in output_formats:
-    features_hdf5 = collections.OrderedDict()
-    num_instances = len(instances)
-    features_hdf5["input_ids"] = np.zeros([num_instances, max_seq_length], dtype="int32")
-    features_hdf5["input_mask"] = np.zeros([num_instances, max_seq_length], dtype="int32")
-    features_hdf5["segment_ids"] = np.zeros([num_instances, max_seq_length], dtype="int32")
-    features_hdf5["masked_lm_positions"] =  np.zeros([num_instances, max_predictions_per_seq], dtype="int32")
-    features_hdf5["masked_lm_ids"] = np.zeros([num_instances, max_predictions_per_seq], dtype="int32")
-    features_hdf5["next_sentence_labels"] = np.zeros(num_instances, dtype="int32")
+    total_written = 0
+    if "hdf5" in output_formats:
+        features_hdf5 = collections.OrderedDict()
+        num_instances = len(instances)
+        features_hdf5["input_ids"] = np.zeros(
+            [num_instances, max_seq_length], dtype="int32"
+        )
+        features_hdf5["input_mask"] = np.zeros(
+            [num_instances, max_seq_length], dtype="int32"
+        )
+        features_hdf5["segment_ids"] = np.zeros(
+            [num_instances, max_seq_length], dtype="int32"
+        )
+        features_hdf5["masked_lm_positions"] = np.zeros(
+            [num_instances, max_predictions_per_seq], dtype="int32"
+        )
+        features_hdf5["masked_lm_ids"] = np.zeros(
+            [num_instances, max_predictions_per_seq], dtype="int32"
+        )
+        features_hdf5["next_sentence_labels"] = np.zeros(num_instances, dtype="int32")
 
-  for (inst_index, instance) in enumerate(instances):
-    input_ids = tokenizer.convert_tokens_to_ids(instance.tokens)
-    input_mask = [1] * len(input_ids)
-    segment_ids = list(instance.segment_ids)
-    assert len(input_ids) <= max_seq_length
+    for (inst_index, instance) in enumerate(instances):
+        input_ids = tokenizer.convert_tokens_to_ids(instance.tokens)
+        input_mask = [1] * len(input_ids)
+        segment_ids = list(instance.segment_ids)
+        assert len(input_ids) <= max_seq_length
 
-    while len(input_ids) < max_seq_length:
-      input_ids.append(0)
-      input_mask.append(0)
-      segment_ids.append(0)
+        while len(input_ids) < max_seq_length:
+            input_ids.append(0)
+            input_mask.append(0)
+            segment_ids.append(0)
 
-    assert len(input_ids) == max_seq_length
-    assert len(input_mask) == max_seq_length
-    assert len(segment_ids) == max_seq_length
+        assert len(input_ids) == max_seq_length
+        assert len(input_mask) == max_seq_length
+        assert len(segment_ids) == max_seq_length
 
-    masked_lm_positions = list(instance.masked_lm_positions)
-    masked_lm_ids = tokenizer.convert_tokens_to_ids(instance.masked_lm_labels)
-    masked_lm_weights = [1.0] * len(masked_lm_ids)
+        masked_lm_positions = list(instance.masked_lm_positions)
+        masked_lm_ids = tokenizer.convert_tokens_to_ids(instance.masked_lm_labels)
+        masked_lm_weights = [1.0] * len(masked_lm_ids)
 
-    while len(masked_lm_positions) < max_predictions_per_seq:
-      masked_lm_positions.append(0)
-      masked_lm_ids.append(0)
-      masked_lm_weights.append(0.0)
+        while len(masked_lm_positions) < max_predictions_per_seq:
+            masked_lm_positions.append(0)
+            masked_lm_ids.append(0)
+            masked_lm_weights.append(0.0)
 
-    next_sentence_label = 1 if instance.is_random_next else 0
+        next_sentence_label = 1 if instance.is_random_next else 0
 
-    features = collections.OrderedDict()
-    features["input_ids"] = create_int_feature(input_ids)
-    features["input_mask"] = create_int_feature(input_mask)
-    features["segment_ids"] = create_int_feature(segment_ids)
-    features["masked_lm_positions"] = create_int_feature(masked_lm_positions)
-    features["masked_lm_ids"] = create_int_feature(masked_lm_ids)
-    features["masked_lm_weights"] = create_float_feature(masked_lm_weights)
-    features["next_sentence_labels"] = create_int_feature([next_sentence_label])
+        features = collections.OrderedDict()
+        features["input_ids"] = create_int_feature(input_ids)
+        features["input_mask"] = create_int_feature(input_mask)
+        features["segment_ids"] = create_int_feature(segment_ids)
+        features["masked_lm_positions"] = create_int_feature(masked_lm_positions)
+        features["masked_lm_ids"] = create_int_feature(masked_lm_ids)
+        features["masked_lm_weights"] = create_float_feature(masked_lm_weights)
+        features["next_sentence_labels"] = create_int_feature([next_sentence_label])
 
-    if 'tfrecord' in output_formats:
-      tf_example = tf.train.Example(features=tf.train.Features(feature=features))
-      writers[writer_index].write(tf_example.SerializeToString())
-    if 'hdf5' in output_formats:
-      features_hdf5["input_ids"][inst_index] = input_ids
-      features_hdf5["input_mask"][inst_index] = input_mask
-      features_hdf5["segment_ids"][inst_index] = segment_ids
-      features_hdf5["masked_lm_positions"][inst_index] = masked_lm_positions
-      features_hdf5["masked_lm_ids"][inst_index] = masked_lm_ids
-      features_hdf5["next_sentence_labels"][inst_index] = next_sentence_label
-    if 'tfrecord' not in output_formats and 'hdf5' not in output_formats:
-      assert False, 'Either empty output_formats list or unsupported type specified. Try: tfrecord or hdf5'
+        if "tfrecord" in output_formats:
+            tf_example = tf.train.Example(features=tf.train.Features(feature=features))
+            writers[writer_index].write(tf_example.SerializeToString())
+        if "hdf5" in output_formats:
+            features_hdf5["input_ids"][inst_index] = input_ids
+            features_hdf5["input_mask"][inst_index] = input_mask
+            features_hdf5["segment_ids"][inst_index] = segment_ids
+            features_hdf5["masked_lm_positions"][inst_index] = masked_lm_positions
+            features_hdf5["masked_lm_ids"][inst_index] = masked_lm_ids
+            features_hdf5["next_sentence_labels"][inst_index] = next_sentence_label
+        if "tfrecord" not in output_formats and "hdf5" not in output_formats:
+            assert (
+                False
+            ), "Either empty output_formats list or unsupported type specified. Try: tfrecord or hdf5"
 
-    writer_index = (writer_index + 1) % len(writers)
+        writer_index = (writer_index + 1) % len(writers)
 
-    total_written += 1
+        total_written += 1
 
-    if inst_index < 20:
-      tf.compat.v1.logging.info("*** Example ***")
-      tf.compat.v1.logging.info("tokens: %s" % " ".join(
-          [tokenization.printable_text(x) for x in instance.tokens]))
+        if inst_index < 20:
+            tf.compat.v1.logging.info("*** Example ***")
+            tf.compat.v1.logging.info(
+                "tokens: %s"
+                % " ".join([tokenization.printable_text(x) for x in instance.tokens])
+            )
 
-      for feature_name in features.keys():
-        feature = features[feature_name]
-        values = []
-        if feature.int64_list.value:
-          values = feature.int64_list.value
-        elif feature.float_list.value:
-          values = feature.float_list.value
-        tf.compat.v1.logging.info(
-            "%s: %s" % (feature_name, " ".join([str(x) for x in values])))
+            for feature_name in features.keys():
+                feature = features[feature_name]
+                values = []
+                if feature.int64_list.value:
+                    values = feature.int64_list.value
+                elif feature.float_list.value:
+                    values = feature.float_list.value
+                tf.compat.v1.logging.info(
+                    "%s: %s" % (feature_name, " ".join([str(x) for x in values]))
+                )
 
-  for writer in writers:
-    writer.close()
+    for writer in writers:
+        writer.close()
 
-  if 'hdf5' in output_formats:
-    f = h5py.File(output_file, 'w')
-    f.create_dataset("input_ids", data=features_hdf5["input_ids"], dtype='i4', compression='gzip')
-    f.create_dataset("input_mask", data=features_hdf5["input_mask"], dtype='i1', compression='gzip')
-    f.create_dataset("segment_ids", data=features_hdf5["segment_ids"], dtype='i1', compression='gzip')
-    f.create_dataset("masked_lm_positions", data=features_hdf5["masked_lm_positions"], dtype='i4', compression='gzip')
-    f.create_dataset("masked_lm_ids", data=features_hdf5["masked_lm_ids"], dtype='i4', compression='gzip')
-    f.create_dataset("next_sentence_labels", data=features_hdf5["next_sentence_labels"], dtype='i1', compression='gzip')
-    f.flush()
-    f.close()
+    if "hdf5" in output_formats:
+        f = h5py.File(output_file, "w")
+        f.create_dataset(
+            "input_ids", data=features_hdf5["input_ids"], dtype="i4", compression="gzip"
+        )
+        f.create_dataset(
+            "input_mask",
+            data=features_hdf5["input_mask"],
+            dtype="i1",
+            compression="gzip",
+        )
+        f.create_dataset(
+            "segment_ids",
+            data=features_hdf5["segment_ids"],
+            dtype="i1",
+            compression="gzip",
+        )
+        f.create_dataset(
+            "masked_lm_positions",
+            data=features_hdf5["masked_lm_positions"],
+            dtype="i4",
+            compression="gzip",
+        )
+        f.create_dataset(
+            "masked_lm_ids",
+            data=features_hdf5["masked_lm_ids"],
+            dtype="i4",
+            compression="gzip",
+        )
+        f.create_dataset(
+            "next_sentence_labels",
+            data=features_hdf5["next_sentence_labels"],
+            dtype="i1",
+            compression="gzip",
+        )
+        f.flush()
+        f.close()
 
-  tf.compat.v1.logging.info("Wrote %d total instances", total_written)
+    tf.compat.v1.logging.info("Wrote %d total instances", total_written)
 
 
 def create_int_feature(values):
-  feature = tf.train.Feature(int64_list=tf.train.Int64List(value=list(values)))
-  return feature
+    feature = tf.train.Feature(int64_list=tf.train.Int64List(value=list(values)))
+    return feature
 
 
 def create_float_feature(values):
-  feature = tf.train.Feature(float_list=tf.train.FloatList(value=list(values)))
-  return feature
+    feature = tf.train.Feature(float_list=tf.train.FloatList(value=list(values)))
+    return feature
 
 
-def create_training_instances(input_files, tokenizer, max_seq_length,
-                              dupe_factor, short_seq_prob, masked_lm_prob,
-                              max_predictions_per_seq, rng):
+def create_training_instances(
+    input_files,
+    tokenizer,
+    max_seq_length,
+    dupe_factor,
+    short_seq_prob,
+    masked_lm_prob,
+    max_predictions_per_seq,
+    rng,
+):
     """Create `TrainingInstance`s from raw text."""
     all_documents = [[]]
 
@@ -214,16 +273,31 @@ def create_training_instances(input_files, tokenizer, max_seq_length,
         for document_index in range(len(all_documents)):
             instances.extend(
                 create_instances_from_document(
-                    all_documents, document_index, max_seq_length, short_seq_prob,
-                    masked_lm_prob, max_predictions_per_seq, vocab_words, rng))
+                    all_documents,
+                    document_index,
+                    max_seq_length,
+                    short_seq_prob,
+                    masked_lm_prob,
+                    max_predictions_per_seq,
+                    vocab_words,
+                    rng,
+                )
+            )
 
     rng.shuffle(instances)
     return instances
 
 
 def create_instances_from_document(
-        all_documents, document_index, max_seq_length, short_seq_prob,
-        masked_lm_prob, max_predictions_per_seq, vocab_words, rng):
+    all_documents,
+    document_index,
+    max_seq_length,
+    short_seq_prob,
+    masked_lm_prob,
+    max_predictions_per_seq,
+    vocab_words,
+    rng,
+):
     """Creates `TrainingInstance`s for a single document."""
     document = all_documents[document_index]
 
@@ -282,10 +356,10 @@ def create_instances_from_document(
                         if random_document_index != document_index:
                             break
 
-                    #If picked random document is the same as the current document
+                    # If picked random document is the same as the current document
                     if random_document_index == document_index:
                         is_random_next = False
-                            
+
                     random_document = all_documents[random_document_index]
                     random_start = rng.randint(0, len(random_document) - 1)
                     for j in range(random_start, len(random_document)):
@@ -323,15 +397,20 @@ def create_instances_from_document(
                 tokens.append("[SEP]")
                 segment_ids.append(1)
 
-                (tokens, masked_lm_positions,
-                 masked_lm_labels) = create_masked_lm_predictions(
-                    tokens, masked_lm_prob, max_predictions_per_seq, vocab_words, rng)
+                (
+                    tokens,
+                    masked_lm_positions,
+                    masked_lm_labels,
+                ) = create_masked_lm_predictions(
+                    tokens, masked_lm_prob, max_predictions_per_seq, vocab_words, rng
+                )
                 instance = TrainingInstance(
                     tokens=tokens,
                     segment_ids=segment_ids,
                     is_random_next=is_random_next,
                     masked_lm_positions=masked_lm_positions,
-                    masked_lm_labels=masked_lm_labels)
+                    masked_lm_labels=masked_lm_labels,
+                )
                 instances.append(instance)
             current_chunk = []
             current_length = 0
@@ -340,12 +419,12 @@ def create_instances_from_document(
     return instances
 
 
-MaskedLmInstance = collections.namedtuple("MaskedLmInstance",
-                                          ["index", "label"])
+MaskedLmInstance = collections.namedtuple("MaskedLmInstance", ["index", "label"])
 
 
-def create_masked_lm_predictions(tokens, masked_lm_prob,
-                                 max_predictions_per_seq, vocab_words, rng):
+def create_masked_lm_predictions(
+    tokens, masked_lm_prob, max_predictions_per_seq, vocab_words, rng
+):
     """Creates the predictions for the masked LM objective."""
 
     cand_indexes = []
@@ -358,8 +437,9 @@ def create_masked_lm_predictions(tokens, masked_lm_prob,
 
     output_tokens = list(tokens)
 
-    num_to_predict = min(max_predictions_per_seq,
-                         max(1, int(round(len(tokens) * masked_lm_prob))))
+    num_to_predict = min(
+        max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob)))
+    )
 
     masked_lms = []
     covered_indexes = set()
@@ -418,59 +498,73 @@ def truncate_seq_pair(tokens_a, tokens_b, max_num_tokens, rng):
 def main():
     parser = argparse.ArgumentParser()
     ## Required parameters
-    parser.add_argument("--vocab_file",
-                        default=None,
-                        type=str,
-                        required=True,
-                        help="The vocabulary the BERT model will train on.")
-    parser.add_argument("--input_file",
-                        default=None,
-                        type=str,
-                        required=True,
-                        help="The input train corpus. can be directory with .txt files or a path to a single file")
-    parser.add_argument("--output_file",
-                        default=None,
-                        type=str,
-                        required=True,
-                        help="The output file where the model checkpoints will be written.")
+    parser.add_argument(
+        "--vocab_file",
+        default=None,
+        type=str,
+        required=True,
+        help="The vocabulary the BERT model will train on.",
+    )
+    parser.add_argument(
+        "--input_file",
+        default=None,
+        type=str,
+        required=True,
+        help="The input train corpus. can be directory with .txt files or a path to a single file",
+    )
+    parser.add_argument(
+        "--output_file",
+        default=None,
+        type=str,
+        required=True,
+        help="The output file where the model checkpoints will be written.",
+    )
 
     ## Other parameters
     # int
-    parser.add_argument("--max_seq_length",
-                        default=128,
-                        type=int,
-                        help="The maximum total input sequence length after WordPiece tokenization. \n"
-                             "Sequences longer than this will be truncated, and sequences shorter \n"
-                             "than this will be padded.")
-    parser.add_argument("--dupe_factor",
-                        default=10,
-                        type=int,
-                        help="Number of times to duplicate the input data (with different masks).")
-    parser.add_argument("--max_predictions_per_seq",
-                        default=20,
-                        type=int,
-                        help="Maximum sequence length.")
+    parser.add_argument(
+        "--max_seq_length",
+        default=128,
+        type=int,
+        help="The maximum total input sequence length after WordPiece tokenization. \n"
+        "Sequences longer than this will be truncated, and sequences shorter \n"
+        "than this will be padded.",
+    )
+    parser.add_argument(
+        "--dupe_factor",
+        default=10,
+        type=int,
+        help="Number of times to duplicate the input data (with different masks).",
+    )
+    parser.add_argument(
+        "--max_predictions_per_seq",
+        default=20,
+        type=int,
+        help="Maximum sequence length.",
+    )
 
     # floats
 
-    parser.add_argument("--masked_lm_prob",
-                        default=0.15,
-                        type=float,
-                        help="Masked LM probability.")
+    parser.add_argument(
+        "--masked_lm_prob", default=0.15, type=float, help="Masked LM probability."
+    )
 
-    parser.add_argument("--short_seq_prob",
-                        default=0.1,
-                        type=float,
-                        help="Probability to create a sequence shorter than maximum sequence length")
+    parser.add_argument(
+        "--short_seq_prob",
+        default=0.1,
+        type=float,
+        help="Probability to create a sequence shorter than maximum sequence length",
+    )
 
-    parser.add_argument("--do_lower_case",
-                        action='store_true',
-                        default=True,
-                        help="Whether to lower case the input text. True for uncased models, False for cased models.")
-    parser.add_argument('--random_seed',
-                        type=int,
-                        default=12345,
-                        help="random seed for initialization")
+    parser.add_argument(
+        "--do_lower_case",
+        action="store_true",
+        default=True,
+        help="Whether to lower case the input text. True for uncased models, False for cased models.",
+    )
+    parser.add_argument(
+        "--random_seed", type=int, default=12345, help="random seed for initialization"
+    )
 
     args = parser.parse_args()
 
@@ -480,25 +574,38 @@ def main():
     if os.path.isfile(args.input_file):
         input_files.append(args.input_file)
     elif os.path.isdir(args.input_file):
-        input_files = [os.path.join(args.input_file, f) for f in os.listdir(args.input_file) if
-                       (os.path.isfile(os.path.join(args.input_file, f)) and f.endswith('.txt'))]
+        input_files = [
+            os.path.join(args.input_file, f)
+            for f in os.listdir(args.input_file)
+            if (os.path.isfile(os.path.join(args.input_file, f)) and f.endswith(".txt"))
+        ]
     else:
         raise ValueError("{} is not a valid path".format(args.input_file))
 
     rng = random.Random(args.random_seed)
     instances = create_training_instances(
-        input_files, tokenizer, args.max_seq_length, args.dupe_factor,
-        args.short_seq_prob, args.masked_lm_prob, args.max_predictions_per_seq,
-        rng)
+        input_files,
+        tokenizer,
+        args.max_seq_length,
+        args.dupe_factor,
+        args.short_seq_prob,
+        args.masked_lm_prob,
+        args.max_predictions_per_seq,
+        rng,
+    )
 
     output_files = args.output_file.split(",")
     print("*** Writing to output files ***")
     for output_file in output_files:
         print(output_file)
 
-
-    write_instance_to_example_files(instances, tokenizer, args.max_seq_length,
-                                       args.max_predictions_per_seq, output_files)
+    write_instance_to_example_files(
+        instances,
+        tokenizer,
+        args.max_seq_length,
+        args.max_predictions_per_seq,
+        output_files,
+    )
 
 
 if __name__ == "__main__":

@@ -13,18 +13,19 @@
 # limitations under the License.
 
 import abc
+import pickle
 from collections import OrderedDict
 from functools import partial
 from typing import Union
-import pickle
+
 import numpy as np
 import pandas as pd
 import scipy
 import torch
 from sklearn.preprocessing import OrdinalEncoder
+from syngen.generator.tabular.base_tabular_generator import \
+    BaseTabularGenerator
 from torch import nn
-
-from syngen.generator.tabular.base_tabular_generator import BaseTabularGenerator
 
 
 class Kernel(abc.ABC, nn.Module):
@@ -41,9 +42,7 @@ class Kernel(abc.ABC, nn.Module):
     def _diffs(self, test_data, train_data):
         """Computes difference between each x in test_data with all train_data."""
         test_data = test_data.view(test_data.shape[0], 1, *test_data.shape[1:])
-        train_data = train_data.view(
-            1, train_data.shape[0], *train_data.shape[1:]
-        )
+        train_data = train_data.view(1, train_data.shape[0], *train_data.shape[1:])
         return test_data - train_data
 
     @abc.abstractmethod
@@ -63,14 +62,12 @@ class ParzenWindowKernel(Kernel):
         dims = tuple(range(len(abs_diffs.shape))[2:])
         dim = np.prod(abs_diffs.shape[2:])
         inside = torch.sum(abs_diffs / self.bandwidth <= 0.5, dim=dims) == dim
-        coef = 1 / self.bandwidth ** dim
+        coef = 1 / self.bandwidth**dim
         return (coef * inside).mean(dim=1)
 
     def sample(self, train_data):
         device = train_data.device
-        noise = (
-            torch.rand(train_data.shape, device=device) - 0.5
-        ) * self.bandwidth
+        noise = (torch.rand(train_data.shape, device=device) - 0.5) * self.bandwidth
         return train_data + noise
 
 
@@ -80,7 +77,7 @@ class GaussianKernel(Kernel):
     def forward(self, test_data, train_data):
         diffs = self._diffs(test_data, train_data)
         dims = tuple(range(len(diffs.shape))[2:])
-        var = self.bandwidth ** 2
+        var = self.bandwidth**2
         exp = torch.exp(-torch.norm(diffs, p=2, dim=dims) ** 2 / (2 * var))
         coef = 1 / torch.sqrt(torch.tensor(2 * np.pi * var))
         return (coef * exp).mean(dim=1)
@@ -123,13 +120,13 @@ class KernelDensity(abc.ABC):
 class KDEGenerator(BaseTabularGenerator):
     def __init__(self, device="cuda", **kwargs):
         """
-            A feature generator based on kernel density estimation
-            the default.
+        A feature generator based on kernel density estimation
+        the default.
 
-            Categorical and continuous columns are modeled using gaussian KDE
+        Categorical and continuous columns are modeled using gaussian KDE
 
-            Args:
-                device (str): device to use (default: cuda)
+        Args:
+            device (str): device to use (default: cuda)
         """
         super(BaseTabularGenerator).__init__()
         self.device = device
@@ -219,11 +216,11 @@ class KDEGenerator(BaseTabularGenerator):
         ...
 
     def save(self, path):
-        with open(path, 'wb') as file_handler:
+        with open(path, "wb") as file_handler:
             pickle.dump(self, file_handler, protocol=pickle.HIGHEST_PROTOCOL)
 
     @classmethod
     def load(cls, path):
-        with open(path, 'rb') as file_handler:
+        with open(path, "rb") as file_handler:
             model = pickle.load(file_handler)
         return model

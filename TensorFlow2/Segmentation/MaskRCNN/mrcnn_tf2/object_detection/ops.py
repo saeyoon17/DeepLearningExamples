@@ -17,15 +17,12 @@ This is originally implemented in TensorFlow Object Detection API.
 """
 
 import tensorflow as tf
-
 from mrcnn_tf2.object_detection import shape_utils
 
 
-def indices_to_dense_vector(indices,
-                            size,
-                            indices_value=1.,
-                            default_value=0,
-                            dtype=tf.float32):
+def indices_to_dense_vector(
+    indices, size, indices_value=1.0, default_value=0, dtype=tf.float32
+):
     """Creates dense vector with indices set to specific value and rest to zeros.
 
     This function exists because it is unclear if it is safe to use
@@ -49,8 +46,9 @@ def indices_to_dense_vector(indices,
     zeros = tf.ones([size], dtype=dtype) * default_value
     values = tf.ones_like(indices, dtype=dtype) * indices_value
 
-    return tf.dynamic_stitch([tf.range(size), tf.cast(indices, dtype=tf.int32)],
-                             [zeros, values])
+    return tf.dynamic_stitch(
+        [tf.range(size), tf.cast(indices, dtype=tf.int32)], [zeros, values]
+    )
 
 
 def matmul_gather_on_zeroth_axis(params, indices, scope=None):
@@ -75,5 +73,6 @@ def matmul_gather_on_zeroth_axis(params, indices, scope=None):
     params2d = tf.reshape(params, [params_shape[0], -1])
     indicator_matrix = tf.one_hot(indices, params_shape[0])
     gathered_result_flattened = tf.matmul(indicator_matrix, params2d)
-    return tf.reshape(gathered_result_flattened,
-                      tf.stack(indices_shape + params_shape[1:]))
+    return tf.reshape(
+        gathered_result_flattened, tf.stack(indices_shape + params_shape[1:])
+    )

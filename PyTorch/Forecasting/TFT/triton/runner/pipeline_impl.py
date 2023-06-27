@@ -109,7 +109,7 @@ pipeline.triton_prepare_performance_profiling_data(
         r"""
         mkdir -p ${SHARED_DIR}/input_data
         """,
-r"""
+        r"""
         python triton/prepare_input_data.py \
             --input-data-dir ${SHARED_DIR}/input_data/ \
             --dataset ${DATASETS_DIR}/${DATASET} \

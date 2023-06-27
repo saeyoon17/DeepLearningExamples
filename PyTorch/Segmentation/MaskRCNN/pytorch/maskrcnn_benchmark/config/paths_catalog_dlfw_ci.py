@@ -10,19 +10,19 @@ class DatasetCatalog(object):
     DATASETS = {
         "coco_2014_train": {
             "img_dir": "coco_train2014",
-            "ann_file": "annotations/instances_train2014.json"
+            "ann_file": "annotations/instances_train2014.json",
         },
         "coco_2014_val": {
             "img_dir": "coco_val2014",
-            "ann_file": "annotations/instances_val2014.json"
+            "ann_file": "annotations/instances_val2014.json",
         },
         "coco_2014_minival": {
             "img_dir": "coco_val2014",
-            "ann_file": "annotations/instances_minival2014.json"
+            "ann_file": "annotations/instances_minival2014.json",
         },
         "coco_2014_valminusminival": {
             "img_dir": "coco_val2014",
-            "ann_file": "annotations/instances_valminusminival2014.json"
+            "ann_file": "annotations/instances_valminusminival2014.json",
         },
     }
 
@@ -86,7 +86,7 @@ class ModelCatalog(object):
     @staticmethod
     def get_c2_imagenet_pretrained(name):
         prefix = ModelCatalog.S3_C2_DETECTRON_URL
-        name = name[len("ImageNetPretrained/"):]
+        name = name[len("ImageNetPretrained/") :]
         name = ModelCatalog.C2_IMAGENET_MODELS[name]
         url = "/".join([prefix, name])
         return url
@@ -99,7 +99,7 @@ class ModelCatalog(object):
         prefix = ModelCatalog.S3_C2_DETECTRON_URL
         suffix = ModelCatalog.C2_DETECTRON_SUFFIX
         # remove identification prefix
-        name = name[len("Caffe2Detectron/COCO/"):]
+        name = name[len("Caffe2Detectron/COCO/") :]
         # split in <model_id> and <model_name>
         model_id, model_name = name.split("/")
         # parsing to make it match the url address from the Caffe2 models
@@ -108,4 +108,3 @@ class ModelCatalog(object):
         unique_name = ".".join([model_name, signature])
         url = "/".join([prefix, model_id, "12_2017_baselines", unique_name, suffix])
         return url
-

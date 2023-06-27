@@ -15,74 +15,96 @@
 # author: Tomasz Grel (tgrel@nvidia.com), Tomasz Cheda (tcheda@nvidia.com)
 
 import os
-import horovod.tensorflow as hvd
 
-from defaults import TRAIN_MAPPING, TEST_MAPPING
+import horovod.tensorflow as hvd
+from datasets import DatasetMetadata, DummyDataset, TfRawBinaryDataset
+from defaults import TEST_MAPPING, TRAIN_MAPPING
 from feature_spec import FeatureSpec
-from datasets import TfRawBinaryDataset, DummyDataset, DatasetMetadata
 
 
 def get_dataset_metadata(flags):
-    if flags.dataset_type == 'synthetic' and not flags.synthetic_dataset_use_feature_spec:
+    if (
+        flags.dataset_type == "synthetic"
+        and not flags.synthetic_dataset_use_feature_spec
+    ):
         cardinalities = [int(d) for d in flags.synthetic_dataset_cardinalities]
         feature_spec = FeatureSpec.get_default_feature_spec(
             number_of_numerical_features=flags.synthetic_dataset_num_numerical_features,
-            categorical_feature_cardinalities=cardinalities)
+            categorical_feature_cardinalities=cardinalities,
+        )
     else:  # synthetic based on feature spec, or raw
         fspec_path = os.path.join(flags.dataset_path, flags.feature_spec)
         feature_spec = FeatureSpec.from_yaml(fspec_path)
 
-    dataset_metadata = DatasetMetadata(num_numerical_features=feature_spec.get_number_of_numerical_features(),
-                                       categorical_cardinalities=feature_spec.get_categorical_sizes())
+    dataset_metadata = DatasetMetadata(
+        num_numerical_features=feature_spec.get_number_of_numerical_features(),
+        categorical_cardinalities=feature_spec.get_categorical_sizes(),
+    )
     return dataset_metadata
 
 
 def create_input_pipelines(flags, table_ids):
-    if flags.dataset_type == 'synthetic' and not flags.synthetic_dataset_use_feature_spec:
+    if (
+        flags.dataset_type == "synthetic"
+        and not flags.synthetic_dataset_use_feature_spec
+    ):
         cardinalities = [int(d) for d in flags.synthetic_dataset_cardinalities]
         feature_spec = FeatureSpec.get_default_feature_spec(
             number_of_numerical_features=flags.synthetic_dataset_num_numerical_features,
-            categorical_feature_cardinalities=cardinalities)
+            categorical_feature_cardinalities=cardinalities,
+        )
     else:  # synthetic based on feature spec, or raw
         fspec_path = os.path.join(flags.dataset_path, flags.feature_spec)
         feature_spec = FeatureSpec.from_yaml(fspec_path)
 
-    dataset_metadata = DatasetMetadata(num_numerical_features=feature_spec.get_number_of_numerical_features(),
-                                       categorical_cardinalities=feature_spec.get_categorical_sizes())
+    dataset_metadata = DatasetMetadata(
+        num_numerical_features=feature_spec.get_number_of_numerical_features(),
+        categorical_cardinalities=feature_spec.get_categorical_sizes(),
+    )
 
-    if flags.dataset_type == 'synthetic':
-        local_table_sizes = [dataset_metadata.categorical_cardinalities[i] for i in table_ids]
-        train_dataset = DummyDataset(batch_size=flags.batch_size,
-                                     num_numerical_features=dataset_metadata.num_numerical_features,
-                                     categorical_feature_cardinalities=local_table_sizes,
-                                     num_batches=flags.synthetic_dataset_train_batches,
-                                     num_workers=hvd.size())
+    if flags.dataset_type == "synthetic":
+        local_table_sizes = [
+            dataset_metadata.categorical_cardinalities[i] for i in table_ids
+        ]
+        train_dataset = DummyDataset(
+            batch_size=flags.batch_size,
+            num_numerical_features=dataset_metadata.num_numerical_features,
+            categorical_feature_cardinalities=local_table_sizes,
+            num_batches=flags.synthetic_dataset_train_batches,
+            num_workers=hvd.size(),
+        )
 
-        test_dataset = DummyDataset(batch_size=flags.batch_size,
-                                    num_numerical_features=dataset_metadata.num_numerical_features,
-                                    categorical_feature_cardinalities=local_table_sizes,
-                                    num_batches=flags.synthetic_dataset_valid_batches,
-                                    num_workers=hvd.size())
+        test_dataset = DummyDataset(
+            batch_size=flags.batch_size,
+            num_numerical_features=dataset_metadata.num_numerical_features,
+            categorical_feature_cardinalities=local_table_sizes,
+            num_batches=flags.synthetic_dataset_valid_batches,
+            num_workers=hvd.size(),
+        )
 
-    elif flags.dataset_type == 'tf_raw':
+    elif flags.dataset_type == "tf_raw":
         local_categorical_feature_names = feature_spec.cat_positions_to_names(table_ids)
-        train_dataset = TfRawBinaryDataset(feature_spec=feature_spec,
-                                           instance=TRAIN_MAPPING,
-                                           batch_size=flags.batch_size,
-                                           numerical_features_enabled=True,
-                                           local_categorical_feature_names=local_categorical_feature_names,
-                                           rank=hvd.rank(),
-                                           world_size=hvd.size())
+        train_dataset = TfRawBinaryDataset(
+            feature_spec=feature_spec,
+            instance=TRAIN_MAPPING,
+            batch_size=flags.batch_size,
+            numerical_features_enabled=True,
+            local_categorical_feature_names=local_categorical_feature_names,
+            rank=hvd.rank(),
+            world_size=hvd.size(),
+        )
 
-        test_dataset = TfRawBinaryDataset(feature_spec=feature_spec,
-                                          instance=TEST_MAPPING,
-                                          batch_size=flags.batch_size,
-                                          numerical_features_enabled=True,
-                                          local_categorical_feature_names=local_categorical_feature_names,
-                                          rank = hvd.rank(),
-                                          world_size = hvd.size())
+        test_dataset = TfRawBinaryDataset(
+            feature_spec=feature_spec,
+            instance=TEST_MAPPING,
+            batch_size=flags.batch_size,
+            numerical_features_enabled=True,
+            local_categorical_feature_names=local_categorical_feature_names,
+            rank=hvd.rank(),
+            world_size=hvd.size(),
+        )
 
     else:
-        raise ValueError(f'Unsupported dataset type: {flags.dataset_type}')
+        raise ValueError(f"Unsupported dataset type: {flags.dataset_type}")
 
     return train_dataset, test_dataset

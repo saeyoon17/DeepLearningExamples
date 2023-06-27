@@ -15,7 +15,6 @@
 import torch
 from torch.autograd import Function
 
-
 if torch.cuda.get_device_capability()[0] >= 8:
     from dlrm.cuda_ext import interaction_ampere as interaction
 else:
@@ -23,7 +22,7 @@ else:
 
 
 class DotBasedInteract(Function):
-    """ Forward and Backward paths of cuda extension for dot-based feature interact."""
+    """Forward and Backward paths of cuda extension for dot-based feature interact."""
 
     @staticmethod
     @torch.cuda.amp.custom_fwd(cast_inputs=torch.half)
@@ -35,7 +34,7 @@ class DotBasedInteract(Function):
     @staticmethod
     @torch.cuda.amp.custom_bwd
     def backward(ctx, grad_output):
-        input, = ctx.saved_tensors
+        (input,) = ctx.saved_tensors
         grad, mlp_grad = interaction.dotBasedInteractBwd(input, grad_output)
         return grad, mlp_grad
 

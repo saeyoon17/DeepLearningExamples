@@ -1,7 +1,6 @@
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-
 from deployment_toolkit.core import BaseMetricsCalculator
 
 
@@ -10,12 +9,12 @@ class MetricsCalculator(BaseMetricsCalculator):
         self._equals = []
 
     def update(
-            self,
-            *,
-            ids: List[Any],
-            y_pred: Dict[str, np.ndarray],
-            x: Optional[Dict[str, np.ndarray]],
-            y_real: Optional[Dict[str, np.ndarray]],
+        self,
+        *,
+        ids: List[Any],
+        y_pred: Dict[str, np.ndarray],
+        x: Optional[Dict[str, np.ndarray]],
+        y_real: Optional[Dict[str, np.ndarray]],
     ):
         classes_real = y_real["classes"]
         classes_pred = y_pred["classes"]
@@ -23,7 +22,8 @@ class MetricsCalculator(BaseMetricsCalculator):
         classes_pred = np.squeeze(classes_pred)
 
         assert classes_real.shape == classes_pred.shape, (
-            f"classes_pred.shape={classes_pred.shape} != " f"classes_real.shape={classes_real.shape}"
+            f"classes_pred.shape={classes_pred.shape} != "
+            f"classes_real.shape={classes_real.shape}"
         )
         self._equals.append(classes_real == classes_pred)
 

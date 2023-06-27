@@ -36,13 +36,13 @@
 
 import math
 from typing import Tuple
+
 import numpy as np
-from scipy import linalg as la
 import torch
+from moflow.runtime.distributed_utils import get_world_size, reduce_tensor
+from scipy import linalg as la
 from torch import nn
 from torch.nn import functional as F
-
-from moflow.runtime.distributed_utils import get_world_size, reduce_tensor
 
 
 class ActNorm(nn.Module):
@@ -56,8 +56,8 @@ class ActNorm(nn.Module):
         self.loc = nn.Parameter(torch.zeros(*self.shape))
         self.scale = nn.Parameter(torch.ones(*self.shape))
 
-        self.register_buffer('initialized', torch.tensor(0, dtype=torch.uint8))
-        self.register_buffer('num_elements', torch.tensor(0, dtype=torch.uint8))
+        self.register_buffer("initialized", torch.tensor(0, dtype=torch.uint8))
+        self.register_buffer("num_elements", torch.tensor(0, dtype=torch.uint8))
 
     @torch.jit.ignore
     def initialize(self, input):
@@ -65,13 +65,17 @@ class ActNorm(nn.Module):
             return
 
         dims = list(input.shape[1:])
-        del dims[self.channels_dim -1]
+        del dims[self.channels_dim - 1]
 
         num_elems = math.prod(dims)
-        permutation = [self.channels_dim] + [i for i in range(self.num_dims) if i != self.channels_dim]
+        permutation = [self.channels_dim] + [
+            i for i in range(self.num_dims) if i != self.channels_dim
+        ]
         with torch.no_grad():
 
-            flatten = input.permute(*permutation).contiguous().view(self.num_channels, -1)
+            flatten = (
+                input.permute(*permutation).contiguous().view(self.num_channels, -1)
+            )
             mean = flatten.mean(1).view(self.shape)
             std = flatten.std(1).view(self.shape)
 
@@ -135,11 +139,11 @@ class InvConv2dLU(nn.Module):
         w_s = torch.from_numpy(w_s)
         w_u = torch.from_numpy(w_u)
 
-        self.register_buffer('w_p', w_p)
-        self.register_buffer('u_mask', torch.from_numpy(u_mask))
-        self.register_buffer('l_mask', torch.from_numpy(l_mask))
-        self.register_buffer('s_sign', torch.sign(w_s))
-        self.register_buffer('l_eye', torch.eye(l_mask.shape[0]))
+        self.register_buffer("w_p", w_p)
+        self.register_buffer("u_mask", torch.from_numpy(u_mask))
+        self.register_buffer("l_mask", torch.from_numpy(l_mask))
+        self.register_buffer("s_sign", torch.sign(w_s))
+        self.register_buffer("l_eye", torch.eye(l_mask.shape[0]))
         self.w_l = nn.Parameter(w_l)
         self.w_s = nn.Parameter(torch.log(torch.abs(w_s)))
         self.w_u = nn.Parameter(w_u)
@@ -189,6 +193,6 @@ class GraphConv(nn.Module):
         hs = self.graph_linear_self(nodes)
         m = self.graph_linear_edge(nodes)
         m = m.view(-1, self.num_atoms, self.out_ch, self.num_edge_type)
-        hr = torch.einsum('bemn,bnce->bmc', adj, m)
+        hr = torch.einsum("bemn,bnce->bmc", adj, m)
         hr = hr.unsqueeze(2)
         return hs + hr

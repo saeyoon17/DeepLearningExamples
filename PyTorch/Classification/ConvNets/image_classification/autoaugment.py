@@ -1,6 +1,7 @@
-from PIL import Image, ImageEnhance, ImageOps
-import numpy as np
 import random
+
+import numpy as np
+from PIL import Image, ImageEnhance, ImageOps
 
 
 class AutoaugmentImageNetPolicy(object):
@@ -8,6 +9,7 @@ class AutoaugmentImageNetPolicy(object):
     Randomly choose one of the best 24 Sub-policies on ImageNet.
     Reference: https://arxiv.org/abs/1805.09501
     """
+
     def __init__(self):
         self.policies = [
             SubPolicy(0.8, "equalize", 1, 0.8, "shearY", 4),
@@ -15,25 +17,21 @@ class AutoaugmentImageNetPolicy(object):
             SubPolicy(0.4, "color", 1, 0.6, "rotate", 8),
             SubPolicy(0.8, "solarize", 3, 0.4, "equalize", 7),
             SubPolicy(0.4, "solarize", 2, 0.6, "solarize", 2),
-
             SubPolicy(0.2, "color", 0, 0.8, "equalize", 8),
             SubPolicy(0.4, "equalize", 8, 0.8, "solarizeadd", 3),
             SubPolicy(0.2, "shearX", 9, 0.6, "rotate", 8),
             SubPolicy(0.6, "color", 1, 1.0, "equalize", 2),
             SubPolicy(0.4, "invert", 9, 0.6, "rotate", 0),
-
             SubPolicy(1.0, "equalize", 9, 0.6, "shearY", 3),
             SubPolicy(0.4, "color", 7, 0.6, "equalize", 0),
             SubPolicy(0.4, "posterize", 6, 0.4, "autocontrast", 7),
             SubPolicy(0.6, "solarize", 8, 0.6, "color", 9),
             SubPolicy(0.2, "solarize", 4, 0.8, "rotate", 9),
-
             SubPolicy(1.0, "rotate", 7, 0.8, "translateY", 9),
             SubPolicy(0.0, "shearX", 0, 0.8, "solarize", 4),
             SubPolicy(0.8, "shearY", 0, 0.6, "color", 4),
             SubPolicy(1.0, "color", 0, 0.6, "rotate", 2),
             SubPolicy(0.8, "equalize", 4, 0.0, "equalize", 8),
-
             SubPolicy(1.0, "equalize", 4, 0.6, "autocontrast", 2),
             SubPolicy(0.4, "shearY", 7, 0.6, "solarizeadd", 7),
             SubPolicy(0.8, "posterize", 2, 0.6, "solarize", 10),
@@ -83,13 +81,15 @@ class OperationFactory:
             "brightness": np.linspace(0.1, 1.9, 11),
             "autocontrast": [0] * 10,
             "equalize": [0] * 10,
-            "invert": [0] * 10
+            "invert": [0] * 10,
         }
 
         def rotate_with_fill(img, magnitude):
             magnitude *= random.choice([-1, 1])
             rot = img.convert("RGBA").rotate(magnitude)
-            return Image.composite(rot, Image.new("RGBA", rot.size, (128,) * 4), rot).convert(img.mode)
+            return Image.composite(
+                rot, Image.new("RGBA", rot.size, (128,) * 4), rot
+            ).convert(img.mode)
 
         def solarize_add(image, addition=0, threshold=128):
             lut = []
@@ -101,32 +101,53 @@ class OperationFactory:
                 else:
                     lut.append(i)
             from PIL.ImageOps import _lut
+
             return _lut(image, lut)
 
         self.operations = {
             "shearX": lambda img, magnitude: img.transform(
-                img.size, Image.AFFINE, (1, magnitude * random.choice([-1, 1]), 0, 0, 1, 0),
-                Image.BICUBIC, fillcolor=fillcolor),
+                img.size,
+                Image.AFFINE,
+                (1, magnitude * random.choice([-1, 1]), 0, 0, 1, 0),
+                Image.BICUBIC,
+                fillcolor=fillcolor,
+            ),
             "shearY": lambda img, magnitude: img.transform(
-                img.size, Image.AFFINE, (1, 0, 0, magnitude * random.choice([-1, 1]), 1, 0),
-                Image.BICUBIC, fillcolor=fillcolor),
+                img.size,
+                Image.AFFINE,
+                (1, 0, 0, magnitude * random.choice([-1, 1]), 1, 0),
+                Image.BICUBIC,
+                fillcolor=fillcolor,
+            ),
             "translateX": lambda img, magnitude: img.transform(
-                img.size, Image.AFFINE, (1, 0, magnitude * random.choice([-1, 1]), 0, 1, 0),
-                fillcolor=fillcolor),
+                img.size,
+                Image.AFFINE,
+                (1, 0, magnitude * random.choice([-1, 1]), 0, 1, 0),
+                fillcolor=fillcolor,
+            ),
             "translateY": lambda img, magnitude: img.transform(
-                img.size, Image.AFFINE, (1, 0, 0, 0, 1, magnitude * random.choice([-1, 1])),
-                fillcolor=fillcolor),
+                img.size,
+                Image.AFFINE,
+                (1, 0, 0, 0, 1, magnitude * random.choice([-1, 1])),
+                fillcolor=fillcolor,
+            ),
             "rotate": lambda img, magnitude: rotate_with_fill(img, magnitude),
             "color": lambda img, magnitude: ImageEnhance.Color(img).enhance(magnitude),
             "posterize": lambda img, magnitude: ImageOps.posterize(img, magnitude),
             "solarize": lambda img, magnitude: ImageOps.solarize(img, magnitude),
             "solarizeadd": lambda img, magnitude: solarize_add(img, magnitude),
-            "contrast": lambda img, magnitude: ImageEnhance.Contrast(img).enhance(magnitude),
-            "sharpness": lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(magnitude),
-            "brightness": lambda img, magnitude: ImageEnhance.Brightness(img).enhance(magnitude),
+            "contrast": lambda img, magnitude: ImageEnhance.Contrast(img).enhance(
+                magnitude
+            ),
+            "sharpness": lambda img, magnitude: ImageEnhance.Sharpness(img).enhance(
+                magnitude
+            ),
+            "brightness": lambda img, magnitude: ImageEnhance.Brightness(img).enhance(
+                magnitude
+            ),
             "autocontrast": lambda img, _: ImageOps.autocontrast(img),
             "equalize": lambda img, _: ImageOps.equalize(img),
-            "invert": lambda img, _: ImageOps.invert(img)
+            "invert": lambda img, _: ImageOps.invert(img),
         }
 
     def get_operation(self, method, magnitude_idx):

@@ -15,9 +15,9 @@
 from functools import partial
 
 import tensorflow as tf
-
 from sim.layers.ctr_classification_mlp import CTRClassificationMLP
-from sim.layers.item_sequence_interaction import DIENItemSequenceInteractionBlock
+from sim.layers.item_sequence_interaction import \
+    DIENItemSequenceInteractionBlock
 from sim.models.sequential_recommender_model import SequentialRecommenderModel
 
 EPS = 1e-06
@@ -51,12 +51,7 @@ def compute_auxiliary_probs(auxiliary_net, rnn_states, items_hist, training=Fals
 
 
 class DIENModel(SequentialRecommenderModel):
-    def __init__(
-        self,
-        feature_spec,
-        mlp_hidden_dims,
-        embedding_dim=4
-    ):
+    def __init__(self, feature_spec, mlp_hidden_dims, embedding_dim=4):
         super(DIENModel, self).__init__(
             feature_spec, embedding_dim, mlp_hidden_dims["classifier"]
         )
@@ -106,8 +101,9 @@ class DIENModel(SequentialRecommenderModel):
         if compute_aux_loss:
             # Embed negative sequence features
             short_neg_sequence_embeddings = self.embed(short_neg_sequence_features)
-            short_neg_sequence_embeddings = short_neg_sequence_embeddings * tf.expand_dims(
-                short_sequence_mask, axis=-1
+            short_neg_sequence_embeddings = (
+                short_neg_sequence_embeddings
+                * tf.expand_dims(short_sequence_mask, axis=-1)
             )
 
             # compute auxiliary logits
@@ -127,11 +123,9 @@ class DIENModel(SequentialRecommenderModel):
             )
             output_dict["aux_noclick_probs"] = aux_noclick_probs
 
-        combined_embeddings = tf.concat([
-            target_item_embedding,
-            final_seq_repr,
-            user_embedding
-        ], -1)
+        combined_embeddings = tf.concat(
+            [target_item_embedding, final_seq_repr, user_embedding], -1
+        )
 
         classification_logits = self.classificationMLP(combined_embeddings)
 

@@ -46,14 +46,12 @@ if __package__ is None:
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["TF_ENABLE_DEPRECATION_WARNINGS"] = "0"
 
-from .deployment_toolkit.args import ArgParserGenerator  # noqa: E402  module level import not at top of file
+from .deployment_toolkit.args import \
+    ArgParserGenerator  # noqa: E402  module level import not at top of file
 from .deployment_toolkit.core import (  # noqa: E402  module level import not at top of file
-    DATALOADER_FN_NAME,
-    BaseLoader,
-    BaseRunner,
-    load_from_file,
-)
-from .deployment_toolkit.extensions import loaders, runners  # noqa: E402  module level import not at top of file
+    DATALOADER_FN_NAME, BaseLoader, BaseRunner, load_from_file)
+from .deployment_toolkit.extensions import (  # noqa: E402  module level import not at top of file
+    loaders, runners)
 
 LOGGER = logging.getLogger("run_performance_on_fw")
 
@@ -72,14 +70,21 @@ def _save_result(results_path: str, results: List):
 
 
 def _parse_and_validate_args():
-    supported_inputs = set(runners.supported_extensions) & set(loaders.supported_extensions)
+    supported_inputs = set(runners.supported_extensions) & set(
+        loaders.supported_extensions
+    )
 
     parser = argparse.ArgumentParser(
-        description="Measure inference performance of given model in framework container", allow_abbrev=False
+        description="Measure inference performance of given model in framework container",
+        allow_abbrev=False,
     )
     parser.add_argument("--input-path", help="Path to input model", required=True)
-    parser.add_argument("--input-type", help="Input model type", choices=supported_inputs, required=True)
-    parser.add_argument("--dataloader", help="Path to python file containing dataloader.", required=True)
+    parser.add_argument(
+        "--input-type", help="Input model type", choices=supported_inputs, required=True
+    )
+    parser.add_argument(
+        "--dataloader", help="Path to python file containing dataloader.", required=True
+    )
     parser.add_argument(
         "--batch-sizes",
         type=int,
@@ -98,11 +103,15 @@ def _parse_and_validate_args():
         help="Path to results file where performance result will be stored",
         required=True,
     )
-    parser.add_argument("-v", "--verbose", help="Verbose logs", action="store_true", default=False)
+    parser.add_argument(
+        "-v", "--verbose", help="Verbose logs", action="store_true", default=False
+    )
 
     args, *_ = parser.parse_known_args()
 
-    get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+    get_dataloader_fn = load_from_file(
+        args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+    )
     ArgParserGenerator(get_dataloader_fn).update_argparser(parser)
 
     Loader: BaseLoader = loaders.get(args.input_type)
@@ -115,8 +124,12 @@ def _parse_and_validate_args():
 
     types_requiring_io_params = []
 
-    if args.input_type in types_requiring_io_params and not all(p for p in [args.inputs, args.outptputs]):
-        parser.error(f"For {args.input_type} input provide --inputs and --outputs parameters")
+    if args.input_type in types_requiring_io_params and not all(
+        p for p in [args.inputs, args.outptputs]
+    ):
+        parser.error(
+            f"For {args.input_type} input provide --inputs and --outputs parameters"
+        )
 
     return args
 
@@ -133,10 +146,14 @@ def main():
         LOGGER.info(f"    {key} = {value}")
 
     if args.iterations < 10:
-        raise ValueError("The minimal number of iterations for performance measurement is 10")
+        raise ValueError(
+            "The minimal number of iterations for performance measurement is 10"
+        )
 
     if not args.results_path.endswith(".csv"):
-        raise ValueError("Results path for results is invalid. Please, provide the CSV file name. Example: results.csv")
+        raise ValueError(
+            "Results path for results is invalid. Please, provide the CSV file name. Example: results.csv"
+        )
 
     Loader: BaseLoader = loaders.get(args.input_type)
     Runner: BaseRunner = runners.get(args.input_type)
@@ -145,7 +162,9 @@ def main():
     runner = ArgParserGenerator(Runner).from_args(args)
     LOGGER.info(f"Loading {args.input_path}")
     model = loader.load(args.input_path)
-    get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+    get_dataloader_fn = load_from_file(
+        args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+    )
 
     results = []
     with runner.init_inference(model=model) as runner_session:

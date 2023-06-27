@@ -31,24 +31,13 @@
 import argparse
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import List, Dict, Callable, Any, Type
+from typing import Any, Callable, Dict, List, Type
 
 import torch
 import torch.nn as nn
 
-from .common import (
-    SqueezeAndExcitation,
-    LayerBuilder,
-    SqueezeAndExcitationTRT,
-)
-
-from .model import (
-    Model,
-    ModelParams,
-    ModelArch,
-    EntryPoint,
-)
-
+from .common import LayerBuilder, SqueezeAndExcitation, SqueezeAndExcitationTRT
+from .model import EntryPoint, Model, ModelArch, ModelParams
 
 __all__ = ["ResNet", "resnet_configs"]
 
@@ -71,9 +60,7 @@ class BasicBlock(nn.Module):
         self.conv1 = builder.conv3x3(inplanes, planes, stride, groups=cardinality)
         self.bn1 = builder.batchnorm(planes)
         self.relu = builder.activation()
-        self.conv2 = builder.conv3x3(
-            planes, planes * expansion, groups=cardinality
-        )
+        self.conv2 = builder.conv3x3(planes, planes * expansion, groups=cardinality)
         self.bn2 = builder.batchnorm(planes * expansion, zero_init=last_bn_0_init)
         self.downsample = downsample
         self.stride = stride

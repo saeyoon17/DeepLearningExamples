@@ -1,15 +1,15 @@
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 
 import logging
-import tempfile
 import os
-import torch
+import tempfile
 from collections import OrderedDict
-from tqdm import tqdm
 
+import torch
 from maskrcnn_benchmark.modeling.roi_heads.mask_head.inference import Masker
 from maskrcnn_benchmark.structures.bounding_box import BoxList
 from maskrcnn_benchmark.structures.boxlist_ops import boxlist_iou
+from tqdm import tqdm
 
 
 def do_coco_evaluation(
@@ -102,8 +102,8 @@ def prepare_for_coco_detection(predictions, dataset):
 
 
 def prepare_for_coco_segmentation(predictions, dataset):
-    import pycocotools.mask as mask_util
     import numpy as np
+    import pycocotools.mask as mask_util
 
     masker = Masker(threshold=0.5, padding=1)
     # assert isinstance(dataset, COCODataset)
@@ -176,14 +176,14 @@ def evaluate_box_proposals(
         "512-inf": 7,
     }
     area_ranges = [
-        [0 ** 2, 1e5 ** 2],  # all
-        [0 ** 2, 32 ** 2],  # small
-        [32 ** 2, 96 ** 2],  # medium
-        [96 ** 2, 1e5 ** 2],  # large
-        [96 ** 2, 128 ** 2],  # 96-128
-        [128 ** 2, 256 ** 2],  # 128-256
-        [256 ** 2, 512 ** 2],  # 256-512
-        [512 ** 2, 1e5 ** 2],
+        [0**2, 1e5**2],  # all
+        [0**2, 32**2],  # small
+        [32**2, 96**2],  # medium
+        [96**2, 1e5**2],  # large
+        [96**2, 128**2],  # 96-128
+        [128**2, 256**2],  # 128-256
+        [256**2, 512**2],  # 256-512
+        [512**2, 1e5**2],
     ]  # 512-inf
     assert area in areas, "Unknown area range: {}".format(area)
     area_range = area_ranges[areas[area]]
@@ -283,7 +283,9 @@ def evaluate_predictions_on_coco(
     from pycocotools.coco import COCO
     from pycocotools.cocoeval import COCOeval
 
-    coco_dt = coco_gt.loadRes(str(json_result_file), use_ext=True) if coco_results else COCO()
+    coco_dt = (
+        coco_gt.loadRes(str(json_result_file), use_ext=True) if coco_results else COCO()
+    )
 
     # coco_dt = coco_gt.loadRes(coco_results)
     coco_eval = COCOeval(coco_gt, coco_dt, iou_type, use_ext=True)

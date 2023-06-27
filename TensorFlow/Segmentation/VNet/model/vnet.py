@@ -12,12 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from model.layers import input_block, downsample_block, upsample_block, output_block
+from model.layers import (downsample_block, input_block, output_block,
+                          upsample_block)
 
 
-class Builder():
-    def __init__(self, kernel_size, n_classes, upscale_blocks, downscale_blocks, upsampling, pooling, normalization,
-                 activation, mode):
+class Builder:
+    def __init__(
+        self,
+        kernel_size,
+        n_classes,
+        upscale_blocks,
+        downscale_blocks,
+        upsampling,
+        pooling,
+        normalization,
+        activation,
+        mode,
+    ):
         self._kernel_size = kernel_size
         self._pooling = pooling
         self._upsampling = upsampling
@@ -30,43 +41,51 @@ class Builder():
 
     def __call__(self, features):
 
-        x = input_block(inputs=features,
-                        filters=16,
-                        kernel_size=self._kernel_size,
-                        normalization=self._normalization,
-                        activation=self._activation,
-                        mode=self._mode)
+        x = input_block(
+            inputs=features,
+            filters=16,
+            kernel_size=self._kernel_size,
+            normalization=self._normalization,
+            activation=self._activation,
+            mode=self._mode,
+        )
 
         skip_connections = [x]
 
         for depth in self._downscale_blocks:
-            x = downsample_block(inputs=x,
-                                 depth=depth,
-                                 kernel_size=self._kernel_size,
-                                 pooling=self._pooling,
-                                 normalization=self._normalization,
-                                 activation=self._activation,
-                                 mode=self._mode)
+            x = downsample_block(
+                inputs=x,
+                depth=depth,
+                kernel_size=self._kernel_size,
+                pooling=self._pooling,
+                normalization=self._normalization,
+                activation=self._activation,
+                mode=self._mode,
+            )
 
             skip_connections.append(x)
 
         del skip_connections[-1]
 
         for depth in self._upscale_blocks:
-            x = upsample_block(inputs=x,
-                               residual_inputs=skip_connections.pop(),
-                               depth=depth,
-                               upsampling=self._upsampling,
-                               kernel_size=self._kernel_size,
-                               normalization=self._normalization,
-                               activation=self._activation,
-                               mode=self._mode)
+            x = upsample_block(
+                inputs=x,
+                residual_inputs=skip_connections.pop(),
+                depth=depth,
+                upsampling=self._upsampling,
+                kernel_size=self._kernel_size,
+                normalization=self._normalization,
+                activation=self._activation,
+                mode=self._mode,
+            )
 
-        return output_block(inputs=x,
-                            residual_inputs=skip_connections.pop(),
-                            kernel_size=self._kernel_size,
-                            n_classes=self._n_classes,
-                            upsampling=self._upsampling,
-                            normalization=self._normalization,
-                            activation=self._activation,
-                            mode=self._mode)
+        return output_block(
+            inputs=x,
+            residual_inputs=skip_connections.pop(),
+            kernel_size=self._kernel_size,
+            n_classes=self._n_classes,
+            upsampling=self._upsampling,
+            normalization=self._normalization,
+            activation=self._activation,
+            mode=self._mode,
+        )

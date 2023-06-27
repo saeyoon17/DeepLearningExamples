@@ -23,13 +23,14 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# 
-
+#
 
 
 import pickle
+
 import torch
 from waveglow.model import WaveGlow
+
 
 def split_cond_layers(model):
     for WN in model.WN:
@@ -41,7 +42,7 @@ def split_cond_layers(model):
             conv_dilation = WN.cond_layer.dilation
             conv_padding = WN.cond_layer.padding
             num_in_channels = conv_weights.size(1)
-            num_out_channels = conv_weights.size(0)//n_layers
+            num_out_channels = conv_weights.size(0) // n_layers
             kernel_size = conv_weights.size(2)
             WN.cond_layers = []
             for i in range(n_layers):
@@ -51,22 +52,24 @@ def split_cond_layers(model):
                     kernel_size=kernel_size,
                     stride=conv_stride,
                     padding=conv_padding,
-                    dilation=conv_dilation)
+                    dilation=conv_dilation,
+                )
                 layer.weight.data[:, :, :] = conv_weights.data[
-                        i*num_out_channels:(i+1)*num_out_channels, :, :]
+                    i * num_out_channels : (i + 1) * num_out_channels, :, :
+                ]
                 layer.bias.data[:] = conv_bias.data[
-                        i*num_out_channels:(i+1)*num_out_channels]
-                layer = torch.nn.utils.weight_norm(layer, name='weight')
+                    i * num_out_channels : (i + 1) * num_out_channels
+                ]
+                layer = torch.nn.utils.weight_norm(layer, name="weight")
                 WN.cond_layers.append(layer)
     return model
-
 
 
 def load_waveglow(filename, waveglow_config):
     class RenamingUnpickler(pickle.Unpickler):
         def find_class(self, module, name):
-            if module == 'glow':
-                module = 'waveglow.model'
+            if module == "glow":
+                module = "waveglow.model"
             return super().find_class(module, name)
 
     class RenamingPickleModule:
@@ -79,17 +82,17 @@ def load_waveglow(filename, waveglow_config):
     pickle_module = RenamingPickleModule()
     blob = torch.load(filename, pickle_module=pickle_module)
 
-    if 'state_dict' in blob:
+    if "state_dict" in blob:
         waveglow = WaveGlow(**waveglow_config).cuda()
         state_dict = {}
         for key, value in blob["state_dict"].items():
             newKey = key
             if key.startswith("module."):
-                newKey = key[len("module."):]
+                newKey = key[len("module.") :]
             state_dict[newKey] = value
         waveglow.load_state_dict(state_dict)
     else:
-        waveglow = blob['model']
+        waveglow = blob["model"]
 
     waveglow = split_cond_layers(waveglow)
     waveglow = waveglow.remove_weightnorm(waveglow)

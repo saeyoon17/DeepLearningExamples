@@ -17,7 +17,6 @@ import logging
 import cudf
 import dask_cudf
 import pandas as pd
-
 from syngen.preprocessing.base_preprocessing import BasePreprocessing
 from syngen.utils.types import MetaData
 
@@ -28,10 +27,10 @@ log = logger
 class PaysimPreprocessing(BasePreprocessing):
     """Preprocessing for https://www.kaggle.com/datasets/ealaxi/paysim1
 
-        Args:
-            cached (bool): skip preprocessing and use cached files
-            nrows (int): number of rows to load from dataframe
-            drop_cols (list): columns to drop from dataframe
+    Args:
+        cached (bool): skip preprocessing and use cached files
+        nrows (int): number of rows to load from dataframe
+        drop_cols (list): columns to drop from dataframe
     """
 
     def __init__(
@@ -70,22 +69,17 @@ class PaysimPreprocessing(BasePreprocessing):
         ]
 
     def transform_graph(self, data) -> pd.DataFrame:
-        """ Preprocess data into graph
-        """
+        """Preprocess data into graph"""
         data = self.add_graph_edge_cols(data)
         continuous_columns = [
             c
             for c in data.columns
-            if c
-            in self.graph_info[MetaData.EDGE_DATA][MetaData.CONTINUOUS_COLUMNS]
+            if c in self.graph_info[MetaData.EDGE_DATA][MetaData.CONTINUOUS_COLUMNS]
         ]
         categorical_columns = [
             c
             for c in data.columns
-            if c
-            in self.graph_info[MetaData.EDGE_DATA][
-                MetaData.CATEGORICAL_COLUMNS
-            ]
+            if c in self.graph_info[MetaData.EDGE_DATA][MetaData.CATEGORICAL_COLUMNS]
         ]
 
         columns_to_select = categorical_columns + continuous_columns

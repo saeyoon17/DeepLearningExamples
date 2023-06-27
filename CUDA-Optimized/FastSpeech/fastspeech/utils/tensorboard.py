@@ -22,22 +22,21 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import matplotlib.pyplot as plt
-import numpy as np
 import cv2
 import data as global_data
+import matplotlib.pyplot as plt
+import numpy as np
+
+plt.switch_backend("Agg")
 
 
-plt.switch_backend('Agg')
-
-
-def image_plot(x, name='image'):
+def image_plot(x, name="image"):
     fig, ax = plt.subplots()
-    ax.imshow(x, cmap='magma', aspect='auto')
+    ax.imshow(x, cmap="magma", aspect="auto")
     fig.canvas.draw()
     buf = np.array(fig.canvas.renderer._renderer)
     plt.clf()
-    plt.close('all')
+    plt.close("all")
     cv2.imshow(name, buf)
     cv2.waitKey(0)
 
@@ -50,7 +49,7 @@ def plot_to_buf(x, align=True):
     fig.canvas.draw()
     im = np.array(fig.canvas.renderer._renderer)
     plt.clf()
-    plt.close('all')
+    plt.close("all")
     return np.rollaxis(im[..., :3], 2)
 
 
@@ -61,16 +60,16 @@ def imshow_to_buf(x, scale01=False):
 
     if scale01:
         x = (x - x.min()) / (x.max() - x.min())
-    if x.max() > 1.:
+    if x.max() > 1.0:
         x = softmax(x)
     if len(x.shape) == 3:
         x = x[0]
     fig, ax = plt.subplots()
-    ax.imshow(x, cmap='magma', aspect='auto')
+    ax.imshow(x, cmap="magma", aspect="auto")
     fig.canvas.draw()
     im = np.array(fig.canvas.renderer._renderer)
     plt.clf()
-    plt.close('all')
+    plt.close("all")
     return np.rollaxis(im[..., :3], 2)
 
 
@@ -82,4 +81,4 @@ def origin_to_chrs(target):
             results.append(global_data.idx2chr[idx])
         else:
             break
-    return ''.join(results)
+    return "".join(results)

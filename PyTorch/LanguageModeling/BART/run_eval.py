@@ -14,48 +14,39 @@
 # ==============================================================================
 
 import argparse
-import shutil
 import datetime
+import glob
 import json
+import os
+import shutil
 import time
 import warnings
+from json import JSONDecodeError
 from logging import getLogger
 from pathlib import Path
 from typing import Dict, List
-from json import JSONDecodeError
 
-import torch
-from torch import nn
-from tqdm import tqdm
-from torch.utils.data import DataLoader
-import numpy as np
-import os
-import glob
 import dllogger
-
-from bart.configuration.configuration_bart import BartConfig
-from bart.tokenization.tokenization_bart import BartTokenizer
-from bart.modeling.modeling_bart import BartForConditionalGeneration, shift_tokens_right
-from utils.utils import (
-    calculate_bleu,
-    calculate_rouge,
-    Seq2SeqDataset,
-    parse_numeric_n_bool_cl_kwargs,
-    use_task_specific_params,
-    encode_line,
-    load_json,
-    lmap,
-    chunks,
-    write_txt_file,
-    save_json,
-    format_step)
+import numpy as np
+import torch
 import utils.distributed_utils
-
+from bart.configuration.configuration_bart import BartConfig
+from bart.modeling.modeling_bart import (BartForConditionalGeneration,
+                                         shift_tokens_right)
+from bart.tokenization.tokenization_bart import BartTokenizer
+from torch import nn
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from utils.utils import (Seq2SeqDataset, calculate_bleu, calculate_rouge,
+                         chunks, encode_line, format_step, lmap, load_json,
+                         parse_numeric_n_bool_cl_kwargs, save_json,
+                         use_task_specific_params, write_txt_file)
 
 logger = getLogger(__name__)
 
 
 DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
 
 def distill(layers, num_layers):
     sft_layers = nn.ModuleList()
@@ -68,6 +59,7 @@ def distill(layers, num_layers):
         del layers[delete_layers[i] - i]
 
     return sft_layers
+
 
 def distill_sft(model, num_layers, do_encoder=False, do_decoder=False):
     if do_encoder:
@@ -110,7 +102,9 @@ def generate_summaries_or_translations(
 ) -> Dict:
 
     out_dir = Path(out_dir)
-    save_path = out_dir.joinpath(f"rank_{utils.distributed_utils.get_rank()}_output.json")
+    save_path = out_dir.joinpath(
+        f"rank_{utils.distributed_utils.get_rank()}_output.json"
+    )
 
     if num_return_sequences > eval_beams:
         eval_beams = num_return_sequences
@@ -127,7 +121,9 @@ def generate_summaries_or_translations(
         config.dtype = None
     config.pre_ln = pre_ln
 
-    model = BartForConditionalGeneration.from_pretrained(model_path, config=config).to(device)
+    model = BartForConditionalGeneration.from_pretrained(model_path, config=config).to(
+        device
+    )
 
     # if distilling, change model
     if distill == "sft":
@@ -139,8 +135,10 @@ def generate_summaries_or_translations(
         model = model.bfloat16()
     model.eval()
 
-    tokenizer = BartTokenizer.from_pretrained('facebook/bart-large-cnn')
-    logger.info(f"Inferred tokenizer type: {tokenizer.__class__}")  # if this is wrong, check config.model_type.
+    tokenizer = BartTokenizer.from_pretrained("facebook/bart-large-cnn")
+    logger.info(
+        f"Inferred tokenizer type: {tokenizer.__class__}"
+    )  # if this is wrong, check config.model_type.
 
     start_time = time.time()
     # update config with task specific params
@@ -148,14 +146,25 @@ def generate_summaries_or_translations(
     if prefix is None:
         prefix = prefix or getattr(model.config, "prefix", "") or ""
 
-    ds = Seq2SeqDataset(tokenizer, data_dir, max_source_length, max_target_length, type_path=type_path,
-        n_obs=n_obs, prefix=prefix)
+    ds = Seq2SeqDataset(
+        tokenizer,
+        data_dir,
+        max_source_length,
+        max_target_length,
+        type_path=type_path,
+        n_obs=n_obs,
+        prefix=prefix,
+    )
 
     # I set shuffle=True for a more accurate progress bar.
     # If all the longest samples are first, the prog bar estimate is too high at the beginning.
     is_distributed = True if utils.distributed_utils.get_world_size() > 1 else False
-    sampler = ds.make_sortish_sampler(batch_size, distributed=is_distributed, add_extra_examples=False, shuffle=True)
-    data_loader = DataLoader(ds, sampler=sampler, batch_size=batch_size, collate_fn=ds.collate_fn)
+    sampler = ds.make_sortish_sampler(
+        batch_size, distributed=is_distributed, add_extra_examples=False, shuffle=True
+    )
+    data_loader = DataLoader(
+        ds, sampler=sampler, batch_size=batch_size, collate_fn=ds.collate_fn
+    )
 
     results = []
     with torch.no_grad():
@@ -170,28 +179,43 @@ def generate_summaries_or_translations(
                 num_return_sequences=num_return_sequences,
                 num_beams=eval_beams,
                 max_length=eval_max_gen_length,
-                num_beam_groups=1, output_scores=False,
+                num_beam_groups=1,
+                output_scores=False,
                 return_dict_in_generate=False,
                 encoder_no_repeat_ngram_size=0,
                 diversity_penalty=0.0,
                 **generate_kwargs,
             )
-            preds = tokenizer.batch_decode(summaries, skip_special_tokens=True, clean_up_tokenization_spaces=False)
+            preds = tokenizer.batch_decode(
+                summaries, skip_special_tokens=True, clean_up_tokenization_spaces=False
+            )
             ids = batch["ids"]
             if num_return_sequences > 1:
-                preds = chunks(preds, num_return_sequences)  # batch size chunks, each of size num_return_seq
+                preds = chunks(
+                    preds, num_return_sequences
+                )  # batch size chunks, each of size num_return_seq
 
             torch.cuda.synchronize()
             eval_time = time.time() - t0
             for i, pred in enumerate(preds):
-                store_time = eval_time if i == 0 else None #only store latency for element 0 of every batch
+                store_time = (
+                    eval_time if i == 0 else None
+                )  # only store latency for element 0 of every batch
                 results.append(dict(pred=pred, id=ids[i].item(), eval_time=store_time))
 
     save_json(results, save_path)
     runtime = int(time.time() - start_time)  # seconds
     num_replicas = sampler.num_replicas if is_distributed else 1
     n_obs = len(results)
-    return results, num_replicas, dict(n_obs=n_obs, eval_only_runtime=runtime, seconds_per_sample=round(runtime / n_obs, 4))
+    return (
+        results,
+        num_replicas,
+        dict(
+            n_obs=n_obs,
+            eval_only_runtime=runtime,
+            seconds_per_sample=round(runtime / n_obs, 4),
+        ),
+    )
 
 
 def datetime_now():
@@ -215,26 +239,61 @@ def run_generate(verbose=True):
     """
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("model_path", type=str, help="like facebook/bart-large-cnn or path to ckpt")
+    parser.add_argument(
+        "model_path", type=str, help="like facebook/bart-large-cnn or path to ckpt"
+    )
     parser.add_argument("config_path", type=str, help="path to config")
     parser.add_argument("data_dir", type=str, help="like cnn_dm/test.source")
     parser.add_argument("save_path", type=str, help="where to save summaries")
-    parser.add_argument("--type_path", type=str, required=False, default="test", help="like cnn_dm/test.target")
-    parser.add_argument("--device", type=str, required=False, default=DEFAULT_DEVICE, help="cuda, cuda:1, cpu etc.")
     parser.add_argument(
-        "--prefix", type=str, required=False, default=None, help="will be added to the begininng of src examples"
+        "--type_path",
+        type=str,
+        required=False,
+        default="test",
+        help="like cnn_dm/test.target",
     )
-    parser.add_argument("--task", type=str, default="summarization", help="used for task_specific_params + metrics")
+    parser.add_argument(
+        "--device",
+        type=str,
+        required=False,
+        default=DEFAULT_DEVICE,
+        help="cuda, cuda:1, cpu etc.",
+    )
+    parser.add_argument(
+        "--prefix",
+        type=str,
+        required=False,
+        default=None,
+        help="will be added to the begininng of src examples",
+    )
+    parser.add_argument(
+        "--task",
+        type=str,
+        default="summarization",
+        help="used for task_specific_params + metrics",
+    )
     parser.add_argument("--bs", type=int, default=8, required=False, help="batch size")
     parser.add_argument(
-        "--n_obs", type=int, default=None, required=False, help="How many observations. Defaults to all."
+        "--n_obs",
+        type=int,
+        default=None,
+        required=False,
+        help="How many observations. Defaults to all.",
     )
     parser.add_argument(
-        "--num_return_sequences", type=int, default=1, required=False, help="How many sequences to return"
+        "--num_return_sequences",
+        type=int,
+        default=1,
+        required=False,
+        help="How many sequences to return",
     )
     parser.add_argument("--fp16", action="store_true")
     parser.add_argument("--bf16", action="store_true")
-    parser.add_argument("--dump-args", action="store_true", help="print the custom hparams with the results")
+    parser.add_argument(
+        "--dump-args",
+        action="store_true",
+        help="print the custom hparams with the results",
+    )
     parser.add_argument(
         "--info",
         nargs="?",
@@ -242,8 +301,19 @@ def run_generate(verbose=True):
         const=datetime_now(),
         help="use in conjunction w/ --dump-args to print with the results whatever other info you'd like, e.g. lang=en-ru. If no value is passed, the current datetime string will be used.",
     )
-    parser.add_argument("--eval_max_gen_length", type=int, default=None, help="never generate more than n tokens")
-    parser.add_argument("--eval_beams", type=int, default=None, required=False, help="# beams to use. 0 corresponds to not using beam search.")
+    parser.add_argument(
+        "--eval_max_gen_length",
+        type=int,
+        default=None,
+        help="never generate more than n tokens",
+    )
+    parser.add_argument(
+        "--eval_beams",
+        type=int,
+        default=None,
+        required=False,
+        help="# beams to use. 0 corresponds to not using beam search.",
+    )
     parser.add_argument(
         "--max_source_length",
         default=1024,
@@ -266,23 +336,51 @@ def run_generate(verbose=True):
         help="How long should master process wait for other processes to finish.",
     )
     parser.add_argument("--debug", action="store_true")
-    parser.add_argument('--json-summary', type=str, default="results/dllogger.json",
-                        help='If provided, the json summary will be written to'
-                             'the specified file.')
-    parser.add_argument('--distill', type=str, default=None, help="string indicating how model is distilled, only sft supported", choices=["sft",None])
-    parser.add_argument('--layers', type=str, default=None, help="string indicating which teacher layers remain, split by '-' (ex. 0-6-11)")
-    parser.add_argument('--do_encoder', action="store_true", default=False, help="if true encoder distilled")
-    parser.add_argument('--do_decoder', action="store_true", default=False, help="if true decoder distilled")
-    parser.add_argument("--pre_ln",
+    parser.add_argument(
+        "--json-summary",
+        type=str,
+        default="results/dllogger.json",
+        help="If provided, the json summary will be written to" "the specified file.",
+    )
+    parser.add_argument(
+        "--distill",
+        type=str,
+        default=None,
+        help="string indicating how model is distilled, only sft supported",
+        choices=["sft", None],
+    )
+    parser.add_argument(
+        "--layers",
+        type=str,
+        default=None,
+        help="string indicating which teacher layers remain, split by '-' (ex. 0-6-11)",
+    )
+    parser.add_argument(
+        "--do_encoder",
+        action="store_true",
         default=False,
-        action='store_true',
-        help="Whether to use Pre-LN architecture."
+        help="if true encoder distilled",
+    )
+    parser.add_argument(
+        "--do_decoder",
+        action="store_true",
+        default=False,
+        help="if true decoder distilled",
+    )
+    parser.add_argument(
+        "--pre_ln",
+        default=False,
+        action="store_true",
+        help="Whether to use Pre-LN architecture.",
     )
 
-    dist = parser.add_argument_group('distributed setup')
-    dist.add_argument('--local_rank',  type=int,
-                      default=os.getenv('LOCAL_RANK', 0),
-                      help='Used for multi-process training.')
+    dist = parser.add_argument_group("distributed setup")
+    dist.add_argument(
+        "--local_rank",
+        type=int,
+        default=os.getenv("LOCAL_RANK", 0),
+        help="Used for multi-process training.",
+    )
 
     start_time = time.time()
 
@@ -301,12 +399,21 @@ def run_generate(verbose=True):
         torch.cuda.set_device(args.local_rank)
 
     if Path(args.json_summary).exists():
-        warnings.warn(f"json_summary {args.json_summary} will be overwritten unless you type ctrl-c.")
+        warnings.warn(
+            f"json_summary {args.json_summary} will be overwritten unless you type ctrl-c."
+        )
 
     if utils.distributed_utils.get_rank() == 0:
-        dllogger.init(backends=[dllogger.JSONStreamBackend(verbosity=dllogger.Verbosity.VERBOSE,
-                                                           filename=args.json_summary),
-                                dllogger.StdOutBackend(verbosity=dllogger.Verbosity.VERBOSE, step_format=format_step)])
+        dllogger.init(
+            backends=[
+                dllogger.JSONStreamBackend(
+                    verbosity=dllogger.Verbosity.VERBOSE, filename=args.json_summary
+                ),
+                dllogger.StdOutBackend(
+                    verbosity=dllogger.Verbosity.VERBOSE, step_format=format_step
+                ),
+            ]
+        )
     else:
         dllogger.init(backends=[])
 
@@ -318,7 +425,7 @@ def run_generate(verbose=True):
     Path(json_save_path).mkdir(exist_ok=True)  # this handles locking.
 
     if args.layers:
-        num_layers = len(args.layers.split('-'))
+        num_layers = len(args.layers.split("-"))
     else:
         num_layers = None
 
@@ -348,15 +455,18 @@ def run_generate(verbose=True):
         **parsed_args,
     )
 
-
     if args.local_rank <= 0:
         save_path = Path(args.save_path)
         save_path.mkdir(exist_ok=True)
-        partial_results = gather_results_from_each_node(num_replicas, json_save_path, args.sync_timeout)
+        partial_results = gather_results_from_each_node(
+            num_replicas, json_save_path, args.sync_timeout
+        )
         preds, time_list = combine_partial_results(partial_results)
         if args.num_return_sequences > 1:
             save_path = save_path.joinpath("pseudolabel_results.json")
-            print(f"Saving aggregated results at {save_path}, intermediate in {json_save_path}/")
+            print(
+                f"Saving aggregated results at {save_path}, intermediate in {json_save_path}/"
+            )
             save_json(preds, save_path)
             return
         tgt_file = Path(args.data_dir).joinpath(args.type_path + ".target")
@@ -375,13 +485,22 @@ def run_generate(verbose=True):
 
         time_list.sort()
         metrics["inference_latency_mean"] = np.mean(time_list)
-        metrics["inference_latency_conf_50"] = max(time_list[:int(len(time_list) * 0.50)])
-        metrics["inference_latency_conf_90"] = max(time_list[:int(len(time_list) * 0.90)])
-        metrics["inference_latency_conf_95"] = max(time_list[:int(len(time_list) * 0.95)])
-        metrics["inference_latency_conf_99"] = max(time_list[:int(len(time_list) * 0.99)])
-        metrics["inference_latency_conf_100"] = max(time_list[:int(len(time_list) * 1)])
+        metrics["inference_latency_conf_50"] = max(
+            time_list[: int(len(time_list) * 0.50)]
+        )
+        metrics["inference_latency_conf_90"] = max(
+            time_list[: int(len(time_list) * 0.90)]
+        )
+        metrics["inference_latency_conf_95"] = max(
+            time_list[: int(len(time_list) * 0.95)]
+        )
+        metrics["inference_latency_conf_99"] = max(
+            time_list[: int(len(time_list) * 0.99)]
+        )
+        metrics["inference_latency_conf_100"] = max(
+            time_list[: int(len(time_list) * 1)]
+        )
         metrics["inference_throughput_mean"] = len(preds) * 1.0 / sum(time_list)
-
 
         metrics_save_path = save_path.joinpath(f"{args.type_path}_{metric_name}.json")
         save_json(metrics, metrics_save_path, indent=None)
@@ -407,7 +526,9 @@ def combine_partial_results(partial_results) -> List:
     return preds, eval_time
 
 
-def gather_results_from_each_node(num_replicas, save_path, timeout) -> List[Dict[str, List]]:
+def gather_results_from_each_node(
+    num_replicas, save_path, timeout
+) -> List[Dict[str, List]]:
     # WAIT FOR lots of .json files
     start_wait = time.time()
     logger.info("waiting for all nodes to finish")

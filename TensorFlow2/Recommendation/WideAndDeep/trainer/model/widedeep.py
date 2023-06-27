@@ -13,17 +13,21 @@
 # limitations under the License.
 
 import logging
+
 import tensorflow as tf
 from data.feature_spec import FeatureSpec
+from data.outbrain.defaults import (MULTIHOT_CHANNEL, NUMERICAL_CHANNEL,
+                                    ONEHOT_CHANNEL)
 from trainer.model import layers as nvtlayers
-from data.outbrain.defaults import NUMERICAL_CHANNEL, ONEHOT_CHANNEL, MULTIHOT_CHANNEL
 
 
 def get_feature_columns(fspec: FeatureSpec, embedding_dimensions: dict, combiner):
     logger = logging.getLogger("tensorflow")
     wide_columns, deep_columns = [], []
 
-    categorical_columns = fspec.get_names_by_channel(ONEHOT_CHANNEL) + fspec.get_names_by_channel(MULTIHOT_CHANNEL)
+    categorical_columns = fspec.get_names_by_channel(
+        ONEHOT_CHANNEL
+    ) + fspec.get_names_by_channel(MULTIHOT_CHANNEL)
     cardinalities = fspec.get_cardinalities(features=categorical_columns)
     for column_name in categorical_columns:
 
@@ -55,6 +59,7 @@ def get_feature_columns(fspec: FeatureSpec, embedding_dimensions: dict, combiner
         )
     )
     return wide_columns, deep_columns
+
 
 def get_input_features(feature_spec):
     features = {}
@@ -90,9 +95,11 @@ def get_input_features(feature_spec):
 
 
 def wide_deep_model(args, feature_spec, embedding_dimensions):
-    wide_columns, deep_columns = get_feature_columns(fspec=feature_spec,
-                                                     embedding_dimensions=embedding_dimensions,
-                                                     combiner=args.combiner)
+    wide_columns, deep_columns = get_feature_columns(
+        fspec=feature_spec,
+        embedding_dimensions=embedding_dimensions,
+        combiner=args.combiner,
+    )
     features = get_input_features(feature_spec)
 
     wide = nvtlayers.LinearFeatures(wide_columns, name="wide_linear")(features)

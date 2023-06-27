@@ -49,7 +49,9 @@ def save_summary(result_type: str, results: List, summary_dir: pathlib.Path) -> 
     LOGGER.info(f"Summary for {result_type} stored in {kind_file}")
 
 
-def load_results(*, results_path: Union[pathlib.Path, str], result_type: str, parameters: Dict) -> List:
+def load_results(
+    *, results_path: Union[pathlib.Path, str], result_type: str, parameters: Dict
+) -> List:
     """
     Update results
     Args:

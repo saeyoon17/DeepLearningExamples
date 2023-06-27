@@ -21,15 +21,19 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-__all__ = ['FixedLossScalerOptimizer']
+__all__ = ["FixedLossScalerOptimizer"]
 
 
 class FixedLossScalerOptimizer(tf.compat.v1.train.Optimizer):
     """An optimizer that scales loss and un-scales gradients for FP16 training."""
 
-    def __init__(self, optimizer, scale=None, name="LossScalingOptimizer", use_locking=False):
+    def __init__(
+        self, optimizer, scale=None, name="LossScalingOptimizer", use_locking=False
+    ):
 
-        super(FixedLossScalerOptimizer, self).__init__(name=name, use_locking=use_locking)
+        super(FixedLossScalerOptimizer, self).__init__(
+            name=name, use_locking=use_locking
+        )
 
         self._optimizer = optimizer
         self._scale = float(scale) if scale is not None else 1.0
@@ -40,7 +44,7 @@ class FixedLossScalerOptimizer(tf.compat.v1.train.Optimizer):
             loss = tf.scalar_mul(self._scale, loss)
 
         gradvar = self._optimizer.compute_gradients(loss, var_list, *args, **kwargs)
-        gradvar = [(tf.scalar_mul(1. / self._scale, g), v) for g, v in gradvar]
+        gradvar = [(tf.scalar_mul(1.0 / self._scale, g), v) for g, v in gradvar]
 
         return gradvar
 

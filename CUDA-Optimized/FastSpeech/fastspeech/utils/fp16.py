@@ -29,31 +29,38 @@ import torch.nn as nn
 Revised based on apex/apex/amp/_initialize.py
 """
 
+
 def _applier(value, fn):
     if isinstance(value, torch.cuda.FloatTensor):
         return fn(value)
     elif isinstance(value, torch.cuda.HalfTensor):
         return fn(value)
     elif isinstance(value, dict):
-        return dict({k : _applier(v, fn) for k, v in value.items()})
+        return dict({k: _applier(v, fn) for k, v in value.items()})
     elif isinstance(value, tuple):
         return tuple(_applier(v, fn) for v in value)
     else:
         return value
+
 
 def _cast_module_to_half(module, op_list):
 
     for op in op_list:
         if isinstance(module, op):
             module.half()
-            module.register_forward_pre_hook(lambda module, input: _applier(input, lambda x: x.half()))
-            module.register_forward_hook(lambda module, input, output: _applier(output, lambda x: x.float()))
+            module.register_forward_pre_hook(
+                lambda module, input: _applier(input, lambda x: x.half())
+            )
+            module.register_forward_hook(
+                lambda module, input, output: _applier(output, lambda x: x.float())
+            )
             break
     else:
         for child in module.children():
             _cast_module_to_half(child, op_list)
 
     return module
+
 
 def cast_model_to_half(model, op_list=[nn.Linear, nn.Conv1d]):
     model = _cast_module_to_half(model, op_list)

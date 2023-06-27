@@ -16,11 +16,11 @@
 # limitations under the License.
 # ==============================================================================
 
-from dllogger import Logger, StdOutBackend, JSONStreamBackend, Verbosity
 import numpy
+from dllogger import JSONStreamBackend, Logger, StdOutBackend, Verbosity
 
-class dllogger_class():
 
+class dllogger_class:
     def format_step(self, step):
         if isinstance(step, str):
             return step
@@ -32,29 +32,66 @@ class dllogger_class():
             return ""
 
     def __init__(self, log_path="bert_dllog.json"):
-        self.logger = Logger([
-            StdOutBackend(Verbosity.DEFAULT, step_format=self.format_step),
-            JSONStreamBackend(Verbosity.VERBOSE, log_path),
-            ])
-        self.logger.metadata("mlm_loss", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "TRAIN"})
-        self.logger.metadata("nsp_loss", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "TRAIN"})
-        self.logger.metadata("avg_loss_step", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "TRAIN"})
-        self.logger.metadata("total_loss", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "TRAIN"})
-        self.logger.metadata("loss", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "TRAIN"})
-        self.logger.metadata("f1", {"unit": None, "format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "VAL"})
-        self.logger.metadata("precision", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "VAL"})
-        self.logger.metadata("recall", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "VAL"})
-        self.logger.metadata("mcc", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "VAL"})
-        self.logger.metadata("exact_match", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "VAL"})
+        self.logger = Logger(
+            [
+                StdOutBackend(Verbosity.DEFAULT, step_format=self.format_step),
+                JSONStreamBackend(Verbosity.VERBOSE, log_path),
+            ]
+        )
+        self.logger.metadata(
+            "mlm_loss", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "TRAIN"}
+        )
+        self.logger.metadata(
+            "nsp_loss", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "TRAIN"}
+        )
+        self.logger.metadata(
+            "avg_loss_step", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "TRAIN"}
+        )
+        self.logger.metadata(
+            "total_loss", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "TRAIN"}
+        )
+        self.logger.metadata(
+            "loss", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "TRAIN"}
+        )
+        self.logger.metadata(
+            "f1", {"unit": None, "format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "VAL"}
+        )
+        self.logger.metadata(
+            "precision", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "VAL"}
+        )
+        self.logger.metadata(
+            "recall", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "VAL"}
+        )
+        self.logger.metadata(
+            "mcc", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "VAL"}
+        )
+        self.logger.metadata(
+            "exact_match", {"format": ":.4f", "GOAL": "MINIMIZE", "STAGE": "VAL"}
+        )
         self.logger.metadata(
             "throughput_train",
-            {"unit": "sequences/s", "format": ":.3f", "GOAL": "MAXIMIZE", "STAGE": "TRAIN"},
+            {
+                "unit": "sequences/s",
+                "format": ":.3f",
+                "GOAL": "MAXIMIZE",
+                "STAGE": "TRAIN",
+            },
         )
         self.logger.metadata(
             "throughput_inf",
-            {"unit": "sequences/s", "format": ":.3f", "GOAL": "MAXIMIZE", "STAGE": "VAL"},
+            {
+                "unit": "sequences/s",
+                "format": ":.3f",
+                "GOAL": "MAXIMIZE",
+                "STAGE": "VAL",
+            },
         )
         self.logger.metadata(
             "throughput_val",
-            {"unit": "sequences/s", "format": ":.3f", "GOAL": "MAXIMIZE", "STAGE": "VAL"},
+            {
+                "unit": "sequences/s",
+                "format": ":.3f",
+                "GOAL": "MAXIMIZE",
+                "STAGE": "VAL",
+            },
         )

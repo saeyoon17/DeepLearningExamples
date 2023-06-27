@@ -121,4 +121,3 @@ def reduce_dict(input_dict, average=True):
 def synchronized_timestamp():
     torch.cuda.synchronize()
     return time.time()
-

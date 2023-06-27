@@ -43,13 +43,12 @@ import os
 import re
 import shutil
 import warnings
-from collections import defaultdict, OrderedDict
+from collections import OrderedDict, defaultdict
 from pathlib import Path
 from typing import Optional
 
 import librosa
 import numpy as np
-
 import torch
 import torch.distributed as dist
 from scipy.io.wavfile import read
@@ -65,7 +64,8 @@ def mask_from_lens(lens, max_len: Optional[int] = None):
 
 def load_wav(full_path, torch_tensor=False):
     import soundfile  # flac
-    data, sampling_rate = soundfile.read(full_path, dtype='int16')
+
+    data, sampling_rate = soundfile.read(full_path, dtype="int16")
     if torch_tensor:
         return torch.FloatTensor(data.astype(np.float32)), sampling_rate
     else:
@@ -92,7 +92,7 @@ def load_filepaths_and_text(dataset_path, fnames, has_speakers=False, split="|")
 
     fpaths_and_text = []
     for fname in fnames:
-        with open(fname, encoding='utf-8') as f:
+        with open(fname, encoding="utf-8") as f:
             fpaths_and_text += [split_line(dataset_path, line) for line in f]
     return fpaths_and_text
 
@@ -103,10 +103,10 @@ def to_gpu(x):
 
 
 def l2_promote():
-    _libcudart = ctypes.CDLL('libcudart.so')
+    _libcudart = ctypes.CDLL("libcudart.so")
     # Set device limit on the current device
     # cudaLimitMaxL2FetchGranularity = 0x05
-    pValue = ctypes.cast((ctypes.c_int*1)(), ctypes.POINTER(ctypes.c_int))
+    pValue = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
     _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
     _libcudart.cudaDeviceGetLimit(pValue, ctypes.c_int(0x05))
     assert pValue.contents.value == 128
@@ -117,7 +117,7 @@ def prepare_tmp(path):
         return
     p = Path(path)
     if p.is_dir():
-        warnings.warn(f'{p} exists. Removing...')
+        warnings.warn(f"{p} exists. Removing...")
         shutil.rmtree(p, ignore_errors=True)
     p.mkdir(parents=False, exist_ok=False)
 
@@ -134,7 +134,7 @@ def init_weights(m, mean=0.0, std=0.01):
 
 
 def get_padding(kernel_size, dilation=1):
-    return int((kernel_size*dilation - dilation)/2)
+    return int((kernel_size * dilation - dilation) / 2)
 
 
 def load_pretrained_weights(model, ckpt_fpath):
@@ -148,11 +148,15 @@ def load_pretrained_weights(model, ckpt_fpath):
     ckpt_vocab_size = ckpt_emb.size(0)
     new_vocab_size = new_emb.size(0)
     if ckpt_vocab_size != new_vocab_size:
-        print("WARNING: Resuming from a checkpoint with a different size "
-              "of embedding table. For best results, extend the vocab "
-              "and ensure the common symbols' indices match.")
+        print(
+            "WARNING: Resuming from a checkpoint with a different size "
+            "of embedding table. For best results, extend the vocab "
+            "and ensure the common symbols' indices match."
+        )
         min_len = min(ckpt_vocab_size, new_vocab_size)
-        weights["encoder.word_emb.weight"] = ckpt_emb if ckpt_vocab_size > new_vocab_size else new_emb
+        weights["encoder.word_emb.weight"] = (
+            ckpt_emb if ckpt_vocab_size > new_vocab_size else new_emb
+        )
         weights["encoder.word_emb.weight"][:min_len] = ckpt_emb[:min_len]
 
     model.load_state_dict(weights)
@@ -174,7 +178,8 @@ class DefaultAttrDict(defaultdict):
 
 
 class BenchmarkStats:
-    """ Tracks statistics used for benchmarking. """
+    """Tracks statistics used for benchmarking."""
+
     def __init__(self):
         self.num_frames = []
         self.losses = []
@@ -189,31 +194,32 @@ class BenchmarkStats:
 
     def get(self, n_epochs):
         frames_s = sum(self.num_frames[-n_epochs:]) / sum(self.took[-n_epochs:])
-        return {'frames/s': frames_s,
-                'loss': np.mean(self.losses[-n_epochs:]),
-                'mel_loss': np.mean(self.mel_losses[-n_epochs:]),
-                'took': np.mean(self.took[-n_epochs:]),
-                'benchmark_epochs_num': n_epochs}
+        return {
+            "frames/s": frames_s,
+            "loss": np.mean(self.losses[-n_epochs:]),
+            "mel_loss": np.mean(self.mel_losses[-n_epochs:]),
+            "took": np.mean(self.took[-n_epochs:]),
+            "benchmark_epochs_num": n_epochs,
+        }
 
     def __len__(self):
         return len(self.losses)
 
 
 class Checkpointer:
-
     def __init__(self, save_dir, keep_milestones=[]):
         self.save_dir = save_dir
         self.keep_milestones = keep_milestones
 
         find = lambda name: [
             (int(re.search("_(\d+).pt", fn).group(1)), fn)
-            for fn in glob.glob(f"{save_dir}/{name}_checkpoint_*.pt")]
+            for fn in glob.glob(f"{save_dir}/{name}_checkpoint_*.pt")
+        ]
 
         tracked = sorted(find("FastPitch"), key=lambda t: t[0])
         self.tracked = OrderedDict(tracked)
 
     def last_checkpoint(self, output):
-
         def corrupted(fpath):
             try:
                 torch.load(fpath, map_location="cpu")
@@ -224,7 +230,8 @@ class Checkpointer:
 
         saved = sorted(
             glob.glob(f"{output}/FastPitch_checkpoint_*.pt"),
-            key=lambda f: int(re.search("_(\d+).pt", f).group(1)))
+            key=lambda f: int(re.search("_(\d+).pt", f).group(1)),
+        )
 
         if len(saved) >= 1 and not corrupted(saved[-1]):
             return saved[-1]
@@ -233,11 +240,11 @@ class Checkpointer:
         else:
             return None
 
-    def maybe_load(self, model, optimizer, scaler, train_state, args,
-                   ema_model=None):
+    def maybe_load(self, model, optimizer, scaler, train_state, args, ema_model=None):
 
-        assert args.checkpoint_path is None or args.resume is False, (
-            "Specify a single checkpoint source")
+        assert (
+            args.checkpoint_path is None or args.resume is False
+        ), "Specify a single checkpoint source"
 
         fpath = None
         if args.checkpoint_path is not None:
@@ -269,11 +276,13 @@ class Checkpointer:
         else:
             warnings.warn("AMP scaler state missing from the checkpoint.")
 
-    def maybe_save(self, args, model, ema_model, optimizer, scaler, epoch,
-                   total_iter, config):
+    def maybe_save(
+        self, args, model, ema_model, optimizer, scaler, epoch, total_iter, config
+    ):
 
-        intermediate = (args.epochs_per_checkpoint > 0
-                        and epoch % args.epochs_per_checkpoint == 0)
+        intermediate = (
+            args.epochs_per_checkpoint > 0 and epoch % args.epochs_per_checkpoint == 0
+        )
         final = epoch == args.epochs
 
         if not intermediate and not final and epoch not in self.keep_milestones:
@@ -288,13 +297,15 @@ class Checkpointer:
             return
 
         unwrap = lambda m: getattr(m, "module", m)
-        ckpt = {"epoch": epoch,
-                "iteration": total_iter,
-                "config": config,
-                "train_setup": args.__dict__,
-                "state_dict": unwrap(model).state_dict(),
-                "optimizer": optimizer.state_dict(),
-                "scaler": scaler.state_dict()}
+        ckpt = {
+            "epoch": epoch,
+            "iteration": total_iter,
+            "config": config,
+            "train_setup": args.__dict__,
+            "state_dict": unwrap(model).state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "scaler": scaler.state_dict(),
+        }
         if ema_model is not None:
             ckpt["ema_state_dict"] = unwrap(ema_model).state_dict()
 

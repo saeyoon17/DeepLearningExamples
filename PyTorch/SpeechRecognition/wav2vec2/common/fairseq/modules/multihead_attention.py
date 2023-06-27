@@ -22,19 +22,20 @@ from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
+from common.fairseq import utils
+from common.fairseq.incremental_decoding_utils import with_incremental_state
 from torch import Tensor, nn
 from torch.nn import Parameter
 
-from common.fairseq import utils
-from common.fairseq.incremental_decoding_utils import with_incremental_state
 from .fairseq_dropout import FairseqDropout
 from .quant_noise import quant_noise
+
 
 class RotaryEmbedding(nn.Module):
     def __init__(self, dim):
         super().__init__()
-        inv_freq = 1. / (10000 ** (torch.arange(0, dim, 2).float() / dim))
-        self.register_buffer('inv_freq', inv_freq)
+        inv_freq = 1.0 / (10000 ** (torch.arange(0, dim, 2).float() / dim))
+        self.register_buffer("inv_freq", inv_freq)
         self.seq_len_cached = None
         self.cos_cached = None
         self.sin_cached = None
@@ -44,19 +45,22 @@ class RotaryEmbedding(nn.Module):
         if seq_len != self.seq_len_cached:
             self.seq_len_cached = seq_len
             t = torch.arange(x.shape[seq_dim], device=x.device).type_as(self.inv_freq)
-            freqs = torch.einsum('i,j->ij', t, self.inv_freq)
+            freqs = torch.einsum("i,j->ij", t, self.inv_freq)
             emb = torch.cat((freqs, freqs), dim=-1).to(x.device)
             self.cos_cached = emb.cos()[:, None, :]
             self.sin_cached = emb.sin()[:, None, :]
         return self.cos_cached, self.sin_cached
 
+
 def rotate_half(x):
-    x1, x2 = x[..., :x.shape[-1] // 2], x[..., x.shape[-1] // 2:]
+    x1, x2 = x[..., : x.shape[-1] // 2], x[..., x.shape[-1] // 2 :]
     return torch.cat((-x2, x1), dim=x1.ndim - 1)
+
 
 @torch.jit.script
 def apply_rotary_pos_emb(x, cos, sin):
     return (x * cos) + (rotate_half(x) * sin)
+
 
 @with_incremental_state
 class MultiheadAttention(nn.Module):
@@ -103,7 +107,7 @@ class MultiheadAttention(nn.Module):
         assert (
             self.head_dim * num_heads == self.embed_dim
         ), "embed_dim must be divisible by num_heads"
-        self.scaling = self.head_dim ** -0.5
+        self.scaling = self.head_dim**-0.5
 
         self.self_attention = self_attention
         self.encoder_decoder_attention = encoder_decoder_attention

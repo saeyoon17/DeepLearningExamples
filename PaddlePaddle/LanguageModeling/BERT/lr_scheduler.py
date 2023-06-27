@@ -14,6 +14,7 @@
 
 import logging
 import math
+
 import paddle
 from utils.utility import is_integer
 
@@ -37,14 +38,16 @@ class Poly:
                                     Default: 0.
     """
 
-    def __init__(self,
-                 learning_rate,
-                 num_steps,
-                 end_lr=0.0,
-                 power=1.0,
-                 warmup=0,
-                 warmup_start_lr=0.0,
-                 last_step=0):
+    def __init__(
+        self,
+        learning_rate,
+        num_steps,
+        end_lr=0.0,
+        power=1.0,
+        warmup=0,
+        warmup_start_lr=0.0,
+        last_step=0,
+    ):
         super().__init__()
         self.end_lr = end_lr
         self.power = power
@@ -52,27 +55,35 @@ class Poly:
         self.warmup_start_lr = warmup_start_lr
         self.last_step = last_step
         self.total_steps = num_steps
-        self.warmup_steps = warmup if is_integer(warmup) else int(
-            math.floor(warmup * self.total_steps))
+        self.warmup_steps = (
+            warmup if is_integer(warmup) else int(math.floor(warmup * self.total_steps))
+        )
         self.steps = self.total_steps - self.warmup_steps
 
-        assert self.warmup_steps <= self.total_steps, "warmup steps can't be larger than total steps"
+        assert (
+            self.warmup_steps <= self.total_steps
+        ), "warmup steps can't be larger than total steps"
 
     def __call__(self):
-        learning_rate = paddle.optimizer.lr.PolynomialDecay(
-            learning_rate=self.learning_rate,
-            decay_steps=self.steps,
-            end_lr=self.end_lr,
-            power=self.power,
-            last_epoch=self.
-            last_step) if self.steps > 0 else self.learning_rate
+        learning_rate = (
+            paddle.optimizer.lr.PolynomialDecay(
+                learning_rate=self.learning_rate,
+                decay_steps=self.steps,
+                end_lr=self.end_lr,
+                power=self.power,
+                last_epoch=self.last_step,
+            )
+            if self.steps > 0
+            else self.learning_rate
+        )
         if self.warmup_steps > 0:
             learning_rate = paddle.optimizer.lr.LinearWarmup(
                 learning_rate=learning_rate,
                 warmup_steps=self.warmup_steps,
                 start_lr=self.warmup_start_lr,
                 end_lr=self.learning_rate,
-                last_epoch=self.last_step)
+                last_epoch=self.last_step,
+            )
         return learning_rate
 
 
@@ -90,7 +101,8 @@ def build_lr_scheduler(args):
         args.learning_rate,
         args.max_steps,
         warmup=args.warmup_proportion,
-        last_step=args.last_step_of_checkpoint)
+        last_step=args.last_step_of_checkpoint,
+    )
     if not isinstance(lr, paddle.optimizer.lr.LRScheduler):
         lr = lr()
     logging.info("build lr %s success..", lr)

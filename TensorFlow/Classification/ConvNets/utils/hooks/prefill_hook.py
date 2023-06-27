@@ -20,13 +20,12 @@ import time
 import numpy as np
 import tensorflow as tf
 
-__all__ = ['PrefillStagingAreasHook']
+__all__ = ["PrefillStagingAreasHook"]
 
 
 class PrefillStagingAreasHook(tf.estimator.SessionRunHook):
-
     def after_create_session(self, session, coord):
         # TODO: This assumes TF collections are ordered; is this safe?
-        enqueue_ops = tf.get_collection('STAGING_AREA_PUTS')
+        enqueue_ops = tf.get_collection("STAGING_AREA_PUTS")
         for i in range(len(enqueue_ops)):
-            session.run(enqueue_ops[:i + 1])
+            session.run(enqueue_ops[: i + 1])

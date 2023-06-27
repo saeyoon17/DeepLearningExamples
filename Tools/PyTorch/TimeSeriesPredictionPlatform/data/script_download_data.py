@@ -42,23 +42,21 @@ Command line args:
 from __future__ import absolute_import, division, print_function
 
 import argparse
-from cmath import nan
 import gc
 import os
+import pickle
 import sys
 import warnings
+from cmath import nan
+from datetime import date, datetime, timedelta
 
+import dgl
 import numpy as np
 import pandas as pd
 import pyunpack
-import wget
-import pickle
-
-from datetime import date, timedelta, datetime
-from scipy.spatial import distance_matrix
-
-import dgl
 import torch
+import wget
+from scipy.spatial import distance_matrix
 
 warnings.filterwarnings("ignore")
 
@@ -124,7 +122,7 @@ def download_electricity(data_folder):
 
     earliest_time = output.index.min()
     # Filter to match range used by other academic papers
-    output = output[(output.index >= '2014-01-01') & (output.index < '2014-09-08')]
+    output = output[(output.index >= "2014-01-01") & (output.index < "2014-09-08")]
 
     df_list = []
     for label in output:
@@ -151,7 +149,7 @@ def download_electricity(data_folder):
         tmp["day"] = date.day
         tmp["day_of_week"] = date.dayofweek
         tmp["month"] = date.month
-        tmp["power_usage_weight"] = ((date >= start_date) & (date <= end_date))
+        tmp["power_usage_weight"] = (date >= start_date) & (date <= end_date)
 
         df_list.append(tmp)
 
@@ -161,8 +159,9 @@ def download_electricity(data_folder):
     output["hours_from_start"] = output["t"]
     output["categorical_day_of_week"] = output["day_of_week"].copy()
     output["categorical_hour"] = output["hour"].copy()
-    output["power_usage_weight"] = output["power_usage_weight"].apply(lambda b: 1 if b else 0)
-
+    output["power_usage_weight"] = output["power_usage_weight"].apply(
+        lambda b: 1 if b else 0
+    )
 
     output.to_csv(data_folder + "/electricity.csv")
 
@@ -185,8 +184,7 @@ def download_traffic(data_folder):
         """Parses a line in the PEMS format to a list."""
         if delimiter is None:
             parsed_list = [
-                variable_type(i)
-                for i in s.replace("[", "").replace("]", "").split()
+                variable_type(i) for i in s.replace("[", "").replace("]", "").split()
             ]
         else:
             parsed_list = [
@@ -233,10 +231,7 @@ def download_traffic(data_folder):
         for previous_location, new_location in enumerate(shuffle_order)
     }
     reverse_shuffle_order = np.array(
-        [
-            inverse_mapping[new_location]
-            for new_location, _ in enumerate(shuffle_order)
-        ]
+        [inverse_mapping[new_location] for new_location, _ in enumerate(shuffle_order)]
     )
 
     # Group and reoder based on permuation matrix
@@ -279,9 +274,7 @@ def download_traffic(data_folder):
     store_columns = [c for c in hourly_frame.columns if "traj" in c]
     other_columns = [c for c in hourly_frame.columns if "traj" not in c]
     flat_df = pd.DataFrame(
-        columns=["values", "prev_values", "next_values"]
-        + other_columns
-        + ["id"]
+        columns=["values", "prev_values", "next_values"] + other_columns + ["id"]
     )
 
     def format_index_string(x):
@@ -306,9 +299,7 @@ def download_traffic(data_folder):
         key = (
             sliced["id"].apply(str)
             + sliced["sensor_day"].apply(lambda x: "_" + format_index_string(x))
-            + sliced["time_on_day"].apply(
-                lambda x: "_" + format_index_string(x)
-            )
+            + sliced["time_on_day"].apply(lambda x: "_" + format_index_string(x))
         )
         sliced = sliced.set_index(key).sort_index()
 
@@ -324,9 +315,7 @@ def download_traffic(data_folder):
 
     # Creating columns fo categorical inputs
     flat_df["categorical_id"] = flat_df["id"].copy()
-    flat_df["hours_from_start"] = (
-        flat_df["time_on_day"] + flat_df["sensor_day"] * 24.0
-    )
+    flat_df["hours_from_start"] = flat_df["time_on_day"] + flat_df["sensor_day"] * 24.0
     flat_df["categorical_day_of_week"] = flat_df["day_of_week"].copy()
     flat_df["categorical_time_on_day"] = flat_df["time_on_day"].copy()
 
@@ -376,9 +365,9 @@ def main(args):
 
 
 DOWNLOAD_FUNCTIONS = {
-        "electricity": download_electricity,
-        "traffic": download_traffic,
-    }
+    "electricity": download_electricity,
+    "traffic": download_traffic,
+}
 
 if __name__ == "__main__":
 
@@ -389,7 +378,7 @@ if __name__ == "__main__":
         type=str,
         choices=DOWNLOAD_FUNCTIONS.keys(),
         required=True,
-        help="Dataset name"
+        help="Dataset name",
     )
     parser.add_argument(
         "--output_dir",

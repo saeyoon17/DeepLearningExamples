@@ -13,27 +13,28 @@
 # limitations under the License.
 
 import os
-import sys
 import random
+import sys
+
 import numpy as np
 import paddle
 
 
 def get_num_trainers():
     """Get number of trainers in distributed training."""
-    num_trainers = int(os.environ.get('PADDLE_TRAINERS_NUM', 1))
+    num_trainers = int(os.environ.get("PADDLE_TRAINERS_NUM", 1))
     return num_trainers
 
 
 def get_trainer_id():
     """Get index of trainer in distributed training."""
-    trainer_id = int(os.environ.get('PADDLE_TRAINER_ID', 0))
+    trainer_id = int(os.environ.get("PADDLE_TRAINER_ID", 0))
     return trainer_id
 
 
 def is_integer(number):
     """Whether a number is integer."""
-    if sys.version > '3':
+    if sys.version > "3":
         return isinstance(number, int)
     return isinstance(number, (int, long))
 

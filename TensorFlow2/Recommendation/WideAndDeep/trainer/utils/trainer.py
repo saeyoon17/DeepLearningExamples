@@ -24,18 +24,18 @@ from data.outbrain.dataloader import make_padding_function
 
 class Trainer:
     def __init__(
-            self,
-            model,
-            scheduler,
-            deep_optimizer,
-            wide_optimizer,
-            throughput_calculator,
-            compiled_loss,
-            steps,
-            args,
-            train_dataset,
-            evaluator,
-            multihot_hotnesses_dict
+        self,
+        model,
+        scheduler,
+        deep_optimizer,
+        wide_optimizer,
+        throughput_calculator,
+        compiled_loss,
+        steps,
+        args,
+        train_dataset,
+        evaluator,
+        multihot_hotnesses_dict,
     ):
         self.model = model
         self.scheduler = scheduler
@@ -85,8 +85,11 @@ class Trainer:
 
     def prepare_dataset(self, current_epoch):
         benchmark_needed_steps = self.args.benchmark_steps // self.steps_per_epoch + 1
-        n = self.args.num_epochs - current_epoch if not self.args.benchmark \
+        n = (
+            self.args.num_epochs - current_epoch
+            if not self.args.benchmark
             else max(benchmark_needed_steps, self.args.num_epochs)
+        )
         self.train_dataset = self.train_dataset.epochs(n)
 
     def maybe_restore_checkpoint(self):
@@ -176,7 +179,7 @@ class Trainer:
             x = self.padding_function(x)
             self.train_step(x, y)
             if not self.args.benchmark and (
-                    i % self.steps_per_epoch == 0 or i == self.max_steps
+                i % self.steps_per_epoch == 0 or i == self.max_steps
             ):
                 eval_data = self.evaluator.eval(self.current_step_var)
 

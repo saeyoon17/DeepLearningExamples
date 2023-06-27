@@ -8,7 +8,8 @@
 import importlib
 import os
 
-from .fairseq_incremental_decoder import FairseqIncrementalDecoder  # noqa: F401
+from .fairseq_incremental_decoder import \
+    FairseqIncrementalDecoder  # noqa: F401
 
 MODEL_REGISTRY = {}
 ARCH_MODEL_REGISTRY = {}
@@ -24,7 +25,7 @@ def register_model(name):
 
     def register_model_cls(cls):
         if name in MODEL_REGISTRY:
-            raise ValueError('Cannot register duplicate model ({})'.format(name))
+            raise ValueError("Cannot register duplicate model ({})".format(name))
         MODEL_REGISTRY[name] = cls
         return cls
 
@@ -36,11 +37,19 @@ def register_model_architecture(model_name, arch_name):
 
     def register_model_arch_fn(fn):
         if model_name not in MODEL_REGISTRY:
-            raise ValueError('Cannot register model architecture for unknown model type ({})'.format(model_name))
+            raise ValueError(
+                "Cannot register model architecture for unknown model type ({})".format(
+                    model_name
+                )
+            )
         if arch_name in ARCH_MODEL_REGISTRY:
-            raise ValueError('Cannot register duplicate model architecture ({})'.format(arch_name))
+            raise ValueError(
+                "Cannot register duplicate model architecture ({})".format(arch_name)
+            )
         if not callable(fn):
-            raise ValueError('Model architecture must be callable ({})'.format(arch_name))
+            raise ValueError(
+                "Model architecture must be callable ({})".format(arch_name)
+            )
         ARCH_MODEL_REGISTRY[arch_name] = MODEL_REGISTRY[model_name]
         ARCH_CONFIG_REGISTRY[arch_name] = fn
         return fn
@@ -50,6 +59,6 @@ def register_model_architecture(model_name, arch_name):
 
 # automatically import any Python files in the models/ directory
 for file in os.listdir(os.path.dirname(__file__)):
-    if file.endswith('.py') and not file.startswith('_'):
-        module = file[:file.find('.py')]
-        importlib.import_module('fairseq.models.' + module)
+    if file.endswith(".py") and not file.startswith("_"):
+        module = file[: file.find(".py")]
+        importlib.import_module("fairseq.models." + module)

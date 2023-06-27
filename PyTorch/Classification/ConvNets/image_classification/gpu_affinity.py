@@ -3,9 +3,9 @@ import itertools
 import os
 import pathlib
 import re
+from typing import Union
 
 import pynvml
-from typing import Union
 
 
 class Device:

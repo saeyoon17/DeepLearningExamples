@@ -12,13 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from abc import ABC
 import os
-import pmdarima as pm
+import pickle as pkl
+from abc import ABC
+
 # import cuml
 import numpy as np
+import pmdarima as pm
 from cuml.tsa.auto_arima import AutoARIMA as cuMLAutoArima
-import pickle as pkl
+
 
 class StatModel(ABC):
     def __init__(self, config):
@@ -30,12 +32,13 @@ class StatModel(ABC):
 
     def predict(self, data, i):
         return
-    
+
     def save(self):
         return
 
     def load(self, path):
         return
+
 
 class AutoARIMA(StatModel):
     def __init__(self, config):
@@ -49,14 +52,15 @@ class AutoARIMA(StatModel):
     def predict(self, data, i):
         model = self.models[i]
         return model.predict(self.horizon, X=data)
-    
+
     def save(self):
-        with open('arima.pkl', 'wb') as f:
+        with open("arima.pkl", "wb") as f:
             pkl.dump(self.models, f)
-    
+
     def load(self, path):
-        with open(os.path.join(path, 'arima.pkl'), 'rb') as f:
+        with open(os.path.join(path, "arima.pkl"), "rb") as f:
             self.models = pkl.load(f)
+
 
 class CUMLAutoARIMA(StatModel):
     def __init__(self, config):
@@ -72,11 +76,11 @@ class CUMLAutoARIMA(StatModel):
     def predict(self, data, i):
         model = self.models[i]
         return model.forecast(self.horizon).get()
-    
+
     def save(self):
-        with open('arima.pkl', 'wb') as f:
+        with open("arima.pkl", "wb") as f:
             pkl.dump(self.models, f)
-    
+
     def load(self, path):
-        with open(os.path.join(path, 'arima.pkl'), 'rb') as f:
+        with open(os.path.join(path, "arima.pkl"), "rb") as f:
             self.models = pkl.load(f)

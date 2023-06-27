@@ -10,7 +10,7 @@
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
-# limitations under the License. 
+# limitations under the License.
 
 
 import json
@@ -22,10 +22,10 @@ from argparse import Namespace
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-from run_squad import RawResult, convert_examples_to_features, get_answers, read_squad_examples
+from run_squad import (RawResult, convert_examples_to_features, get_answers,
+                       read_squad_examples)
 from tokenization import BertTokenizer
-
-# 
+#
 from triton.deployment_toolkit.core import BaseMetricsCalculator
 
 
@@ -46,10 +46,14 @@ class MetricsCalculator(BaseMetricsCalculator):
         max_len: int = 512,
     ):
 
-        tokenizer = BertTokenizer(vocab_file, do_lower_case=do_lower_case, max_len=max_len)  # for bert large
+        tokenizer = BertTokenizer(
+            vocab_file, do_lower_case=do_lower_case, max_len=max_len
+        )  # for bert large
 
         self.eval_examples = read_squad_examples(
-            input_file=predict_file, is_training=False, version_2_with_negative=version_2_with_negative
+            input_file=predict_file,
+            is_training=False,
+            version_2_with_negative=version_2_with_negative,
         )
 
         self.eval_features = convert_examples_to_features(
@@ -81,12 +85,19 @@ class MetricsCalculator(BaseMetricsCalculator):
         dataset_size = len(self.eval_features)
         self.all_results = self.all_results[:dataset_size]
         output_prediction_file = os.path.join(self.output_dir, "predictions.json")
-        answers, _ = get_answers(self.eval_examples, self.eval_features, self.all_results, self.args)
+        answers, _ = get_answers(
+            self.eval_examples, self.eval_features, self.all_results, self.args
+        )
         with open(output_prediction_file, "w") as f:
             f.write(json.dumps(answers, indent=4) + "\n")
 
         eval_out = subprocess.check_output(
-            [sys.executable, self.eval_script, self.predict_file, output_prediction_file]
+            [
+                sys.executable,
+                self.eval_script,
+                self.predict_file,
+                output_prediction_file,
+            ]
         )
         scores = str(eval_out).strip()
         # exact_match = float(scores.split(":")[1].split(",")[0])
@@ -107,10 +118,11 @@ class MetricsCalculator(BaseMetricsCalculator):
         for unique_id, start_logit, end_logit in zip(ids, start_logits, end_logits):
             start_logit = start_logit.tolist()
             end_logit = end_logit.tolist()
-            raw_result = RawResult(unique_id=unique_id, start_logits=start_logit, end_logits=end_logit)
+            raw_result = RawResult(
+                unique_id=unique_id, start_logits=start_logit, end_logits=end_logit
+            )
             self.all_results.append(raw_result)
 
     @property
     def metrics(self) -> Dict[str, float]:
         return self._calc()
-

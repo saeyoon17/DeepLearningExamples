@@ -18,15 +18,10 @@ from typing import Dict, Tuple
 if __name__ == "__main__" and __package__ is None:
     __package__ = pathlib.Path(__file__).parent.name
 
-from .stages import (
-    ConversionStage,
-    DeployStage,
-    ExportStage,
-    ResultsType,
-    TritonPerformanceOfflineStage,
-    TritonPerformanceOnlineStage,
-    TritonPreparePerformanceProfilingDataStage,
-)
+from .stages import (ConversionStage, DeployStage, ExportStage, ResultsType,
+                     TritonPerformanceOfflineStage,
+                     TritonPerformanceOnlineStage,
+                     TritonPreparePerformanceProfilingDataStage)
 
 
 class Pipeline:
@@ -89,7 +84,9 @@ class Pipeline:
         stage = DeployStage(commands=commands)
         self._stages[stage.label] = stage
 
-    def triton_prepare_performance_profiling_data(self, commands: Tuple[str, ...]) -> None:
+    def triton_prepare_performance_profiling_data(
+        self, commands: Tuple[str, ...]
+    ) -> None:
         """
         Model profiling data creation stage
 
@@ -102,7 +99,9 @@ class Pipeline:
         stage = TritonPreparePerformanceProfilingDataStage(commands=commands)
         self._stages[stage.label] = stage
 
-    def triton_performance_offline_tests(self, commands: Tuple[str, ...], result_path: str) -> None:
+    def triton_performance_offline_tests(
+        self, commands: Tuple[str, ...], result_path: str
+    ) -> None:
         """
         Model performance offline test stage
 
@@ -120,7 +119,9 @@ class Pipeline:
         )
         self._stages[stage.label] = stage
 
-    def triton_performance_online_tests(self, commands: Tuple[str, ...], result_path: str) -> None:
+    def triton_performance_online_tests(
+        self, commands: Tuple[str, ...], result_path: str
+    ) -> None:
         """
         Model performance online test stage
 

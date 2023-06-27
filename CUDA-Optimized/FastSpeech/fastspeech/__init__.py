@@ -23,12 +23,13 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-from fastspeech.utils.hparam import Hparam
+
 import torch
+from fastspeech.utils.hparam import Hparam
 
 # hyperparamter
-HP_ROOT_PATH = os.path.join(os.path.dirname(__file__), 'hparams')
+HP_ROOT_PATH = os.path.join(os.path.dirname(__file__), "hparams")
 hparam = Hparam(HP_ROOT_PATH)
 
 # device
-DEFAULT_DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+DEFAULT_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")

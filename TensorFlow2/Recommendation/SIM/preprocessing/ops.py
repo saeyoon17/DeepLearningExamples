@@ -58,10 +58,14 @@ def _generate_rows(offsets, chunk_offsets, elements, new_elements, max_elements)
         row_offset = 0
 
         for current_row_size in range(1, original_row_size + 1):
-            original_row_offset = offsets[rowid] + max(0, current_row_size - max_elements)
+            original_row_offset = offsets[rowid] + max(
+                0, current_row_size - max_elements
+            )
             current_row_size = min(current_row_size, max_elements)
             for i in range(current_row_size):
-                new_elements[chunk_offset + row_offset + i] = elements[original_row_offset + i]
+                new_elements[chunk_offset + row_offset + i] = elements[
+                    original_row_offset + i
+                ]
             row_offset += current_row_size
 
 
@@ -169,9 +173,7 @@ class ExplodeSequence:
 
         for col in self.keep_cols:
             new_values = cupy.zeros(new_offsets_size - 1, dtype=int)
-            _preserve_data[blocks, threads](
-                offsets, df[col].values, new_values
-            )
+            _preserve_data[blocks, threads](offsets, df[col].values, new_values)
             ret[col] = new_values
 
         ret = ret[self.keep_cols + self.col_names]

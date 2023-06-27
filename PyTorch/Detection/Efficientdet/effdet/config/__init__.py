@@ -12,5 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .model_config import get_efficientdet_config, get_fpn_config, default_detection_model_configs, get_backbone_config
+from .model_config import (default_detection_model_configs,
+                           get_backbone_config, get_efficientdet_config,
+                           get_fpn_config)
 from .train_config import default_detection_train_config

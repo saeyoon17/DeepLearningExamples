@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mxnet.io import DataIter
 import time
+
+from mxnet.io import DataIter
+
 
 class BenchmarkingDataIter:
     def __init__(self, data_iter, benchmark_iters=None):
@@ -54,7 +56,7 @@ class BenchmarkingDataIter:
 
     def get_avg_time(self):
         if self.num <= 1:
-            avg = float('nan')
+            avg = float("nan")
         else:
             avg = self.overall_time / (self.num - 1)
         return avg

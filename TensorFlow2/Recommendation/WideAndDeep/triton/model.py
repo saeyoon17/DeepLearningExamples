@@ -16,45 +16,69 @@ from types import SimpleNamespace
 from typing import List
 
 import tensorflow as tf
-
-from data.outbrain.features import get_outbrain_feature_spec, EMBEDDING_DIMENSIONS
+from data.outbrain.features import (EMBEDDING_DIMENSIONS,
+                                    get_outbrain_feature_spec)
 from trainer.model.widedeep import wide_deep_model
 
 
 def update_argparser(parser):
-    parser.add_argument('--deep-hidden-units', type=int, default=[1024, 1024, 1024, 1024, 1024], nargs='+',
-                        help='Hidden units per layer for deep model, separated by spaces')
+    parser.add_argument(
+        "--deep-hidden-units",
+        type=int,
+        default=[1024, 1024, 1024, 1024, 1024],
+        nargs="+",
+        help="Hidden units per layer for deep model, separated by spaces",
+    )
 
-    parser.add_argument('--deep-dropout', type=float, default=0.1,
-                        help='Dropout regularization for deep model')
+    parser.add_argument(
+        "--deep-dropout",
+        type=float,
+        default=0.1,
+        help="Dropout regularization for deep model",
+    )
 
-    parser.add_argument('--combiner', type=str, default='sum', choices=['mean', 'sum'],
-                        help='Type of aggregation used for multi hot categorical features')
+    parser.add_argument(
+        "--combiner",
+        type=str,
+        default="sum",
+        choices=["mean", "sum"],
+        help="Type of aggregation used for multi hot categorical features",
+    )
 
-    parser.add_argument('--precision', type=str, default="fp16", choices=['fp32', 'fp16'],
-                        help='Precision of the ops. AMP will be used in case of fp16')
+    parser.add_argument(
+        "--precision",
+        type=str,
+        default="fp16",
+        choices=["fp32", "fp16"],
+        help="Precision of the ops. AMP will be used in case of fp16",
+    )
 
-    parser.add_argument('--checkpoint-dir', type=str, required=True,
-                        help='Path to directory containing checkpoint')
+    parser.add_argument(
+        "--checkpoint-dir",
+        type=str,
+        required=True,
+        help="Path to directory containing checkpoint",
+    )
+
 
 def get_model(
-        *,
-        deep_hidden_units: List[int],
-        deep_dropout: float,
-        combiner: str,
-        checkpoint_dir: str,
-        precision: str = "fp32",
-        batch_size: int = 131072
+    *,
+    deep_hidden_units: List[int],
+    deep_dropout: float,
+    combiner: str,
+    checkpoint_dir: str,
+    precision: str = "fp32",
+    batch_size: int = 131072
 ):
     args = {
-        'deep_hidden_units': deep_hidden_units,
-        'deep_dropout': deep_dropout,
-        'combiner': combiner
+        "deep_hidden_units": deep_hidden_units,
+        "deep_dropout": deep_dropout,
+        "combiner": combiner,
     }
 
     args = SimpleNamespace(**args)
 
-    #This will be changed in the future when feature spec support for triton is added
+    # This will be changed in the future when feature spec support for triton is added
     feature_spec = get_outbrain_feature_spec("")
     embedding_dimensions = EMBEDDING_DIMENSIONS
     model, features = wide_deep_model(args, feature_spec, embedding_dimensions)
@@ -72,6 +96,10 @@ def get_model(
     return model, call_fn
 
 
-if __name__ == '__main__':
-    get_model(deep_hidden_units=[1024, 1024, 1024, 1024, 1024], deep_dropout=0.1, combiner='sum',
-              checkpoint_dir='/tmp/wd2/checkpoint')
+if __name__ == "__main__":
+    get_model(
+        deep_hidden_units=[1024, 1024, 1024, 1024, 1024],
+        deep_dropout=0.1,
+        combiner="sum",
+        checkpoint_dir="/tmp/wd2/checkpoint",
+    )

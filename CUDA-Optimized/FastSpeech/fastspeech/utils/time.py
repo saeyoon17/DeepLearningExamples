@@ -23,33 +23,38 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import time
+
 import torch
 from fastspeech.utils.logging import tprint
 
+
 class TimeElapsed(object):
-    
-    def __init__(self, name, device='cuda', cuda_sync=False, format=""):
+    def __init__(self, name, device="cuda", cuda_sync=False, format=""):
         self.name = name
         self.device = device
         self.cuda_sync = cuda_sync
         self.format = format
-    
+
     def __enter__(self):
         self.start()
-    
+
     def __exit__(self, *exc_info):
         self.end()
 
     def start(self):
-        if self.device == 'cuda' and self.cuda_sync:
+        if self.device == "cuda" and self.cuda_sync:
             torch.cuda.synchronize()
         self.start_time = time.time()
 
     def end(self):
         if not hasattr(self, "start_time"):
             return
-        if self.device == 'cuda' and self.cuda_sync:
+        if self.device == "cuda" and self.cuda_sync:
             torch.cuda.synchronize()
         self.end_time = time.time()
         self.time_elapsed = self.end_time - self.start_time
-        tprint(("[{}] Time elapsed: {" + self.format + "}").format(self.name, self.time_elapsed))
+        tprint(
+            ("[{}] Time elapsed: {" + self.format + "}").format(
+                self.name, self.time_elapsed
+            )
+        )

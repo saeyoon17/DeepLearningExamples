@@ -26,7 +26,7 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
                 milestones,
             )
 
-        #adding mlperf consistent warmpup routine
+        # adding mlperf consistent warmpup routine
         if warmup_method not in ("constant", "linear", "mlperf_linear"):
             raise ValueError(
                 "Only 'constant' or 'linear' warmup_method accepted"
@@ -48,7 +48,7 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
                 alpha = self.last_epoch / self.warmup_iters
                 warmup_factor = self.warmup_factor * (1 - alpha) + alpha
 
-            #define mlperf warmup routine
+            # define mlperf warmup routine
             elif self.warmup_method == "mlperf_linear":
                 # alpha = self.last_epoch / self.warmup_iters
                 # warmup_factor = self.warmup_factor * (1 - alpha) + alpha

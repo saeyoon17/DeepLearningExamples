@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import math
-from typing import Sequence, List, Iterable
+from typing import Iterable, List, Sequence
 
 import apex.mlp
 import torch
@@ -40,7 +40,9 @@ class AmpMlp(apex.mlp.MLP):
         super().__init__(*args, **kwargs)
 
     def forward(self, input):
-        return mlp_function(self.bias, self.activation, input, *self.weights, *self.biases)
+        return mlp_function(
+            self.bias, self.activation, input, *self.weights, *self.biases
+        )
 
 
 class AbstractMlp(nn.Module):
@@ -66,8 +68,12 @@ class AbstractMlp(nn.Module):
     def forward(self, mlp_input: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError()
 
-    def load_state(self, weights: Iterable[torch.Tensor], biases: Iterable[torch.Tensor]):
-        for new_weight, weight, new_bias, bias in zip(weights, self.weights, biases, self.biases):
+    def load_state(
+        self, weights: Iterable[torch.Tensor], biases: Iterable[torch.Tensor]
+    ):
+        for new_weight, weight, new_bias, bias in zip(
+            weights, self.weights, biases, self.biases
+        ):
             weight.data = new_weight.data
             weight.data.requires_grad_()
 
@@ -92,8 +98,14 @@ class TorchMlp(AbstractMlp):
     def _initialize_weights(self):
         for module in self.modules():
             if isinstance(module, nn.Linear):
-                nn.init.normal_(module.weight.data, 0., math.sqrt(2. / (module.in_features + module.out_features)))
-                nn.init.normal_(module.bias.data, 0., math.sqrt(1. / module.out_features))
+                nn.init.normal_(
+                    module.weight.data,
+                    0.0,
+                    math.sqrt(2.0 / (module.in_features + module.out_features)),
+                )
+                nn.init.normal_(
+                    module.bias.data, 0.0, math.sqrt(1.0 / module.out_features)
+                )
 
     @property
     def weights(self):
@@ -115,7 +127,6 @@ class TorchMlp(AbstractMlp):
 
 
 class CppMlp(AbstractMlp):
-
     def __init__(self, input_dim: int, sizes: Sequence[int]):
         super().__init__()
 

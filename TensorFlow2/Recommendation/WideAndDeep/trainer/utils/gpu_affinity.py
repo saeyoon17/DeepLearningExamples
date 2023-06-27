@@ -385,7 +385,7 @@ def get_unique(
                 unique_grouped_affinity = list(
                     grouped_affinity[
                         subgroup_id
-                        * cores_per_device: (subgroup_id + 1)
+                        * cores_per_device : (subgroup_id + 1)
                         * cores_per_device
                     ]
                 )

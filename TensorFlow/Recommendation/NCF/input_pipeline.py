@@ -15,11 +15,12 @@
 # limitations under the License.
 
 
-import numpy as np
 import cupy as cp
+import numpy as np
+
 
 def generate_negatives(neg_users, true_mat, item_range, sort=False, use_trick=False):
-    """ 
+    """
     Generate negative samples for data augmentation
     """
     neg_u = []
@@ -58,32 +59,38 @@ class DataGenerator:
     """
     Class to handle data augmentation
     """
-    def __init__(self,
-                 seed,
-                 hvd_rank,
-                 num_users,                 # type: int
-                 num_items,                 # type: int
-                 neg_mat,                   # type: np.ndarray
-                 train_users,               # type: np.ndarray
-                 train_items,               # type: np.ndarray
-                 train_labels,              # type: np.ndarray
-                 train_batch_size,          # type: int
-                 train_negative_samples,    # type: int
-                 pos_eval_users,            # type: np.ndarray
-                 pos_eval_items,            # type: np.ndarray
-                 eval_users_per_batch,      # type: int
-                 eval_negative_samples,     # type: int
-                ):
+
+    def __init__(
+        self,
+        seed,
+        hvd_rank,
+        num_users,  # type: int
+        num_items,  # type: int
+        neg_mat,  # type: np.ndarray
+        train_users,  # type: np.ndarray
+        train_items,  # type: np.ndarray
+        train_labels,  # type: np.ndarray
+        train_batch_size,  # type: int
+        train_negative_samples,  # type: int
+        pos_eval_users,  # type: np.ndarray
+        pos_eval_items,  # type: np.ndarray
+        eval_users_per_batch,  # type: int
+        eval_negative_samples,  # type: int
+    ):
         # Check input data
         if train_users.shape != train_items.shape:
             raise ValueError(
                 "Train shapes mismatch! {} Users vs {} Items!".format(
-                    train_users.shape, train_items.shape))
+                    train_users.shape, train_items.shape
+                )
+            )
         if pos_eval_users.shape != pos_eval_items.shape:
             raise ValueError(
                 "Eval shapes mismatch! {} Users vs {} Items!".format(
-                    pos_eval_users.shape, pos_eval_items.shape))
-        
+                    pos_eval_users.shape, pos_eval_items.shape
+                )
+            )
+
         np.random.seed(seed)
         cp.random.seed(seed)
         # Use GPU assigned to the horovod rank
@@ -123,8 +130,13 @@ class DataGenerator:
         neg_eval_users_base = cp.repeat(pos_eval_users, self._eval_negative_samples)
 
         # Generate negative samples
-        test_u_neg, test_i_neg = generate_negatives(neg_users=neg_eval_users_base, true_mat=neg_mat,
-                                                    item_range=self.num_items, sort=True, use_trick=False)
+        test_u_neg, test_i_neg = generate_negatives(
+            neg_users=neg_eval_users_base,
+            true_mat=neg_mat,
+            item_range=self.num_items,
+            sort=True,
+            use_trick=False,
+        )
 
         test_u_neg = test_u_neg.reshape((-1, self._eval_negative_samples)).get()
         test_i_neg = test_i_neg.reshape((-1, self._eval_negative_samples)).get()
@@ -137,20 +149,32 @@ class DataGenerator:
 
         # Generate duplicate mask
         ## Stable sort indices by incrementing all values with fractional position
-        indices = np.arange(test_users.shape[1]).reshape((1, -1)).repeat(test_users.shape[0], axis=0)
-        summed_items = np.add(test_items, indices/test_users.shape[1])
+        indices = (
+            np.arange(test_users.shape[1])
+            .reshape((1, -1))
+            .repeat(test_users.shape[0], axis=0)
+        )
+        summed_items = np.add(test_items, indices / test_users.shape[1])
         sorted_indices = np.argsort(summed_items, axis=1)
         sorted_order = np.argsort(sorted_indices, axis=1)
         sorted_items = np.sort(test_items, axis=1)
         ## Generate duplicate mask
-        dup_mask = np.equal(sorted_items[:,0:-1], sorted_items[:,1:])
-        dup_mask = np.concatenate((dup_mask, np.zeros((test_users.shape[0], 1))), axis=1)
-        r_indices = np.arange(test_users.shape[0]).reshape((-1, 1)).repeat(test_users.shape[1], axis=1)
+        dup_mask = np.equal(sorted_items[:, 0:-1], sorted_items[:, 1:])
+        dup_mask = np.concatenate(
+            (dup_mask, np.zeros((test_users.shape[0], 1))), axis=1
+        )
+        r_indices = (
+            np.arange(test_users.shape[0])
+            .reshape((-1, 1))
+            .repeat(test_users.shape[1], axis=1)
+        )
         dup_mask = dup_mask[r_indices, sorted_order].astype(np.float32)
 
         # Reshape all to (-1) and split into chunks
         batch_size = self.eval_users_per_batch * test_users.shape[1]
-        split_indices = np.arange(batch_size, test_users.shape[0]*test_users.shape[1], batch_size)
+        split_indices = np.arange(
+            batch_size, test_users.shape[0] * test_users.shape[1], batch_size
+        )
         self.eval_users = np.split(test_users.reshape(-1), split_indices)
         self.eval_items = np.split(test_items.reshape(-1), split_indices)
         self.dup_mask = np.split(dup_mask.reshape(-1), split_indices)

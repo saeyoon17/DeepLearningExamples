@@ -30,13 +30,14 @@ def to_device_async(tensor, device):
 
 
 def to_gpu_async(cpu_tensor):
-    return cpu_tensor.to('cuda', non_blocking=True)
+    return cpu_tensor.to("cuda", non_blocking=True)
 
 
 def to_cpu_numpy(gpu_tensor):
     if not isinstance(gpu_tensor, torch.Tensor):
         return gpu_tensor
     return gpu_tensor.detach().cpu().numpy()
+
 
 def remove_module_in_state_dict(state_dict):
     """
@@ -46,6 +47,6 @@ def remove_module_in_state_dict(state_dict):
     """
     new_state_dict = {}
     for key, val in state_dict.items():
-        new_key = key.replace('module.', '')
+        new_key = key.replace("module.", "")
         new_state_dict[new_key] = val
     return new_state_dict

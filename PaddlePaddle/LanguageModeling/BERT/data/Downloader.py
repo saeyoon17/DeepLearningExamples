@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from WikiDownloader import WikiDownloader
 from BooksDownloader import BooksDownloader
 from SquadDownloader import SquadDownloader
+from WikiDownloader import WikiDownloader
 
 
 class Downloader:
@@ -23,27 +23,27 @@ class Downloader:
         self.save_path = save_path
 
     def download(self):
-        if self.dataset_name == 'bookscorpus':
+        if self.dataset_name == "bookscorpus":
             self.download_bookscorpus()
 
-        elif self.dataset_name == 'wikicorpus_en':
-            self.download_wikicorpus('en')
+        elif self.dataset_name == "wikicorpus_en":
+            self.download_wikicorpus("en")
 
-        elif self.dataset_name == 'wikicorpus_zh':
-            self.download_wikicorpus('zh')
+        elif self.dataset_name == "wikicorpus_zh":
+            self.download_wikicorpus("zh")
 
-        elif self.dataset_name == 'squad':
+        elif self.dataset_name == "squad":
             self.download_squad()
 
-        elif self.dataset_name == 'all':
+        elif self.dataset_name == "all":
             self.download_bookscorpus()
-            self.download_wikicorpus('en')
-            self.download_wikicorpus('zh')
+            self.download_wikicorpus("en")
+            self.download_wikicorpus("zh")
             self.download_squad()
 
         else:
             print(self.dataset_name)
-            assert False, 'Unknown dataset_name provided to downloader'
+            assert False, "Unknown dataset_name provided to downloader"
 
     def download_bookscorpus(self):
         downloader = BooksDownloader(self.save_path)

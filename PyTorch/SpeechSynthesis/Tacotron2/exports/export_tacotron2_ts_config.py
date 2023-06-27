@@ -26,44 +26,52 @@
 # *****************************************************************************
 
 
-import os
 import argparse
+import os
 
 
 def parse_args(parser):
     """
-        Parse commandline arguments. 
+    Parse commandline arguments.
     """
-    parser.add_argument("--trtis_model_name",
-                        type=str,
-                        default='tacotron2',
-                        help="exports to appropriate directory for TRTIS")
-    parser.add_argument("--trtis_model_version",
-                        type=int,
-                        default=1,
-                        help="exports to appropriate directory for TRTIS")
-    parser.add_argument("--trtis_max_batch_size",
-                        type=int,
-                        default=1,
-                        help="Specifies the 'max_batch_size' in the TRTIS model config.\
-                              See the TRTIS documentation for more info.")
-    parser.add_argument('--fp16', action='store_true',
-                        help='inference with mixed precision')
+    parser.add_argument(
+        "--trtis_model_name",
+        type=str,
+        default="tacotron2",
+        help="exports to appropriate directory for TRTIS",
+    )
+    parser.add_argument(
+        "--trtis_model_version",
+        type=int,
+        default=1,
+        help="exports to appropriate directory for TRTIS",
+    )
+    parser.add_argument(
+        "--trtis_max_batch_size",
+        type=int,
+        default=1,
+        help="Specifies the 'max_batch_size' in the TRTIS model config.\
+                              See the TRTIS documentation for more info.",
+    )
+    parser.add_argument(
+        "--fp16", action="store_true", help="inference with mixed precision"
+    )
     return parser
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='PyTorch Tacotron 2 TRTIS config exporter')
+        description="PyTorch Tacotron 2 TRTIS config exporter"
+    )
     parser = parse_args(parser)
     args = parser.parse_args()
-    
+
     # prepare repository
-    model_folder = os.path.join('./trtis_repo', args.trtis_model_name)
+    model_folder = os.path.join("./trtis_repo", args.trtis_model_name)
     version_folder = os.path.join(model_folder, str(args.trtis_model_version))
     if not os.path.exists(version_folder):
         os.makedirs(version_folder)
-    
+
     # build the config for TRTIS
     config_filename = os.path.join(model_folder, "config.pbtxt")
     config_template = r"""
@@ -102,18 +110,17 @@ output [
   }}
 ]
 """
-    
+
     config_values = {
         "model_name": args.trtis_model_name,
         "max_batch_size": args.trtis_max_batch_size,
-        "fp_type": "TYPE_FP16" if args.fp16 else "TYPE_FP32"
+        "fp_type": "TYPE_FP16" if args.fp16 else "TYPE_FP32",
     }
-    
+
     with open(model_folder + "/config.pbtxt", "w") as file:
         final_config_str = config_template.format_map(config_values)
         file.write(final_config_str)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-

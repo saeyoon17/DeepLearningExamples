@@ -15,9 +15,10 @@ import bz2
 import glob
 import gzip
 import os
-import urllib.request
 import shutil
 import sys
+import urllib.request
+
 
 class PubMedDownloader:
     def __init__(self, subset, save_path):

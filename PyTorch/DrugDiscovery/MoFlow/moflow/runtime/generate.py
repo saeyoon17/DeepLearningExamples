@@ -16,22 +16,27 @@
 from typing import Optional, Tuple
 
 import numpy as np
-from torch.cuda.amp import autocast
 import torch
-
 from moflow.config import CONFIGS, Config
-
 from moflow.model.model import MoFlow
-from moflow.utils import convert_predictions_to_mols, postprocess_predictions
 from moflow.runtime.arguments import PARSER
 from moflow.runtime.common import get_newest_checkpoint, load_state
 from moflow.runtime.distributed_utils import get_device
 from moflow.runtime.logger import PerformanceLogger, setup_logging
+from moflow.utils import convert_predictions_to_mols, postprocess_predictions
+from torch.cuda.amp import autocast
 
 
-def infer(model: MoFlow, config: Config, device: torch.device, *,
-          ln_var: float = 0, temp: float = 0.6, mu: Optional[torch.Tensor] = None,
-          batch_size: int = 20) -> Tuple[np.ndarray, np.ndarray]:
+def infer(
+    model: MoFlow,
+    config: Config,
+    device: torch.device,
+    *,
+    ln_var: float = 0,
+    temp: float = 0.6,
+    mu: Optional[torch.Tensor] = None,
+    batch_size: int = 20
+) -> Tuple[np.ndarray, np.ndarray]:
 
     if mu is None:
         mu = torch.zeros(config.z_dim, dtype=torch.float32, device=device)
@@ -45,15 +50,19 @@ def infer(model: MoFlow, config: Config, device: torch.device, *,
     return adj, x
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     from rdkit import RDLogger
-    RDLogger.DisableLog('rdApp.*')
+
+    RDLogger.DisableLog("rdApp.*")
 
     args = PARSER.parse_args()
     logger = setup_logging(args)
-    perf_logger = PerformanceLogger(logger, args.batch_size, args.warmup_steps, mode='generate')
+    perf_logger = PerformanceLogger(
+        logger, args.batch_size, args.warmup_steps, mode="generate"
+    )
     if args.predictions_path:
         from rdkit.Chem import SmilesWriter
+
         smiles_writer = SmilesWriter(args.predictions_path)
 
     snapshot_path = get_newest_checkpoint(args.results_dir)
@@ -66,14 +75,15 @@ if __name__ == '__main__':
     elif args.allow_untrained:
         epoch, ln_var = 0, 0
     else:
-        raise RuntimeError('Generating molecules from an untrained network! '
-                           'If this was intentional, pass --allow_untrained flag.')
+        raise RuntimeError(
+            "Generating molecules from an untrained network! "
+            "If this was intentional, pass --allow_untrained flag."
+        )
     model.to(device=device, memory_format=torch.channels_last)
     model.eval()
     if args.jit:
         model.atom_model = torch.jit.script(model.atom_model)
         model.bond_model = torch.jit.script(model.bond_model)
-
 
     if args.steps == -1:
         args.steps = 1
@@ -82,13 +92,20 @@ if __name__ == '__main__':
         for i in range(args.steps):
             perf_logger.update()
             results = infer(
-                model, config, ln_var=ln_var, temp=args.temperature, batch_size=args.batch_size,
-                device=device)
+                model,
+                config,
+                ln_var=ln_var,
+                temp=args.temperature,
+                batch_size=args.batch_size,
+                device=device,
+            )
 
             if (i + 1) % args.log_interval == 0:
                 perf_logger.summarize(step=(0, i, i))
             if args.predictions_path:
-                mols_batch = convert_predictions_to_mols(*results, correct_validity=args.correct_validity)
+                mols_batch = convert_predictions_to_mols(
+                    *results, correct_validity=args.correct_validity
+                )
                 for mol in mols_batch:
                     smiles_writer.write(mol)
 

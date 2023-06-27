@@ -1,13 +1,11 @@
 import copy
 
 import apex
-import torch
-
 import numpy as np
-from sklearn.preprocessing import StandardScaler
-from sklearn.datasets import make_classification, make_regression
-
+import torch
 from fused_lamb import FusedLAMBAMP
+from sklearn.datasets import make_classification, make_regression
+from sklearn.preprocessing import StandardScaler
 
 N_SAMPLES = 10000
 N_FEATURES = 32
@@ -16,8 +14,12 @@ BATCH_SIZE = 100
 
 def print_param_diff(optimizer):
     with torch.no_grad():
-        for i, (group, master_group) in enumerate(zip(optimizer.param_groups, optimizer.param_groups_fp32)):
-            for ii, (p, master_p) in enumerate(zip(group['params'], master_group['params'])):
+        for i, (group, master_group) in enumerate(
+            zip(optimizer.param_groups, optimizer.param_groups_fp32)
+        ):
+            for ii, (p, master_p) in enumerate(
+                zip(group["params"], master_group["params"])
+            ):
                 diff = (p - master_p.half()).float().abs().mean().item()
                 print(f"  {i}th group, {ii}th param diff: {diff}")
 
@@ -30,11 +32,12 @@ class TestMod(torch.nn.Module):
             torch.nn.ReLU(),
             torch.nn.Linear(N_FEATURES // 2, 2),
         )
-    def forward(self, inputs) :
+
+    def forward(self, inputs):
         return self.layers(inputs)
 
 
-def main() :
+def main():
     loss = torch.nn.CrossEntropyLoss(ignore_index=-1)
     model = TestMod()
     model.cuda()
@@ -42,14 +45,27 @@ def main() :
     model.train()
     model = torch.jit.script(model)
     param_optimizer = list(model.named_parameters())
-    no_decay = ['bias', 'gamma', 'beta', 'LayerNorm']
+    no_decay = ["bias", "gamma", "beta", "LayerNorm"]
     optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}]
+        {
+            "params": [
+                p for n, p in param_optimizer if not any(nd in n for nd in no_decay)
+            ],
+            "weight_decay": 0.01,
+        },
+        {
+            "params": [
+                p for n, p in param_optimizer if any(nd in n for nd in no_decay)
+            ],
+            "weight_decay": 0.0,
+        },
+    ]
     grad_scaler = torch.cuda.amp.GradScaler(enabled=True)
     optimizer = FusedLAMBAMP(optimizer_grouped_parameters)
 
-    x, y = make_classification(n_samples=N_SAMPLES, n_features=N_FEATURES, random_state=0)
+    x, y = make_classification(
+        n_samples=N_SAMPLES, n_features=N_FEATURES, random_state=0
+    )
     x = StandardScaler().fit_transform(x)
     inputs = torch.from_numpy(x).cuda().half()
     targets = torch.from_numpy(y).cuda().long()
@@ -77,5 +93,6 @@ def main() :
     optimizer.load_state_dict(optimizer.state_dict())
     print_param_diff(optimizer)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

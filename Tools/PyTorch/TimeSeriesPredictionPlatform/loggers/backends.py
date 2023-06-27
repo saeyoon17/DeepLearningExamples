@@ -12,20 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import atexit
+import os
 import time
-
 from collections import OrderedDict
-from threading import Thread
-from queue import Queue
 from functools import partial
+from queue import Queue
+from threading import Thread
 from typing import Callable
 
-from torch.utils.tensorboard import SummaryWriter
-from dllogger import Backend
-
 from distributed_utils import is_parallel
+from dllogger import Backend
+from torch.utils.tensorboard import SummaryWriter
+
 
 class AverageMeter:
     def __init__(self):
@@ -136,9 +135,11 @@ class AggregatorBackend(Backend):
 
 
 class TensorBoardBackend(Backend):
-    def __init__(self, verbosity, log_dir='.'):
+    def __init__(self, verbosity, log_dir="."):
         super().__init__(verbosity=verbosity)
-        self.summary_writer = SummaryWriter(log_dir=os.path.join(log_dir, "TB_summary"), flush_secs=120, max_queue=200)
+        self.summary_writer = SummaryWriter(
+            log_dir=os.path.join(log_dir, "TB_summary"), flush_secs=120, max_queue=200
+        )
         atexit.register(self.summary_writer.close)
 
     @property

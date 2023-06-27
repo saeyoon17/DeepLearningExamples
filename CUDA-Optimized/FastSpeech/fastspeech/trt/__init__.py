@@ -23,6 +23,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
+
 import tensorrt as trt
 
 TRT_BASE_PATH = os.path.dirname(__file__)

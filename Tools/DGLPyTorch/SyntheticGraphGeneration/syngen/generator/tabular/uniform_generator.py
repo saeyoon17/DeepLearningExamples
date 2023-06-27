@@ -12,19 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pickle
 from collections import OrderedDict
 from functools import partial
-import pickle
+
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import OrdinalEncoder
-
-from syngen.generator.tabular.base_tabular_generator import BaseTabularGenerator
+from syngen.generator.tabular.base_tabular_generator import \
+    BaseTabularGenerator
 
 
 class UniformGenerator(BaseTabularGenerator):
-    """Uniform random feature generator.
-    """
+    """Uniform random feature generator."""
 
     def __init__(self, **kwargs):
         super(BaseTabularGenerator).__init__()
@@ -80,12 +80,12 @@ class UniformGenerator(BaseTabularGenerator):
         return df
 
     def save(self, path):
-        with open(path, 'wb') as file_handler:
+        with open(path, "wb") as file_handler:
             pickle.dump(self, file_handler, protocol=pickle.HIGHEST_PROTOCOL)
 
     @classmethod
     def load(cls, path):
-        with open(path, 'rb') as file_handler:
+        with open(path, "rb") as file_handler:
             model = pickle.load(file_handler)
         return model
 

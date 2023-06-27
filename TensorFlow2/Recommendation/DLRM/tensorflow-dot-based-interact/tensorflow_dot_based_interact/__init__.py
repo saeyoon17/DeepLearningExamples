@@ -15,4 +15,5 @@
 
 from __future__ import absolute_import
 
-from tensorflow_dot_based_interact.python.ops.dot_based_interact_ops import dot_based_interact
+from tensorflow_dot_based_interact.python.ops.dot_based_interact_ops import \
+    dot_based_interact

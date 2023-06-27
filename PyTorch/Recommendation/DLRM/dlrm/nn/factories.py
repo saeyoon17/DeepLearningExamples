@@ -14,11 +14,11 @@
 
 from typing import Sequence
 
-from dlrm.nn.embeddings import (
-    JointEmbedding, MultiTableEmbeddings, FusedJointEmbedding, JointSparseEmbedding,
-    Embeddings
-)
-from dlrm.nn.interactions import Interaction, CudaDotInteraction, DotInteraction, CatInteraction
+from dlrm.nn.embeddings import (Embeddings, FusedJointEmbedding,
+                                JointEmbedding, JointSparseEmbedding,
+                                MultiTableEmbeddings)
+from dlrm.nn.interactions import (CatInteraction, CudaDotInteraction,
+                                  DotInteraction, Interaction)
 from dlrm.nn.mlps import AbstractMlp, CppMlp, TorchMlp
 from dlrm.utils.distributed import is_distributed
 
@@ -28,36 +28,57 @@ def create_mlp(input_dim: int, sizes: Sequence[int], use_cpp_mlp: bool) -> Abstr
 
 
 def create_embeddings(
-        embedding_type: str,
-        categorical_feature_sizes: Sequence[int],
-        embedding_dim: int,
-        device: str = "cuda",
-        hash_indices: bool = False,
-        fp16: bool = False
+    embedding_type: str,
+    categorical_feature_sizes: Sequence[int],
+    embedding_dim: int,
+    device: str = "cuda",
+    hash_indices: bool = False,
+    fp16: bool = False,
 ) -> Embeddings:
     if embedding_type == "joint":
-        return JointEmbedding(categorical_feature_sizes, embedding_dim, device=device, hash_indices=hash_indices)
+        return JointEmbedding(
+            categorical_feature_sizes,
+            embedding_dim,
+            device=device,
+            hash_indices=hash_indices,
+        )
     elif embedding_type == "joint_fused":
-        assert not is_distributed(), "Joint fused embedding is not supported in the distributed mode. " \
-                                     "You may want to use 'joint_sparse' option instead."
-        return FusedJointEmbedding(categorical_feature_sizes, embedding_dim, device=device, hash_indices=hash_indices,
-                                   amp_train=fp16)
+        assert not is_distributed(), (
+            "Joint fused embedding is not supported in the distributed mode. "
+            "You may want to use 'joint_sparse' option instead."
+        )
+        return FusedJointEmbedding(
+            categorical_feature_sizes,
+            embedding_dim,
+            device=device,
+            hash_indices=hash_indices,
+            amp_train=fp16,
+        )
     elif embedding_type == "joint_sparse":
-        return JointSparseEmbedding(categorical_feature_sizes, embedding_dim, device=device, hash_indices=hash_indices)
+        return JointSparseEmbedding(
+            categorical_feature_sizes,
+            embedding_dim,
+            device=device,
+            hash_indices=hash_indices,
+        )
     elif embedding_type == "multi_table":
-        return MultiTableEmbeddings(categorical_feature_sizes, embedding_dim,
-                                    hash_indices=hash_indices, device=device)
+        return MultiTableEmbeddings(
+            categorical_feature_sizes,
+            embedding_dim,
+            hash_indices=hash_indices,
+            device=device,
+        )
     else:
         raise NotImplementedError(f"unknown embedding type: {embedding_type}")
 
 
-def create_interaction(interaction_op: str, embedding_num: int, embedding_dim: int) -> Interaction:
+def create_interaction(
+    interaction_op: str, embedding_num: int, embedding_dim: int
+) -> Interaction:
     if interaction_op == "dot":
         return DotInteraction(embedding_num, embedding_dim)
     elif interaction_op == "cuda_dot":
-        return CudaDotInteraction(
-            DotInteraction(embedding_num, embedding_dim)
-        )
+        return CudaDotInteraction(DotInteraction(embedding_num, embedding_dim))
     elif interaction_op == "cat":
         return CatInteraction(embedding_num, embedding_dim)
     else:

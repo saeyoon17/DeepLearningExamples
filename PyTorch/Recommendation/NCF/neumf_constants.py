@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-USER_CHANNEL_NAME = 'user_ch'
-ITEM_CHANNEL_NAME = 'item_ch'
-LABEL_CHANNEL_NAME = 'label_ch'
-TEST_SAMPLES_PER_SERIES = 'test_samples_per_series'
+USER_CHANNEL_NAME = "user_ch"
+ITEM_CHANNEL_NAME = "item_ch"
+LABEL_CHANNEL_NAME = "label_ch"
+TEST_SAMPLES_PER_SERIES = "test_samples_per_series"

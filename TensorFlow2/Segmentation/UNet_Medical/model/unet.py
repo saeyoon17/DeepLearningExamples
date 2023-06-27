@@ -19,27 +19,31 @@ based around UNet.
 
 """
 import tensorflow as tf
-from model.layers import InputBlock, DownsampleBlock, BottleneckBlock, UpsampleBlock, OutputBlock
+from model.layers import (BottleneckBlock, DownsampleBlock, InputBlock,
+                          OutputBlock, UpsampleBlock)
 
 
 class Unet(tf.keras.Model):
-    """ U-Net: Convolutional Networks for Biomedical Image Segmentation
+    """U-Net: Convolutional Networks for Biomedical Image Segmentation
 
     Source:
         https://arxiv.org/pdf/1505.04597
 
     """
+
     def __init__(self):
         super().__init__(self)
         self.input_block = InputBlock(filters=64)
         self.bottleneck = BottleneckBlock(1024)
         self.output_block = OutputBlock(filters=64, n_classes=2)
 
-        self.down_blocks = [DownsampleBlock(filters, idx)
-                            for idx, filters in enumerate([128, 256, 512])]
+        self.down_blocks = [
+            DownsampleBlock(filters, idx) for idx, filters in enumerate([128, 256, 512])
+        ]
 
-        self.up_blocks = [UpsampleBlock(filters, idx)
-                          for idx, filters in enumerate([512, 256, 128])]
+        self.up_blocks = [
+            UpsampleBlock(filters, idx) for idx, filters in enumerate([512, 256, 128])
+        ]
 
     def call(self, x, training=True):
         skip_connections = []

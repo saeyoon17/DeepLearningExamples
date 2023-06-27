@@ -2,7 +2,8 @@ import numpy as np
 
 
 class BenchmarkStats:
-    """ Tracks statistics used for benchmarking. """
+    """Tracks statistics used for benchmarking."""
+
     def __init__(self):
         self.utts = []
         self.times = []
@@ -16,5 +17,8 @@ class BenchmarkStats:
     def get(self, n_epochs):
         throughput = sum(self.utts[-n_epochs:]) / sum(self.times[-n_epochs:])
 
-        return {'throughput': throughput, 'benchmark_epochs_num': n_epochs,
-                'loss': np.mean(self.losses[-n_epochs:])}
+        return {
+            "throughput": throughput,
+            "benchmark_epochs_num": n_epochs,
+            "loss": np.mean(self.losses[-n_epochs:]),
+        }

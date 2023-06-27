@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 #
-#-------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 #
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,8 +20,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .dictionary import Dictionary
-from .indexed_dataset import IndexedDataset, IndexedInMemoryDataset, IndexedRawTextDataset  # noqa: F401
-from .language_pair_dataset import LanguagePairDataset, load_dataset_splits
-
 from .data_utils import EpochBatchIterator
+from .dictionary import Dictionary
+from .indexed_dataset import (IndexedDataset,  # noqa: F401
+                              IndexedInMemoryDataset, IndexedRawTextDataset)
+from .language_pair_dataset import LanguagePairDataset, load_dataset_splits

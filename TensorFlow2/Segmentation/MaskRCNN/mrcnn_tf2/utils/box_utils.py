@@ -18,7 +18,7 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 import tensorflow as tf
 
-BBOX_XFORM_CLIP = np.log(1000. / 16.)
+BBOX_XFORM_CLIP = np.log(1000.0 / 16.0)
 NMS_TILE_SIZE = 512
 
 
@@ -38,9 +38,13 @@ def bbox_overlap(boxes, gt_boxes):
       iou: a tensor with as a shape of [batch_size, N, MAX_NUM_INSTANCES].
     """
 
-    with tf.name_scope('bbox_overlap'):
-        bb_y_min, bb_x_min, bb_y_max, bb_x_max = tf.split(value=boxes, num_or_size_splits=4, axis=2)
-        gt_y_min, gt_x_min, gt_y_max, gt_x_max = tf.split(value=gt_boxes, num_or_size_splits=4, axis=2)
+    with tf.name_scope("bbox_overlap"):
+        bb_y_min, bb_x_min, bb_y_max, bb_x_max = tf.split(
+            value=boxes, num_or_size_splits=4, axis=2
+        )
+        gt_y_min, gt_x_min, gt_y_max, gt_x_max = tf.split(
+            value=gt_boxes, num_or_size_splits=4, axis=2
+        )
 
         # Calculates the intersection area.
         i_xmin = tf.maximum(bb_x_min, tf.transpose(a=gt_x_min, perm=[0, 2, 1]))
@@ -100,10 +104,12 @@ def top_k(scores, k, boxes_list):
         else:
             boxes_index_offsets = tf.range(batch_size) * tf.shape(input=boxes)[1]
             boxes_indices = tf.reshape(
-                top_k_indices + tf.expand_dims(boxes_index_offsets, 1), [-1])
+                top_k_indices + tf.expand_dims(boxes_index_offsets, 1), [-1]
+            )
             boxes = tf.reshape(
                 tf.gather(tf.reshape(boxes, [-1, 4]), boxes_indices),
-                [batch_size, -1, 4])
+                [batch_size, -1, 4],
+            )
         outputs.append(boxes)
     return scores, outputs
 
@@ -111,25 +117,43 @@ def top_k(scores, k, boxes_list):
 def _self_suppression(iou, _, iou_sum):
     batch_size = tf.shape(input=iou)[0]
     can_suppress_others = tf.cast(
-        tf.reshape(tf.reduce_max(input_tensor=iou, axis=1) <= 0.5, [batch_size, -1, 1]), iou.dtype)
-    iou_suppressed = tf.reshape(
-        tf.cast(tf.reduce_max(input_tensor=can_suppress_others * iou, axis=1) <= 0.5, iou.dtype),
-        [batch_size, -1, 1]) * iou
+        tf.reshape(tf.reduce_max(input_tensor=iou, axis=1) <= 0.5, [batch_size, -1, 1]),
+        iou.dtype,
+    )
+    iou_suppressed = (
+        tf.reshape(
+            tf.cast(
+                tf.reduce_max(input_tensor=can_suppress_others * iou, axis=1) <= 0.5,
+                iou.dtype,
+            ),
+            [batch_size, -1, 1],
+        )
+        * iou
+    )
     iou_sum_new = tf.reduce_sum(input_tensor=iou_suppressed, axis=[1, 2])
     return [
         iou_suppressed,
-        tf.reduce_any(input_tensor=iou_sum - iou_sum_new > 0.5), iou_sum_new
+        tf.reduce_any(input_tensor=iou_sum - iou_sum_new > 0.5),
+        iou_sum_new,
     ]
 
 
 def _cross_suppression(boxes, box_slice, iou_threshold, inner_idx):
     batch_size = tf.shape(input=boxes)[0]
-    new_slice = tf.slice(boxes, [0, inner_idx * NMS_TILE_SIZE, 0],
-                         [batch_size, NMS_TILE_SIZE, 4])
+    new_slice = tf.slice(
+        boxes, [0, inner_idx * NMS_TILE_SIZE, 0], [batch_size, NMS_TILE_SIZE, 4]
+    )
     iou = bbox_overlap(new_slice, box_slice)
-    ret_slice = tf.expand_dims(
-        tf.cast(tf.reduce_all(input_tensor=iou < iou_threshold, axis=[1]), box_slice.dtype),
-        2) * box_slice
+    ret_slice = (
+        tf.expand_dims(
+            tf.cast(
+                tf.reduce_all(input_tensor=iou < iou_threshold, axis=[1]),
+                box_slice.dtype,
+            ),
+            2,
+        )
+        * box_slice
+    )
     return boxes, ret_slice, iou_threshold, inner_idx + 1
 
 
@@ -154,44 +178,55 @@ def _suppression_loop_body(boxes, iou_threshold, output_size, idx):
     batch_size = tf.shape(input=boxes)[0]
 
     # Iterates over tiles that can possibly suppress the current tile.
-    box_slice = tf.slice(boxes, [0, idx * NMS_TILE_SIZE, 0],
-                         [batch_size, NMS_TILE_SIZE, 4])
+    box_slice = tf.slice(
+        boxes, [0, idx * NMS_TILE_SIZE, 0], [batch_size, NMS_TILE_SIZE, 4]
+    )
     _, box_slice, _, _ = tf.while_loop(
         cond=lambda _boxes, _box_slice, _threshold, inner_idx: inner_idx < idx,
-        body=_cross_suppression, loop_vars=[boxes, box_slice, iou_threshold,
-                                            tf.constant(0)])
+        body=_cross_suppression,
+        loop_vars=[boxes, box_slice, iou_threshold, tf.constant(0)],
+    )
 
     # Iterates over the current tile to compute self-suppression.
     iou = bbox_overlap(box_slice, box_slice)
     mask = tf.expand_dims(
-        tf.reshape(tf.range(NMS_TILE_SIZE), [1, -1]) > tf.reshape(
-            tf.range(NMS_TILE_SIZE), [-1, 1]), 0)
+        tf.reshape(tf.range(NMS_TILE_SIZE), [1, -1])
+        > tf.reshape(tf.range(NMS_TILE_SIZE), [-1, 1]),
+        0,
+    )
     iou *= tf.cast(tf.logical_and(mask, iou >= iou_threshold), iou.dtype)
     suppressed_iou, _, _ = tf.while_loop(
-        cond=lambda _iou, loop_condition, _iou_sum: loop_condition, body=_self_suppression,
-        loop_vars=[iou, tf.constant(True),
-                   tf.reduce_sum(input_tensor=iou, axis=[1, 2])])
+        cond=lambda _iou, loop_condition, _iou_sum: loop_condition,
+        body=_self_suppression,
+        loop_vars=[
+            iou,
+            tf.constant(True),
+            tf.reduce_sum(input_tensor=iou, axis=[1, 2]),
+        ],
+    )
     suppressed_box = tf.reduce_sum(input_tensor=suppressed_iou, axis=1) > 0
     box_slice *= tf.expand_dims(1.0 - tf.cast(suppressed_box, box_slice.dtype), 2)
 
     # Uses box_slice to update the input boxes.
     mask = tf.reshape(
-        tf.cast(tf.equal(tf.range(num_tiles), idx), boxes.dtype), [1, -1, 1, 1])
-    boxes = tf.tile(tf.expand_dims(
-        box_slice, [1]), [1, num_tiles, 1, 1]) * mask + tf.reshape(
-        boxes, [batch_size, num_tiles, NMS_TILE_SIZE, 4]) * (1 - mask)
+        tf.cast(tf.equal(tf.range(num_tiles), idx), boxes.dtype), [1, -1, 1, 1]
+    )
+    boxes = tf.tile(
+        tf.expand_dims(box_slice, [1]), [1, num_tiles, 1, 1]
+    ) * mask + tf.reshape(boxes, [batch_size, num_tiles, NMS_TILE_SIZE, 4]) * (1 - mask)
     boxes = tf.reshape(boxes, [batch_size, -1, 4])
 
     # Updates output_size.
     output_size += tf.reduce_sum(
-        input_tensor=tf.cast(tf.reduce_any(input_tensor=box_slice > 0, axis=[2]), tf.int32), axis=[1])
+        input_tensor=tf.cast(
+            tf.reduce_any(input_tensor=box_slice > 0, axis=[2]), tf.int32
+        ),
+        axis=[1],
+    )
     return boxes, iou_threshold, output_size, idx + 1
 
 
-def sorted_non_max_suppression_padded(scores,
-                                      boxes,
-                                      max_output_size,
-                                      iou_threshold):
+def sorted_non_max_suppression_padded(scores, boxes, max_output_size, iou_threshold):
     """A wrapper that handles non-maximum suppression.
 
     Assumption:
@@ -245,44 +280,59 @@ def sorted_non_max_suppression_padded(scores,
     """
     batch_size = tf.shape(input=boxes)[0]
     num_boxes = tf.shape(input=boxes)[1]
-    pad = tf.cast(
-        tf.math.ceil(tf.cast(num_boxes, tf.float32) / NMS_TILE_SIZE),
-        tf.int32) * NMS_TILE_SIZE - num_boxes
-    boxes = tf.pad(tensor=tf.cast(boxes, tf.float32), paddings=[[0, 0], [0, pad], [0, 0]])
+    pad = (
+        tf.cast(tf.math.ceil(tf.cast(num_boxes, tf.float32) / NMS_TILE_SIZE), tf.int32)
+        * NMS_TILE_SIZE
+        - num_boxes
+    )
+    boxes = tf.pad(
+        tensor=tf.cast(boxes, tf.float32), paddings=[[0, 0], [0, pad], [0, 0]]
+    )
     scores = tf.pad(tensor=tf.cast(scores, tf.float32), paddings=[[0, 0], [0, pad]])
     num_boxes += pad
 
     def _loop_cond(unused_boxes, unused_threshold, output_size, idx):
         return tf.logical_and(
             tf.reduce_min(input_tensor=output_size) < max_output_size,
-            idx < num_boxes // NMS_TILE_SIZE)
+            idx < num_boxes // NMS_TILE_SIZE,
+        )
 
     selected_boxes, _, output_size, _ = tf.while_loop(
-        cond=_loop_cond, body=_suppression_loop_body, loop_vars=[
-            boxes, iou_threshold,
+        cond=_loop_cond,
+        body=_suppression_loop_body,
+        loop_vars=[
+            boxes,
+            iou_threshold,
             tf.zeros([batch_size], tf.int32),
-            tf.constant(0)
-        ])
+            tf.constant(0),
+        ],
+    )
     idx = num_boxes - tf.cast(
         tf.nn.top_k(
-            tf.cast(tf.reduce_any(input_tensor=selected_boxes > 0, axis=[2]), tf.int32) *
-            tf.expand_dims(tf.range(num_boxes, 0, -1), 0), max_output_size)[0],
-        tf.int32)
+            tf.cast(tf.reduce_any(input_tensor=selected_boxes > 0, axis=[2]), tf.int32)
+            * tf.expand_dims(tf.range(num_boxes, 0, -1), 0),
+            max_output_size,
+        )[0],
+        tf.int32,
+    )
     idx = tf.minimum(idx, num_boxes - 1)
-    idx = tf.reshape(
-        idx + tf.reshape(tf.range(batch_size) * num_boxes, [-1, 1]), [-1])
+    idx = tf.reshape(idx + tf.reshape(tf.range(batch_size) * num_boxes, [-1, 1]), [-1])
     boxes = tf.reshape(
-        tf.gather(tf.reshape(boxes, [-1, 4]), idx),
-        [batch_size, max_output_size, 4])
+        tf.gather(tf.reshape(boxes, [-1, 4]), idx), [batch_size, max_output_size, 4]
+    )
     boxes = boxes * tf.cast(
-        tf.reshape(tf.range(max_output_size), [1, -1, 1]) < tf.reshape(
-            output_size, [-1, 1, 1]), boxes.dtype)
+        tf.reshape(tf.range(max_output_size), [1, -1, 1])
+        < tf.reshape(output_size, [-1, 1, 1]),
+        boxes.dtype,
+    )
     scores = tf.reshape(
-        tf.gather(tf.reshape(scores, [-1, 1]), idx),
-        [batch_size, max_output_size])
+        tf.gather(tf.reshape(scores, [-1, 1]), idx), [batch_size, max_output_size]
+    )
     scores = scores * tf.cast(
-        tf.reshape(tf.range(max_output_size), [1, -1]) < tf.reshape(
-            output_size, [-1, 1]), scores.dtype)
+        tf.reshape(tf.range(max_output_size), [1, -1])
+        < tf.reshape(output_size, [-1, 1]),
+        scores.dtype,
+    )
     return scores, boxes
 
 
@@ -300,7 +350,7 @@ def encode_boxes(boxes, anchors, weights=None):
       encoded_boxes: a tensor whose shape is the same as `boxes` representing the
         encoded box targets.
     """
-    with tf.name_scope('encode_box'):
+    with tf.name_scope("encode_box"):
         boxes = tf.cast(boxes, dtype=anchors.dtype)
 
         y_min, x_min, y_max, x_max = tf.split(boxes, 4, axis=-1)
@@ -315,7 +365,9 @@ def encode_boxes(boxes, anchors, weights=None):
         box_yc = y_min + 0.5 * box_h
         box_xc = x_min + 0.5 * box_w
 
-        anchor_ymin, anchor_xmin, anchor_ymax, anchor_xmax = tf.split(anchors, 4, axis=-1)
+        anchor_ymin, anchor_xmin, anchor_ymax, anchor_xmax = tf.split(
+            anchors, 4, axis=-1
+        )
 
         # anchor_ymin = anchors[..., 0:1]
         # anchor_xmin = anchors[..., 1:2]
@@ -338,7 +390,9 @@ def encode_boxes(boxes, anchors, weights=None):
             encoded_dh *= weights[2]
             encoded_dw *= weights[3]
 
-        encoded_boxes = tf.concat([encoded_dy, encoded_dx, encoded_dh, encoded_dw], axis=-1)
+        encoded_boxes = tf.concat(
+            [encoded_dy, encoded_dx, encoded_dh, encoded_dw], axis=-1
+        )
     return encoded_boxes
 
 
@@ -356,7 +410,7 @@ def decode_boxes(encoded_boxes, anchors, weights=None):
       encoded_boxes: a tensor whose shape is the same as `boxes` representing the
         decoded box targets.
     """
-    with tf.name_scope('decode_box'):
+    with tf.name_scope("decode_box"):
         encoded_boxes = tf.cast(encoded_boxes, dtype=anchors.dtype)
 
         dy, dx, dh, dw = tf.split(encoded_boxes, 4, axis=-1)
@@ -375,7 +429,9 @@ def decode_boxes(encoded_boxes, anchors, weights=None):
         dh = tf.minimum(dh, BBOX_XFORM_CLIP)
         dw = tf.minimum(dw, BBOX_XFORM_CLIP)
 
-        anchor_ymin, anchor_xmin, anchor_ymax, anchor_xmax = tf.split(anchors, 4, axis=-1)
+        anchor_ymin, anchor_xmin, anchor_ymax, anchor_xmax = tf.split(
+            anchors, 4, axis=-1
+        )
 
         # anchor_ymin = anchors[..., 0:1]
         # anchor_xmin = anchors[..., 1:2]
@@ -398,8 +454,13 @@ def decode_boxes(encoded_boxes, anchors, weights=None):
         decoded_boxes_xmax = decoded_boxes_xmin + decoded_boxes_w - 1.0
 
         decoded_boxes = tf.concat(
-            [decoded_boxes_ymin, decoded_boxes_xmin, decoded_boxes_ymax, decoded_boxes_xmax],
-            axis=-1
+            [
+                decoded_boxes_ymin,
+                decoded_boxes_xmin,
+                decoded_boxes_ymax,
+                decoded_boxes_xmax,
+            ],
+            axis=-1,
         )
 
     return decoded_boxes
@@ -422,7 +483,7 @@ def clip_boxes(boxes, height, width):
       clipped_boxes: a tensor whose shape is the same as `boxes` representing the
         clipped boxes.
     """
-    with tf.name_scope('clip_box'):
+    with tf.name_scope("clip_box"):
         y_min, x_min, y_max, x_max = tf.split(boxes, 4, axis=-1)
 
         # y_min = boxes[..., 0:1]
@@ -438,7 +499,9 @@ def clip_boxes(boxes, height, width):
         clipped_x_min = tf.maximum(tf.minimum(x_min, width - 1.0), 0.0)
         clipped_x_max = tf.maximum(tf.minimum(x_max, width - 1.0), 0.0)
 
-        clipped_boxes = tf.concat([clipped_y_min, clipped_x_min, clipped_y_max, clipped_x_max], axis=-1)
+        clipped_boxes = tf.concat(
+            [clipped_y_min, clipped_x_min, clipped_y_max, clipped_x_max], axis=-1
+        )
 
     return clipped_boxes
 
@@ -468,7 +531,7 @@ def filter_boxes(boxes, scores, min_size, height, width, scale):
       filtered_scores: a tensor whose shape is the same as `scores` representing
         the filtered scores.
     """
-    with tf.name_scope('filter_box'):
+    with tf.name_scope("filter_box"):
         y_min, x_min, y_max, x_max = tf.split(boxes, 4, axis=-1)
 
         # y_min = boxes[..., 0:1]
@@ -488,8 +551,7 @@ def filter_boxes(boxes, scores, min_size, height, width, scale):
         min_size = tf.cast(tf.maximum(min_size, 1), dtype=boxes.dtype)
 
         size_mask = tf.logical_and(
-            tf.greater_equal(h, min_size * scale),
-            tf.greater_equal(w, min_size * scale)
+            tf.greater_equal(h, min_size * scale), tf.greater_equal(w, min_size * scale)
         )
 
         center_mask = tf.logical_and(tf.less(yc, height), tf.less(xc, width))
@@ -518,7 +580,7 @@ def to_normalized_coordinates(boxes, height, width):
       normalized_boxes: a tensor whose shape is the same as `boxes` representing
         the boxes in normalized coordinates.
     """
-    with tf.name_scope('normalize_box'):
+    with tf.name_scope("normalize_box"):
         height = tf.cast(height, dtype=boxes.dtype)
         width = tf.cast(width, dtype=boxes.dtype)
 
@@ -556,7 +618,7 @@ def to_absolute_coordinates(boxes, height, width):
       absolute_boxes: a tensor whose shape is the same as `boxes` representing the
         boxes in absolute coordinates.
     """
-    with tf.name_scope('denormalize_box'):
+    with tf.name_scope("denormalize_box"):
         height = tf.cast(height, dtype=boxes.dtype)
         width = tf.cast(width, dtype=boxes.dtype)
 

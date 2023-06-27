@@ -31,7 +31,6 @@ This is originally implemented in TensorFlow Object Detection API.
 """
 
 import tensorflow as tf
-
 from mrcnn_tf2.object_detection import minibatch_sampler, ops
 
 
@@ -50,8 +49,10 @@ class BalancedPositiveNegativeSampler(minibatch_sampler.MinibatchSampler):
           ValueError: if positive_fraction < 0, or positive_fraction > 1
         """
         if positive_fraction < 0 or positive_fraction > 1:
-            raise ValueError('positive_fraction should be in range [0,1]. '
-                             'Received: %s.' % positive_fraction)
+            raise ValueError(
+                "positive_fraction should be in range [0,1]. "
+                "Received: %s." % positive_fraction
+            )
         self._positive_fraction = positive_fraction
         self._is_static = is_static
 
@@ -71,19 +72,23 @@ class BalancedPositiveNegativeSampler(minibatch_sampler.MinibatchSampler):
           subsample.
         """
         input_length = tf.shape(input=sorted_indices_tensor)[0]
-        valid_positive_index = tf.greater(sorted_indices_tensor,
-                                          tf.zeros(input_length, tf.int32))
-        num_sampled_pos = tf.reduce_sum(input_tensor=tf.cast(valid_positive_index, tf.int32))
+        valid_positive_index = tf.greater(
+            sorted_indices_tensor, tf.zeros(input_length, tf.int32)
+        )
+        num_sampled_pos = tf.reduce_sum(
+            input_tensor=tf.cast(valid_positive_index, tf.int32)
+        )
         max_num_positive_samples = tf.constant(
-            int(sample_size * self._positive_fraction), tf.int32)
+            int(sample_size * self._positive_fraction), tf.int32
+        )
         num_positive_samples = tf.minimum(max_num_positive_samples, num_sampled_pos)
-        num_negative_samples = tf.constant(sample_size,
-                                           tf.int32) - num_positive_samples
+        num_negative_samples = tf.constant(sample_size, tf.int32) - num_positive_samples
 
         return num_positive_samples, num_negative_samples
 
-    def _get_values_from_start_and_end(self, input_tensor, num_start_samples,
-                                       num_end_samples, total_num_samples):
+    def _get_values_from_start_and_end(
+        self, input_tensor, num_start_samples, num_end_samples, total_num_samples
+    ):
         """slices num_start_samples and last num_end_samples from input_tensor.
 
         Args:
@@ -103,16 +108,24 @@ class BalancedPositiveNegativeSampler(minibatch_sampler.MinibatchSampler):
         input_length = tf.shape(input=input_tensor)[0]
         start_positions = tf.less(tf.range(input_length), num_start_samples)
         end_positions = tf.greater_equal(
-            tf.range(input_length), input_length - num_end_samples)
+            tf.range(input_length), input_length - num_end_samples
+        )
         selected_positions = tf.logical_or(start_positions, end_positions)
         selected_positions = tf.cast(selected_positions, tf.float32)
-        indexed_positions = tf.multiply(tf.cumsum(selected_positions),
-                                        selected_positions)
-        one_hot_selector = tf.one_hot(tf.cast(indexed_positions, tf.int32) - 1,
-                                      total_num_samples,
-                                      dtype=tf.float32)
-        return tf.cast(tf.tensordot(tf.cast(input_tensor, tf.float32),
-                                    one_hot_selector, axes=[0, 0]), tf.int32)
+        indexed_positions = tf.multiply(
+            tf.cumsum(selected_positions), selected_positions
+        )
+        one_hot_selector = tf.one_hot(
+            tf.cast(indexed_positions, tf.int32) - 1,
+            total_num_samples,
+            dtype=tf.float32,
+        )
+        return tf.cast(
+            tf.tensordot(
+                tf.cast(input_tensor, tf.float32), one_hot_selector, axes=[0, 0]
+            ),
+            tf.int32,
+        )
 
     def _static_subsample(self, indicator, batch_size, labels):
         """Returns subsampled minibatch.
@@ -135,14 +148,15 @@ class BalancedPositiveNegativeSampler(minibatch_sampler.MinibatchSampler):
         """
         # Check if indicator and labels have a static size.
         if not indicator.shape.is_fully_defined():
-            raise ValueError('indicator must be static in shape when is_static is'
-                             'True')
+            raise ValueError(
+                "indicator must be static in shape when is_static is" "True"
+            )
         if not labels.shape.is_fully_defined():
-            raise ValueError('labels must be static in shape when is_static is'
-                             'True')
+            raise ValueError("labels must be static in shape when is_static is" "True")
         if not isinstance(batch_size, int):
-            raise ValueError('batch_size has to be an integer when is_static is'
-                             'True.')
+            raise ValueError(
+                "batch_size has to be an integer when is_static is" "True."
+            )
 
         input_length = tf.shape(input=indicator)[0]
 
@@ -151,57 +165,74 @@ class BalancedPositiveNegativeSampler(minibatch_sampler.MinibatchSampler):
         num_true_sampled = tf.reduce_sum(input_tensor=tf.cast(indicator, tf.float32))
         additional_false_sample = tf.less_equal(
             tf.cumsum(tf.cast(tf.logical_not(indicator), tf.float32)),
-            batch_size - num_true_sampled)
+            batch_size - num_true_sampled,
+        )
         indicator = tf.logical_or(indicator, additional_false_sample)
 
         # Shuffle indicator and label. Need to store the permutation to restore the
         # order post sampling.
         permutation = tf.random.shuffle(tf.range(input_length))
         indicator = ops.matmul_gather_on_zeroth_axis(
-            tf.cast(indicator, tf.float32), permutation)
+            tf.cast(indicator, tf.float32), permutation
+        )
         labels = ops.matmul_gather_on_zeroth_axis(
-            tf.cast(labels, tf.float32), permutation)
+            tf.cast(labels, tf.float32), permutation
+        )
 
         # index (starting from 1) when indicator is True, 0 when False
         indicator_idx = tf.where(
-            tf.cast(indicator, tf.bool), tf.range(1, input_length + 1),
-            tf.zeros(input_length, tf.int32))
+            tf.cast(indicator, tf.bool),
+            tf.range(1, input_length + 1),
+            tf.zeros(input_length, tf.int32),
+        )
 
         # Replace -1 for negative, +1 for positive labels
         signed_label = tf.where(
-            tf.cast(labels, tf.bool), tf.ones(input_length, tf.int32),
-            tf.scalar_mul(-1, tf.ones(input_length, tf.int32)))
+            tf.cast(labels, tf.bool),
+            tf.ones(input_length, tf.int32),
+            tf.scalar_mul(-1, tf.ones(input_length, tf.int32)),
+        )
         # negative of index for negative label, positive index for positive label,
         # 0 when indicator is False.
         signed_indicator_idx = tf.multiply(indicator_idx, signed_label)
         sorted_signed_indicator_idx = tf.nn.top_k(
-            signed_indicator_idx, input_length, sorted=True).values
+            signed_indicator_idx, input_length, sorted=True
+        ).values
 
-        [num_positive_samples,
-         num_negative_samples] = self._get_num_pos_neg_samples(
-            sorted_signed_indicator_idx, batch_size)
+        [num_positive_samples, num_negative_samples] = self._get_num_pos_neg_samples(
+            sorted_signed_indicator_idx, batch_size
+        )
 
         sampled_idx = self._get_values_from_start_and_end(
-            sorted_signed_indicator_idx, num_positive_samples,
-            num_negative_samples, batch_size)
+            sorted_signed_indicator_idx,
+            num_positive_samples,
+            num_negative_samples,
+            batch_size,
+        )
 
         # Shift the indices to start from 0 and remove any samples that are set as
         # False.
         sampled_idx = tf.abs(sampled_idx) - tf.ones(batch_size, tf.int32)
         sampled_idx = tf.multiply(
             tf.cast(tf.greater_equal(sampled_idx, tf.constant(0)), tf.int32),
-            sampled_idx)
+            sampled_idx,
+        )
 
-        sampled_idx_indicator = tf.cast(tf.reduce_sum(
-            input_tensor=tf.one_hot(sampled_idx, depth=input_length),
-            axis=0), tf.bool)
+        sampled_idx_indicator = tf.cast(
+            tf.reduce_sum(
+                input_tensor=tf.one_hot(sampled_idx, depth=input_length), axis=0
+            ),
+            tf.bool,
+        )
 
         # project back the order based on stored permutations
-        reprojections = tf.one_hot(permutation, depth=input_length,
-                                   dtype=tf.float32)
-        return tf.cast(tf.tensordot(
-            tf.cast(sampled_idx_indicator, tf.float32),
-            reprojections, axes=[0, 0]), tf.bool)
+        reprojections = tf.one_hot(permutation, depth=input_length, dtype=tf.float32)
+        return tf.cast(
+            tf.tensordot(
+                tf.cast(sampled_idx_indicator, tf.float32), reprojections, axes=[0, 0]
+            ),
+            tf.bool,
+        )
 
     def subsample(self, indicator, batch_size, labels, scope=None):
         """Returns subsampled minibatch.
@@ -223,17 +254,23 @@ class BalancedPositiveNegativeSampler(minibatch_sampler.MinibatchSampler):
           ValueError: if labels and indicator are not 1D boolean tensors.
         """
         if len(indicator.get_shape().as_list()) != 1:
-            raise ValueError('indicator must be 1 dimensional, got a tensor of '
-                             'shape %s' % indicator.get_shape())
+            raise ValueError(
+                "indicator must be 1 dimensional, got a tensor of "
+                "shape %s" % indicator.get_shape()
+            )
         if len(labels.get_shape().as_list()) != 1:
-            raise ValueError('labels must be 1 dimensional, got a tensor of '
-                             'shape %s' % labels.get_shape())
+            raise ValueError(
+                "labels must be 1 dimensional, got a tensor of "
+                "shape %s" % labels.get_shape()
+            )
         if labels.dtype != tf.bool:
-            raise ValueError('labels should be of type bool. Received: %s' %
-                             labels.dtype)
+            raise ValueError(
+                "labels should be of type bool. Received: %s" % labels.dtype
+            )
         if indicator.dtype != tf.bool:
-            raise ValueError('indicator should be of type bool. Received: %s' %
-                             indicator.dtype)
+            raise ValueError(
+                "indicator should be of type bool. Received: %s" % indicator.dtype
+            )
 
         if self._is_static:
             return self._static_subsample(indicator, batch_size, labels)
@@ -246,16 +283,24 @@ class BalancedPositiveNegativeSampler(minibatch_sampler.MinibatchSampler):
 
             # Sample positive and negative samples separately
             if batch_size is None:
-                max_num_pos = tf.reduce_sum(input_tensor=tf.cast(positive_idx, dtype=tf.int32))
+                max_num_pos = tf.reduce_sum(
+                    input_tensor=tf.cast(positive_idx, dtype=tf.int32)
+                )
             else:
                 max_num_pos = int(self._positive_fraction * batch_size)
             sampled_pos_idx = self.subsample_indicator(positive_idx, max_num_pos)
-            num_sampled_pos = tf.reduce_sum(input_tensor=tf.cast(sampled_pos_idx, tf.int32))
+            num_sampled_pos = tf.reduce_sum(
+                input_tensor=tf.cast(sampled_pos_idx, tf.int32)
+            )
             if batch_size is None:
                 negative_positive_ratio = (
-                                                  1 - self._positive_fraction) / self._positive_fraction
+                    1 - self._positive_fraction
+                ) / self._positive_fraction
                 max_num_neg = tf.cast(
-                    negative_positive_ratio * tf.cast(num_sampled_pos, dtype=tf.float32), dtype=tf.int32)
+                    negative_positive_ratio
+                    * tf.cast(num_sampled_pos, dtype=tf.float32),
+                    dtype=tf.int32,
+                )
             else:
                 max_num_neg = batch_size - num_sampled_pos
             sampled_neg_idx = self.subsample_indicator(negative_idx, max_num_neg)

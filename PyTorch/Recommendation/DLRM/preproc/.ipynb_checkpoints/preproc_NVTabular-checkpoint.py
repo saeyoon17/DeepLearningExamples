@@ -18,17 +18,18 @@ This script accepts input in either tsv or parquet format.
 """
 
 import argparse
-from collections import OrderedDict
 import json
 import os
 import subprocess
+from collections import OrderedDict
 from time import time
 from typing import List, Optional
 
+import cudf
 import numpy as np
 import nvtabular as nvt
 import rmm
-import cudf
+from cudf.io.parquet import ParquetWriter
 from dask.base import tokenize
 from dask.dataframe.io.parquet.utils import _analyze_paths
 from dask.delayed import Delayed
@@ -39,10 +40,9 @@ from dask_cuda import LocalCUDACluster
 from fsspec.core import get_fs_token_paths
 from nvtabular import Workflow
 from nvtabular.io import Dataset, Shuffle
+from nvtabular.ops import (Categorify, Clip, FillMissing, LambdaOp, LogOp,
+                           Normalize, get_embedding_sizes)
 from nvtabular.utils import device_mem_size
-from nvtabular.ops import Normalize, Categorify, LogOp, FillMissing, Clip, get_embedding_sizes, \
-    LambdaOp
-from cudf.io.parquet import ParquetWriter
 
 CRITEO_CONTINUOUS_COLUMNS = [f'_c{x}' for x in range(1, 14)]
 CRITEO_CATEGORICAL_COLUMNS = [f'_c{x}' for x in range(14, 40)]

@@ -21,10 +21,8 @@
 import logging
 
 import torch
+from seq2seq.utils import get_rank, get_world_size
 from torch.utils.data.sampler import Sampler
-
-from seq2seq.utils import get_rank
-from seq2seq.utils import get_world_size
 
 
 class DistributedSampler(Sampler):
@@ -54,8 +52,9 @@ class DistributedSampler(Sampler):
 
         self.data_len = len(self.dataset)
 
-        self.num_samples = self.data_len // self.global_batch_size \
-            * self.global_batch_size
+        self.num_samples = (
+            self.data_len // self.global_batch_size * self.global_batch_size
+        )
 
     def init_rng(self):
         """
@@ -63,7 +62,7 @@ class DistributedSampler(Sampler):
         """
         rng = torch.Generator()
         seed = self.seeds[self.epoch]
-        logging.info(f'Sampler for epoch {self.epoch} uses seed {seed}')
+        logging.info(f"Sampler for epoch {self.epoch} uses seed {seed}")
         rng.manual_seed(seed)
         return rng
 
@@ -77,7 +76,7 @@ class DistributedSampler(Sampler):
         assert len(indices) == self.num_samples
 
         indices = indices.view(-1, self.batch_size)
-        indices = indices[self.rank::self.world_size].contiguous()
+        indices = indices[self.rank :: self.world_size].contiguous()
         indices = indices.view(-1)
         indices = indices.tolist()
 
@@ -104,7 +103,7 @@ class DistributedSampler(Sampler):
         indices = torch.randperm(self.data_len, generator=rng)
 
         # make indices evenly divisible by (batch_size * world_size)
-        indices = indices[:self.num_samples]
+        indices = indices[: self.num_samples]
 
         # assign batches to workers
         indices = self.distribute_batches(indices)
@@ -124,8 +123,9 @@ class DistributedSampler(Sampler):
 
 
 class ShardingSampler(DistributedSampler):
-    def __init__(self, dataset, batch_size, seeds, shard_size,
-                 world_size=None, rank=None):
+    def __init__(
+        self, dataset, batch_size, seeds, shard_size, world_size=None, rank=None
+    ):
         """
         Constructor for the ShardingSampler.
 
@@ -140,15 +140,16 @@ class ShardingSampler(DistributedSampler):
         super().__init__(dataset, batch_size, seeds, world_size, rank)
 
         self.shard_size = shard_size
-        self.num_samples = self.data_len // self.global_batch_size \
-            * self.global_batch_size
+        self.num_samples = (
+            self.data_len // self.global_batch_size * self.global_batch_size
+        )
 
     def __iter__(self):
         rng = self.init_rng()
         # generate permutation
         indices = torch.randperm(self.data_len, generator=rng)
         # make indices evenly divisible by (batch_size * world_size)
-        indices = indices[:self.num_samples]
+        indices = indices[: self.num_samples]
 
         # splits the dataset into chunks of 'self.shard_size' global batches
         # each, sorts by (src + tgt) sequence length within each chunk,
@@ -158,8 +159,12 @@ class ShardingSampler(DistributedSampler):
 
         lengths = self.dataset.lengths[indices]
 
-        shards = [indices[i * shard_size:(i+1) * shard_size] for i in range(nshards)]
-        len_shards = [lengths[i * shard_size:(i+1) * shard_size] for i in range(nshards)]
+        shards = [
+            indices[i * shard_size : (i + 1) * shard_size] for i in range(nshards)
+        ]
+        len_shards = [
+            lengths[i * shard_size : (i + 1) * shard_size] for i in range(nshards)
+        ]
 
         # sort by (src + tgt) sequence length within each shard
         indices = []
@@ -179,8 +184,9 @@ class ShardingSampler(DistributedSampler):
 
 
 class BucketingSampler(DistributedSampler):
-    def __init__(self, dataset, batch_size, seeds, num_buckets,
-                 world_size=None, rank=None):
+    def __init__(
+        self, dataset, batch_size, seeds, num_buckets, world_size=None, rank=None
+    ):
         """
         Constructor for the BucketingSampler.
 
@@ -198,8 +204,9 @@ class BucketingSampler(DistributedSampler):
         bucket_width = (dataset.max_len + num_buckets - 1) // num_buckets
 
         # assign sentences to buckets based on src and tgt sequence lengths
-        bucket_ids = torch.max(dataset.src_lengths // bucket_width,
-                               dataset.tgt_lengths // bucket_width)
+        bucket_ids = torch.max(
+            dataset.src_lengths // bucket_width, dataset.tgt_lengths // bucket_width
+        )
         bucket_ids.clamp_(0, num_buckets - 1)
 
         # build buckets
@@ -268,8 +275,11 @@ class StaticDistributedSampler(Sampler):
 
         data_len = len(dataset)
         repeated_data_len = int(len(dataset) * repeat)
-        num_samples = (repeated_data_len + global_batch_size - 1) \
-            // global_batch_size * global_batch_size
+        num_samples = (
+            (repeated_data_len + global_batch_size - 1)
+            // global_batch_size
+            * global_batch_size
+        )
         self.num_samples = num_samples
 
         indices = list(range(repeated_data_len))

@@ -16,21 +16,18 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.mixture import BayesianGaussianMixture
-
+from syngen.generator.tabular.data_transformer.base_data_transformer import \
+    BaseDataTransformer
 from syngen.utils.types import ColumnType
-from syngen.generator.tabular.data_transformer.base_data_transformer import (
-    BaseDataTransformer,
-)
 
 
 class CTABDataTransformer(BaseDataTransformer):
-    """ Data transformer for CTAB generator.
+    """Data transformer for CTAB generator.
     Adopted from: https://github.com/zhao-zilong/CTAB-GAN
 
     """
-    def __init__(
-        self, categorical_columns=(), mixed_dict={}, n_clusters=10, eps=0.005
-    ):
+
+    def __init__(self, categorical_columns=(), mixed_dict={}, n_clusters=10, eps=0.005):
         self.meta = None
         self.n_clusters = n_clusters
         self.eps = eps
@@ -140,9 +137,7 @@ class CTABDataTransformer(BaseDataTransformer):
 
                 gm2.fit(data[:, id_][filter_arr].reshape([-1, 1]))
                 mode_freq = (
-                    pd.Series(
-                        gm2.predict(data[:, id_][filter_arr].reshape([-1, 1]))
-                    )
+                    pd.Series(gm2.predict(data[:, id_][filter_arr].reshape([-1, 1])))
                     .value_counts()
                     .keys()
                 )
@@ -269,9 +264,7 @@ class CTABDataTransformer(BaseDataTransformer):
                 else:
                     features = (current - means) / (4 * stds)
 
-                probs = self.model[id_][1].predict_proba(
-                    current.reshape([-1, 1])
-                )
+                probs = self.model[id_][1].predict_proba(current.reshape([-1, 1]))
 
                 n_opts = sum(self.components[id_])  # 8
                 features = features[:, self.components[id_]]
@@ -288,9 +281,7 @@ class CTABDataTransformer(BaseDataTransformer):
                 probs_onehot = np.zeros_like(probs)
                 probs_onehot[np.arange(len(probs)), opt_sel] = 1
                 extra_bits = np.zeros([len(current), len(info["modal"])])
-                temp_probs_onehot = np.concatenate(
-                    [extra_bits, probs_onehot], axis=1
-                )
+                temp_probs_onehot = np.concatenate([extra_bits, probs_onehot], axis=1)
                 final = np.zeros(
                     [len(data), 1 + probs_onehot.shape[1] + len(info["modal"])]
                 )
@@ -303,11 +294,9 @@ class CTABDataTransformer(BaseDataTransformer):
 
                     else:
                         final[idx, 0] = features[features_curser]
-                        final[
-                            idx, (1 + len(info["modal"])) :
-                        ] = temp_probs_onehot[features_curser][
-                            len(info["modal"]) :
-                        ]
+                        final[idx, (1 + len(info["modal"])) :] = temp_probs_onehot[
+                            features_curser
+                        ][len(info["modal"]) :]
                         features_curser = features_curser + 1
 
                 just_onehot = final[:, 1:]
@@ -394,9 +383,7 @@ class CTABDataTransformer(BaseDataTransformer):
                     if p_argmax[idx] < len(info["modal"]):
                         argmax_value = p_argmax[idx]
                         result[idx] = float(
-                            list(
-                                map(info["modal"].__getitem__, [argmax_value])
-                            )[0]
+                            list(map(info["modal"].__getitem__, [argmax_value]))[0]
                         )
                     else:
                         std_t = stds[(p_argmax[idx] - len(info["modal"]))]

@@ -65,13 +65,26 @@ def get_data(dump_dir, prefix):
         names = list(np.load(npz_files[0].as_posix()).keys())
         # calculate target shape
         target_shape = {
-            name: tuple(np.max([np.load(npz_file.as_posix())[name].shape for npz_file in npz_files], axis=0))
+            name: tuple(
+                np.max(
+                    [
+                        np.load(npz_file.as_posix())[name].shape
+                        for npz_file in npz_files
+                    ],
+                    axis=0,
+                )
+            )
             for name in names
         }
         # pad and concatenate data
         data = {
             name: np.concatenate(
-                [pad_except_batch_axis(np.load(npz_file.as_posix())[name], target_shape[name]) for npz_file in npz_files]
+                [
+                    pad_except_batch_axis(
+                        np.load(npz_file.as_posix())[name], target_shape[name]
+                    )
+                    for npz_file in npz_files
+                ]
             )
             for name in names
         }
@@ -81,10 +94,20 @@ def get_data(dump_dir, prefix):
 def main():
     logging.basicConfig(level=logging.INFO)
 
-    parser = argparse.ArgumentParser(description="Run models with given dataloader", allow_abbrev=False)
-    parser.add_argument("--metrics", help=f"Path to python module containing metrics calculator", required=True)
+    parser = argparse.ArgumentParser(
+        description="Run models with given dataloader", allow_abbrev=False
+    )
+    parser.add_argument(
+        "--metrics",
+        help=f"Path to python module containing metrics calculator",
+        required=True,
+    )
     parser.add_argument("--csv", help="Path to csv file", required=True)
-    parser.add_argument("--dump-dir", help="Path to directory with dumped outputs (and labels)", required=True)
+    parser.add_argument(
+        "--dump-dir",
+        help="Path to directory with dumped outputs (and labels)",
+        required=True,
+    )
 
     args, *_ = parser.parse_known_args()
 
@@ -98,7 +121,9 @@ def main():
         LOGGER.info(f"    {key} = {value}")
 
     MetricsCalculator = load_from_file(args.metrics, "metrics", "MetricsCalculator")
-    metrics_calculator: BaseMetricsCalculator = ArgParserGenerator(MetricsCalculator).from_args(args)
+    metrics_calculator: BaseMetricsCalculator = ArgParserGenerator(
+        MetricsCalculator
+    ).from_args(args)
 
     ids = get_data(args.dump_dir, "ids")["ids"]
     x = get_data(args.dump_dir, "inputs")
@@ -117,9 +142,13 @@ def main():
     metrics = metrics_calculator.calc(ids=ids, x=x, y_pred=y_pred, y_real=y_true)
     metrics = {TOTAL_COLUMN_NAME: len(ids), **metrics}
 
-    metric_names_with_space = [name for name in metrics if any([c in string.whitespace for c in name])]
+    metric_names_with_space = [
+        name for name in metrics if any([c in string.whitespace for c in name])
+    ]
     if metric_names_with_space:
-        raise ValueError(f"Metric names shall have no spaces; Incorrect names: {', '.join(metric_names_with_space)}")
+        raise ValueError(
+            f"Metric names shall have no spaces; Incorrect names: {', '.join(metric_names_with_space)}"
+        )
 
     csv_path = Path(args.csv)
     csv_path.parent.mkdir(parents=True, exist_ok=True)

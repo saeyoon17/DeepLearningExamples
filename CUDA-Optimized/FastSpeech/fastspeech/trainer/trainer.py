@@ -24,26 +24,23 @@
 
 import abc
 import glob
+import os
 import pathlib
+import time
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import torch.cuda.profiler as profiler
+from fastspeech.utils.fp16 import cast_model_to_half
+from fastspeech.utils.logging import tprint
+from fastspeech.utils.nvtx import Nvtx
+from fastspeech.utils.pytorch import to_device_async
+from fastspeech.utils.time import TimeElapsed
 from tensorboardX import SummaryWriter
-import time
-import os
-import matplotlib.pyplot as plt
 from torch import nn
 
-from fastspeech.utils.logging import tprint
-from fastspeech.utils.pytorch import to_device_async
-from fastspeech.utils.nvtx import Nvtx
-from fastspeech.utils.fp16 import cast_model_to_half
-
-import torch.cuda.profiler as profiler
-from fastspeech.utils.logging import tprint
-from fastspeech.utils.time import TimeElapsed
-
-plt.switch_backend('Agg')
+plt.switch_backend("Agg")
 
 
 class Trainer(object):
@@ -56,7 +53,28 @@ class Trainer(object):
     distributed
     """
 
-    def __init__(self, data_loader, model_name, model, optimizer_fn, final_steps, lr_scheduler_fn=None, step=0, ckpt_path=None, log_path=None, n_epochs=None, save_steps=None, log_steps=10, device='cuda', use_amp=False, nvprof_iter_start=None, nvprof_iter_end=None, pyprof_enabled=False, detect_anomaly=False, seed=None):
+    def __init__(
+        self,
+        data_loader,
+        model_name,
+        model,
+        optimizer_fn,
+        final_steps,
+        lr_scheduler_fn=None,
+        step=0,
+        ckpt_path=None,
+        log_path=None,
+        n_epochs=None,
+        save_steps=None,
+        log_steps=10,
+        device="cuda",
+        use_amp=False,
+        nvprof_iter_start=None,
+        nvprof_iter_end=None,
+        pyprof_enabled=False,
+        detect_anomaly=False,
+        seed=None,
+    ):
         self.data_loader = data_loader
         self.model_name = model_name
         self.model = model
@@ -78,8 +96,7 @@ class Trainer(object):
         self.model.train()
         to_device_async(self.model, self.device)
         num_param = sum(param.numel() for param in model.parameters())
-        tprint('The number of {} parameters: {}'.format(
-            self.model_name, num_param))
+        tprint("The number of {} parameters: {}".format(self.model_name, num_param))
 
         # optimizer
         self.optimizer = optimizer_fn(model)
@@ -93,13 +110,15 @@ class Trainer(object):
         # automatic mixed precision
         if self.use_amp:
             from apex import amp
-            self.model, self.optimizer = amp.initialize(self.model, 
-                                                        self.optimizer, 
-                                                        opt_level='O1')
+
+            self.model, self.optimizer = amp.initialize(
+                self.model, self.optimizer, opt_level="O1"
+            )
 
         # profile
         if nvprof_iter_start and nvprof_iter_end is not None and pyprof_enabled:
             from apex import pyprof
+
             pyprof.nvtx.init()
 
         # data parallel
@@ -117,7 +136,7 @@ class Trainer(object):
         # logging
         if log_path:
             # tensorboard log path : {log_path}/YYYYMMDD-HHMMMSS
-            log_path = os.path.join(log_path, time.strftime('%Y%m%d-%H%M%S'))
+            log_path = os.path.join(log_path, time.strftime("%Y%m%d-%H%M%S"))
             self.tbwriter = SummaryWriter(log_dir=log_path, flush_secs=10)
 
         # checkpoint path
@@ -131,13 +150,15 @@ class Trainer(object):
     def train(self):
         try:
             with torch.autograd.profiler.emit_nvtx(enabled=self.pyprof_enabled):
-                for i in range(self.step+1, self.final_steps + 1):
+                for i in range(self.step + 1, self.final_steps + 1):
                     self.step = i
                     tprint("------------- TRAIN step : {} -------------".format(i))
 
                     if self.nvprof_iter_start and i == self.nvprof_iter_start:
                         profiler.start()
-                        timer = TimeElapsed(name="Training time during profiling", format=":.6f")
+                        timer = TimeElapsed(
+                            name="Training time during profiling", format=":.6f"
+                        )
                         timer.start()
 
                     with Nvtx("step #{}".format(self.step)):
@@ -146,10 +167,10 @@ class Trainer(object):
                     if self.nvprof_iter_end and i == self.nvprof_iter_end:
                         profiler.stop()
                         timer.end()
-        
+
                     if self.lr_scheduler:
                         for param_group in self.optimizer.param_groups:
-                            tprint("lr: {:06f}".format(param_group['lr']))
+                            tprint("lr: {:06f}".format(param_group["lr"]))
                         self.lr_scheduler.step(self.step)
 
                     if self.step % self.log_steps == 0:
@@ -175,12 +196,13 @@ class Trainer(object):
         with torch.autograd.set_detect_anomaly(mode=self.detect_anomaly):
             with Nvtx("forward"):
                 loss, meta = self.loss(data, self.model)
-        
+
             self.optimizer.zero_grad()
 
             with Nvtx("backward"):
                 if self.use_amp:
                     from apex import amp
+
                     with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                         scaled_loss.backward()
                 else:
@@ -192,49 +214,47 @@ class Trainer(object):
         return loss, meta
 
     def log(self, loss, meta):
-        self.console_log('train', loss, meta)
+        self.console_log("train", loss, meta)
         if self.log_path:
-            self.tensorboard_log('train', loss)
+            self.tensorboard_log("train", loss)
 
     def save(self):
         state_dict = {
-            'step': self.step,
-            'model': self.model.state_dict(),
-            'optim': self.optimizer.state_dict(),
+            "step": self.step,
+            "model": self.model.state_dict(),
+            "optim": self.optimizer.state_dict(),
         }
-        torch.save(state_dict, self.ckpt_path +
-                   '/checkpoint_{:06d}.pt'.format(self.step))
+        torch.save(
+            state_dict, self.ckpt_path + "/checkpoint_{:06d}.pt".format(self.step)
+        )
 
-        tprint('[Save] Model "{}". Step={}.'.format(
-            self.model_name, self.step))
+        tprint('[Save] Model "{}". Step={}.'.format(self.model_name, self.step))
 
     def load(self, load_optim=True):
-        files_exist = glob.glob(os.path.join(self.ckpt_path, '*'))
+        files_exist = glob.glob(os.path.join(self.ckpt_path, "*"))
         if files_exist:
             # load the latest created file.
             latest_file = max(files_exist, key=os.path.getctime)
             state_dict = torch.load(latest_file)
 
-            self.step = state_dict['step']
-            self.model.load_state_dict(state_dict['model'])
+            self.step = state_dict["step"]
+            self.model.load_state_dict(state_dict["model"])
             if load_optim:
-                self.optimizer.load_state_dict(state_dict['optim'])
+                self.optimizer.load_state_dict(state_dict["optim"])
 
-            tprint('[Load] Checkpoint \'{}\'. Step={}'.format(
-                latest_file, self.step))
+            tprint("[Load] Checkpoint '{}'. Step={}".format(latest_file, self.step))
         else:
-            tprint('No checkpoints in {}. Load skipped.'.format(self.ckpt_path))
+            tprint("No checkpoints in {}. Load skipped.".format(self.ckpt_path))
 
     def console_log(self, tag, loss, meta):
         # console logging
-        msg = 'loss: {:.6f}'.format(loss)
+        msg = "loss: {:.6f}".format(loss)
         for key, value in meta.items():
-            msg += ',\t{}: {:.4f}'.format(key, value)
+            msg += ",\t{}: {:.4f}".format(key, value)
         tprint(msg)
 
     def tensorboard_log(self, tag, loss):
-        self.tbwriter.add_scalar(
-            '{}/loss'.format(tag), loss, global_step=self.step)
+        self.tbwriter.add_scalar("{}/loss".format(tag), loss, global_step=self.step)
 
     @staticmethod
     def repeat(iterable, n_repeat=None):

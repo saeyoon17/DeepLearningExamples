@@ -30,26 +30,28 @@ import time
 import fire
 import librosa
 import torch
-
+from fastspeech import DEFAULT_DEVICE
+from fastspeech import hparam as hp
 from fastspeech.data_load import PadDataLoader
 from fastspeech.dataset.text_dataset import TextDataset
-from fastspeech.inferencer.fastspeech_inferencer import FastSpeechInferencer
-from fastspeech.model.fastspeech import Fastspeech
-from fastspeech import hparam as hp, DEFAULT_DEVICE
-from fastspeech.utils.logging import tprint
-from fastspeech.utils.time import TimeElapsed
-from fastspeech.utils.pytorch import to_device_async, to_cpu_numpy
 from fastspeech.infer import get_inferencer
+from fastspeech.inferencer.fastspeech_inferencer import FastSpeechInferencer
 from fastspeech.inferencer.waveglow_inferencer import WaveGlowInferencer
+from fastspeech.model.fastspeech import Fastspeech
+from fastspeech.utils.logging import tprint
+from fastspeech.utils.pytorch import to_cpu_numpy, to_device_async
+from fastspeech.utils.time import TimeElapsed
 
-MAX_FILESIZE=128
+MAX_FILESIZE = 128
 
 # TODO test with different speeds
-def generate(hparam='infer.yaml',
-             text='test_sentences.txt',
-             results_path='results',
-             device=DEFAULT_DEVICE,
-             **kwargs):
+def generate(
+    hparam="infer.yaml",
+    text="test_sentences.txt",
+    results_path="results",
+    device=DEFAULT_DEVICE,
+    **kwargs
+):
     """The script for generating waveforms from texts with a vocoder.
 
     By default, this script assumes to load parameters in the default config file, fastspeech/hparams/infer.yaml.
@@ -76,17 +78,19 @@ def generate(hparam='infer.yaml',
     hp.set_hparam(hparam, kwargs)
 
     if os.path.isfile(text):
-        f = open(text, 'r', encoding="utf-8")
+        f = open(text, "r", encoding="utf-8")
         texts = f.read().splitlines()
     else:  # single string
         texts = [text]
 
     dataset = TextDataset(texts)
-    data_loader = PadDataLoader(dataset,
-                                batch_size=hp.batch_size,
-                                num_workers=hp.n_workers,
-                                shuffle=False,
-                                drop_last=False)
+    data_loader = PadDataLoader(
+        dataset,
+        batch_size=hp.batch_size,
+        num_workers=hp.n_workers,
+        shuffle=False,
+        drop_last=False,
+    )
 
     # text to mel
     model = Fastspeech(
@@ -106,19 +110,25 @@ def generate(hparam='infer.yaml',
         fft_conv1d_padding=hp.fft_conv1d_padding,
         dropout=hp.dropout,
         n_mels=hp.num_mels,
-        fused_layernorm=hp.fused_layernorm
+        fused_layernorm=hp.fused_layernorm,
     )
 
     fs_inferencer = get_inferencer(model, data_loader, device)
 
     # set up WaveGlow
     if hp.use_trt:
-        from fastspeech.trt.waveglow_trt_inferencer import WaveGlowTRTInferencer
+        from fastspeech.trt.waveglow_trt_inferencer import \
+            WaveGlowTRTInferencer
+
         wb_inferencer = WaveGlowTRTInferencer(
-            ckpt_file=hp.waveglow_path, engine_file=hp.waveglow_engine_path, use_fp16=hp.use_fp16)
+            ckpt_file=hp.waveglow_path,
+            engine_file=hp.waveglow_engine_path,
+            use_fp16=hp.use_fp16,
+        )
     else:
         wb_inferencer = WaveGlowInferencer(
-            ckpt_file=hp.waveglow_path, device=device, use_fp16=hp.use_fp16)
+            ckpt_file=hp.waveglow_path, device=device, use_fp16=hp.use_fp16
+        )
 
     tprint("Generating {} sentences.. ".format(len(dataset)))
 
@@ -129,12 +139,17 @@ def generate(hparam='infer.yaml',
 
                 with TimeElapsed(name="Inferece Time: E2E", format=":.6f"):
                     ## Text-to-Mel ##
-                    with TimeElapsed(name="Inferece Time: FastSpeech", device=device, cuda_sync=True, format=":.6f"), torch.no_grad():
+                    with TimeElapsed(
+                        name="Inferece Time: FastSpeech",
+                        device=device,
+                        cuda_sync=True,
+                        format=":.6f",
+                    ), torch.no_grad():
                         outputs = fs_inferencer.infer()
 
                     texts = outputs["text"]
                     mels = outputs["mel"]  # (b, n_mels, t)
-                    mel_masks = outputs['mel_mask']  # (b, t)
+                    mel_masks = outputs["mel_mask"]  # (b, t)
                     # assert(mels.is_cuda)
 
                     # remove paddings
@@ -144,14 +159,19 @@ def generate(hparam='infer.yaml',
                     mel_masks = mel_masks[..., :max_len]
 
                     ## Vocoder ##
-                    with TimeElapsed(name="Inferece Time: WaveGlow", device=device, cuda_sync=True, format=":.6f"), torch.no_grad():
+                    with TimeElapsed(
+                        name="Inferece Time: WaveGlow",
+                        device=device,
+                        cuda_sync=True,
+                        format=":.6f",
+                    ), torch.no_grad():
                         wavs = wb_inferencer.infer(mels)
                         wavs = to_cpu_numpy(wavs)
 
                 ## Write wavs ##
                 pathlib.Path(results_path).mkdir(parents=True, exist_ok=True)
                 for i, (text, wav) in enumerate(zip(texts, wavs)):
-                    tprint("TEXT #{}: \"{}\"".format(i, text))
+                    tprint('TEXT #{}: "{}"'.format(i, text))
 
                     # remove paddings in case of batch size > 1
                     wav_len = mel_lens[i] * hp.hop_len
@@ -166,5 +186,5 @@ def generate(hparam='infer.yaml',
             tprint("Generation has been canceled.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     fire.Fire(generate)

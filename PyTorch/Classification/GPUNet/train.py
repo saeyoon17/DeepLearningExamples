@@ -30,43 +30,28 @@
 # limitations under the License.
 
 import argparse
+import glob
 import logging
 import os
-import glob
 import re
-from pathlib import Path
 import time
 from collections import OrderedDict
 from contextlib import suppress
 from datetime import datetime
-import dllogger
+from pathlib import Path
 
+import dllogger
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.utils
 import yaml
-from timm.data import (
-    AugMixDataset,
-    FastCollateMixup,
-    Mixup,
-    create_dataset,
-    create_loader,
-    resolve_data_config,
-)
-from timm.loss import (
-    JsdCrossEntropy,
-    LabelSmoothingCrossEntropy,
-    SoftTargetCrossEntropy,
-)
-from timm.models import (
-    convert_splitbn_model,
-    create_model,
-    load_checkpoint,
-    model_parameters,
-    resume_checkpoint,
-    safe_model_name,
-)
+from timm.data import (AugMixDataset, FastCollateMixup, Mixup, create_dataset,
+                       create_loader, resolve_data_config)
+from timm.loss import (JsdCrossEntropy, LabelSmoothingCrossEntropy,
+                       SoftTargetCrossEntropy)
+from timm.models import (convert_splitbn_model, create_model, load_checkpoint,
+                         model_parameters, resume_checkpoint, safe_model_name)
 from timm.optim import create_optimizer_v2, optimizer_kwargs
 from timm.scheduler import create_scheduler
 from timm.utils import *
@@ -814,10 +799,9 @@ parser.add_argument(
 )
 
 
-from timm.models.registry import register_model
-
 from configs.model_hub import get_configs
 from models.gpunet_builder import GPUNet_Builder
+from timm.models.registry import register_model
 
 
 @register_model
@@ -1010,11 +994,18 @@ def _parse_args():
     args_text = yaml.safe_dump(args.__dict__, default_flow_style=False)
     return args, args_text
 
+
 def unique_log_fpath(fpath):
     """Have a unique log filename for every separate run"""
-    log_num = max([0] + [int(re.search("\.(\d+)", Path(f).suffix).group(1))
-                         for f in glob.glob(f"{fpath}.*")])
+    log_num = max(
+        [0]
+        + [
+            int(re.search("\.(\d+)", Path(f).suffix).group(1))
+            for f in glob.glob(f"{fpath}.*")
+        ]
+    )
     return f"{fpath}.{log_num + 1}"
+
 
 def main():
 
@@ -1092,9 +1083,7 @@ def main():
         assert hasattr(
             model, "num_classes"
         ), "Model must have `num_classes` attr if not set on cmd line/config."
-        args.num_classes = (
-            model.num_classes
-        )
+        args.num_classes = model.num_classes
 
     if args.distributed:
         torch.distributed.barrier()
@@ -1111,13 +1100,15 @@ def main():
         dllogger.init(
             backends=[
                 dllogger.JSONStreamBackend(verbosity=1, filename=log_path, append=True),
-                dllogger.JSONStreamBackend(verbosity=1, filename=unique_log_fpath(log_path)),
+                dllogger.JSONStreamBackend(
+                    verbosity=1, filename=unique_log_fpath(log_path)
+                ),
                 dllogger.StdOutBackend(verbosity=0),
             ]
         )
     else:
         dllogger.init(backends=[])
-        
+
     dllogger.metadata("train_loss", {"unit": None})
     dllogger.metadata("items_sec", {"unit": "images/s"})
     dllogger.metadata("val_loss", {"unit": None})
@@ -1478,8 +1469,22 @@ def main():
                 benchmark_steps=args.benchmark_steps,
             )
             epoch_throughput.append(train_metrics["items_sec"])
-            dllogger.log(step=epoch, data={"train_loss": train_metrics["loss"], "items_sec": train_metrics["items_sec"]}, verbosity=1)
-            dllogger.log(step=(), data={"train_loss": train_metrics["loss"], "items_sec": train_metrics["items_sec"]}, verbosity=1)
+            dllogger.log(
+                step=epoch,
+                data={
+                    "train_loss": train_metrics["loss"],
+                    "items_sec": train_metrics["items_sec"],
+                },
+                verbosity=1,
+            )
+            dllogger.log(
+                step=(),
+                data={
+                    "train_loss": train_metrics["loss"],
+                    "items_sec": train_metrics["items_sec"],
+                },
+                verbosity=1,
+            )
 
             if args.distributed and args.dist_bn in ("broadcast", "reduce"):
                 if args.local_rank == 0:
@@ -1503,8 +1508,24 @@ def main():
                 )
                 eval_metrics = ema_eval_metrics
 
-            dllogger.log(step=epoch, data={"val_loss": eval_metrics["loss"], "val_top1": eval_metrics["top1"], "val_top5": eval_metrics["top5"]}, verbosity=1)
-            dllogger.log(step=(), data={"val_loss": eval_metrics["loss"], "val_top1": eval_metrics["top1"], "val_top5": eval_metrics["top5"]}, verbosity=1)
+            dllogger.log(
+                step=epoch,
+                data={
+                    "val_loss": eval_metrics["loss"],
+                    "val_top1": eval_metrics["top1"],
+                    "val_top5": eval_metrics["top5"],
+                },
+                verbosity=1,
+            )
+            dllogger.log(
+                step=(),
+                data={
+                    "val_loss": eval_metrics["loss"],
+                    "val_top1": eval_metrics["top1"],
+                    "val_top5": eval_metrics["top5"],
+                },
+                verbosity=1,
+            )
             dllogger.flush()
             if lr_scheduler is not None:
                 # step LR for next epoch
@@ -1692,7 +1713,7 @@ def train_one_epoch(
 
         end = time.time()
         # end for
-        if (batch_idx == benchmark_steps):
+        if batch_idx == benchmark_steps:
             break
 
     if hasattr(optimizer, "sync_lookahead"):

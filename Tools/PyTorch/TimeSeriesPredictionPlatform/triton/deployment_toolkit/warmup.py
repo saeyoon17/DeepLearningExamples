@@ -61,7 +61,9 @@ def performance_evaluation_warmup(
         step = 1
     elif batching_mode == BatchingMode.DYNAMIC:
         max_batch_size = max(batch_sizes)
-        max_total_requests = 2 * max_batch_size * number_of_triton_instances * number_of_model_instances
+        max_total_requests = (
+            2 * max_batch_size * number_of_triton_instances * number_of_model_instances
+        )
         max_concurrency = min(256, max_total_requests)
         step = max(1, max_concurrency // 2)
         min_concurrency = step

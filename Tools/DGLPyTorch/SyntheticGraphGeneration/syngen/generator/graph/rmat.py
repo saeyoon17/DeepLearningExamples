@@ -20,21 +20,16 @@ from pathlib import Path
 from typing import List, Optional, Set, Tuple
 
 import numpy as np
-
 from syngen.generator.graph.base_graph_generator import BaseGraphGenerator
 from syngen.generator.graph.fitter import BaseFitter
-from syngen.generator.graph.utils import (
-    effective_nonsquare_rmat_exact,
-    generate_gpu_rmat,
-    get_reversed_part,
-    graph_to_snap_file,
-    rearrange_graph,
-    recreate_graph,
-)
+from syngen.generator.graph.utils import (effective_nonsquare_rmat_exact,
+                                          generate_gpu_rmat, get_reversed_part,
+                                          graph_to_snap_file, rearrange_graph,
+                                          recreate_graph)
 
 
 class RMATGenerator(BaseGraphGenerator):
-    """ Graph generator based on RMAT that generate non-partite graphs
+    """Graph generator based on RMAT that generate non-partite graphs
     Args:
         seed (int): Seed to reproduce the results. If None then random seed will be used.
         logdir (str): Directory to store the logging results.
@@ -52,7 +47,7 @@ class RMATGenerator(BaseGraphGenerator):
         self.gpu = True
 
     def fit(self, graph: List[Tuple[int, int]], is_directed: bool = None, **kwargs):
-        """ Fits generator on the graph
+        """Fits generator on the graph
         Args:
             graph (List[Tuple[int, int]]): graph to be fitted on
             is_directed (bool): flag indicating whether the graph is directed, not needed for non-partite graphs
@@ -161,7 +156,7 @@ class RMATGenerator(BaseGraphGenerator):
         noise: float = 0.5,
         batch_size: int = 1_000_000,
     ):
-        """ Generates graph with approximately `num_nodes` nodes and exactly `num_edges` edges from generator
+        """Generates graph with approximately `num_nodes` nodes and exactly `num_edges` edges from generator
         Args:
             num_nodes (int): approximate number of nodes to be generated
             num_edges(int): exact number of edges to be generated
@@ -179,9 +174,7 @@ class RMATGenerator(BaseGraphGenerator):
             num_edges = num_edges * 2
 
         max_edges = (
-            num_nodes * num_nodes
-            if has_self_loop
-            else num_nodes * (num_nodes - 1)
+            num_nodes * num_nodes if has_self_loop else num_nodes * (num_nodes - 1)
         )
         if is_directed:
             max_edges = max_edges / 2

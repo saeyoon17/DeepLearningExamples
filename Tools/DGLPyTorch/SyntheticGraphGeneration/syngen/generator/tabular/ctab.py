@@ -19,32 +19,18 @@ import pandas as pd
 import torch
 import torch.optim as optim
 import torch.utils.data
-from torch.nn import (
-    BatchNorm2d,
-    BCELoss,
-    Conv2d,
-    ConvTranspose2d,
-    CrossEntropyLoss,
-    Dropout,
-    LeakyReLU,
-    Linear,
-    Module,
-    ReLU,
-    Sequential,
-    Sigmoid,
-    SmoothL1Loss,
-)
+from sklearn import model_selection, preprocessing
+from syngen.generator.tabular.base_tabular_generator import \
+    BaseTabularGenerator
+from syngen.generator.tabular.data_transformer.ctab_data_transformer import (
+    CTABDataTransformer, ImageTransformer)
+from syngen.utils.types import ColumnType
+from torch.nn import (BatchNorm2d, BCELoss, Conv2d, ConvTranspose2d,
+                      CrossEntropyLoss, Dropout, LeakyReLU, Linear, Module,
+                      ReLU, Sequential, Sigmoid, SmoothL1Loss)
 from torch.nn import functional as F
 from torch.nn import init
 from torch.optim import Adam
-from sklearn import model_selection, preprocessing
-
-from syngen.generator.tabular.base_tabular_generator import BaseTabularGenerator
-from syngen.generator.tabular.data_transformer.ctab_data_transformer import (
-    CTABDataTransformer,
-    ImageTransformer,
-)
-from syngen.utils.types import ColumnType
 
 
 class CTABGenerator(BaseTabularGenerator):
@@ -81,9 +67,7 @@ class CTABGenerator(BaseTabularGenerator):
         self.l2scale = l2scale
         self.batch_size = batch_size
         self.epochs = epochs
-        self._device = torch.device(
-            "cuda:0" if torch.cuda.is_available() else "cpu"
-        )
+        self._device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.test_ratio = test_ratio
 
     def column_check(self, data: pd.DataFrame, columns: list):
@@ -138,9 +122,7 @@ class CTABGenerator(BaseTabularGenerator):
             target_col=target_col,
         )
         train_data = self.data_prep.transform(train_data)
-        categorical_columns = self.data_prep.column_types[
-            ColumnType.CATEGORICAL
-        ]
+        categorical_columns = self.data_prep.column_types[ColumnType.CATEGORICAL]
         mixed_columns = self.data_prep.column_types[ColumnType.MIXED]
         self.transformer = CTABDataTransformer(
             categorical_columns=categorical_columns, mixed_dict=mixed_columns
@@ -189,9 +171,7 @@ class CTABGenerator(BaseTabularGenerator):
             classifier = Classifier(data_dim, self.classifier_dim, st_ed).to(
                 self._device
             )
-            optimizerC = optim.Adam(
-                classifier.parameters(), **optimizer_params
-            )
+            optimizerC = optim.Adam(classifier.parameters(), **optimizer_params)
 
         self._generator.apply(weights_init)
         discriminator.apply(weights_init)
@@ -221,14 +201,10 @@ class CTABGenerator(BaseTabularGenerator):
 
                 perm = np.arange(self.batch_size)
                 np.random.shuffle(perm)
-                real = data_sampler.sample(
-                    self.batch_size, col[perm], opt[perm]
-                )
+                real = data_sampler.sample(self.batch_size, col[perm], opt[perm])
                 c_perm = c[perm]
 
-                real = torch.from_numpy(real.astype("float32")).to(
-                    self._device
-                )
+                real = torch.from_numpy(real.astype("float32")).to(self._device)
                 fake = self._generator(noisez)
                 faket = self.Gtransformer.inverse_transform(fake)
                 fakeact = apply_activate(faket, self.transformer.output_info)
@@ -276,9 +252,7 @@ class CTABGenerator(BaseTabularGenerator):
 
                 y_fake, info_fake = discriminator(fake_cat)
 
-                cross_entropy = cond_loss(
-                    faket, self.transformer.output_info, c, m
-                )
+                cross_entropy = cond_loss(faket, self.transformer.output_info, c, m)
 
                 _, info_real = discriminator(real_cat_d)
 
@@ -301,9 +275,7 @@ class CTABGenerator(BaseTabularGenerator):
                 if problem_type:
                     fake = self._generator(noisez)
                     faket = self.Gtransformer.inverse_transform(fake)
-                    fakeact = apply_activate(
-                        faket, self.transformer.output_info
-                    )
+                    fakeact = apply_activate(faket, self.transformer.output_info)
 
                     real_pre, real_label = classifier(real)
                     fake_pre, fake_label = classifier(fakeact)
@@ -334,7 +306,9 @@ class CTABGenerator(BaseTabularGenerator):
                     optimizerC.step()
 
     def sample(self, n, **kwargs):
-        assert hasattr(self, "_generator"), "`fit` function must be called prior to `sample`"
+        assert hasattr(
+            self, "_generator"
+        ), "`fit` function must be called prior to `sample`"
 
         self._generator.eval()
 
@@ -396,9 +370,7 @@ class Classifier(Module):
         if (self.str_end[1] - self.str_end[0]) == 1:
             label = input[:, self.str_end[0] : self.str_end[1]]
         else:
-            label = torch.argmax(
-                input[:, self.str_end[0] : self.str_end[1]], axis=-1
-            )
+            label = torch.argmax(input[:, self.str_end[0] : self.str_end[1]], axis=-1)
 
         new_imp = torch.cat(
             (input[:, : self.str_end[0]], input[:, self.str_end[1] :]), 1
@@ -653,9 +625,7 @@ def determine_layers_gen(side, embedding_dim, num_channels):
         layers_G += [
             BatchNorm2d(prev[0]),
             ReLU(True),
-            ConvTranspose2d(
-                prev[0], curr[0], 4, 2, 1, output_padding=0, bias=True
-            ),
+            ConvTranspose2d(prev[0], curr[0], 4, 2, 1, output_padding=0, bias=True),
         ]
     return layers_G
 
@@ -703,12 +673,7 @@ class DataPreprocessing(object):
         if hasattr(self, "target_col"):
             y_real = raw_df[self.target_col]
             X_real = raw_df.drop(columns=[self.target_col])
-            (
-                X_train_real,
-                _,
-                y_train_real,
-                _,
-            ) = model_selection.train_test_split(
+            (X_train_real, _, y_train_real, _,) = model_selection.train_test_split(
                 X_real,
                 y_real,
                 test_size=self.test_ratio,
@@ -724,9 +689,7 @@ class DataPreprocessing(object):
 
         all_columns = set(self.df.columns)
         irrelevant_missing_columns = set(self.categorical_columns)
-        relevant_missing_columns = list(
-            all_columns - irrelevant_missing_columns
-        )
+        relevant_missing_columns = list(all_columns - irrelevant_missing_columns)
 
         for i in relevant_missing_columns:
             if i in self.log_columns:
@@ -759,7 +722,9 @@ class DataPreprocessing(object):
                 self.lower_bounds[log_column] = lower
                 if lower > 0:
                     self.df[log_column] = self.df[log_column].apply(
-                        lambda x: np.log(x) if x != self.CONSTANT_INT else self.CONSTANT_INT
+                        lambda x: np.log(x)
+                        if x != self.CONSTANT_INT
+                        else self.CONSTANT_INT
                     )
                 elif lower == 0:
                     self.df[log_column] = self.df[log_column].apply(
@@ -788,9 +753,9 @@ class DataPreprocessing(object):
                 self.column_types[ColumnType.CATEGORICAL].append(column_index)
 
             elif column in self.mixed_columns:
-                self.column_types[ColumnType.MIXED][
-                    column_index
-                ] = self.mixed_columns[column]
+                self.column_types[ColumnType.MIXED][column_index] = self.mixed_columns[
+                    column
+                ]
 
         return self.df
 
@@ -803,9 +768,7 @@ class DataPreprocessing(object):
             df_sample[self.label_encoder_list[i]["column"]] = df_sample[
                 self.label_encoder_list[i]["column"]
             ].astype(int)
-            df_sample[
-                self.label_encoder_list[i]["column"]
-            ] = le.inverse_transform(
+            df_sample[self.label_encoder_list[i]["column"]] = le.inverse_transform(
                 df_sample[self.label_encoder_list[i]["column"]]
             )
 

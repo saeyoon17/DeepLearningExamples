@@ -20,42 +20,33 @@ from os.path import dirname
 
 PARSER = argparse.ArgumentParser(description="vnet_predict")
 
-PARSER.add_argument('--data_dir',
-                    required=True,
-                    type=str)
+PARSER.add_argument("--data_dir", required=True, type=str)
 
-PARSER.add_argument('--model_dir',
-                    required=True,
-                    type=str)
+PARSER.add_argument("--model_dir", required=True, type=str)
 
-PARSER.add_argument('--batch_size',
-                    required=True,
-                    type=int)
+PARSER.add_argument("--batch_size", required=True, type=int)
 
-PARSER.add_argument('--amp', dest='use_amp', action='store_true', default=False)
+PARSER.add_argument("--amp", dest="use_amp", action="store_true", default=False)
 
 
 def build_command(FLAGS, path_to_main, use_amp):
-    return 'python {} --data_dir {} --model_dir {} --exec_mode predict --batch_size {} {}'.format(
-        path_to_main,
-        FLAGS.data_dir,
-        FLAGS.model_dir,
-        FLAGS.batch_size,
-        use_amp)
+    return "python {} --data_dir {} --model_dir {} --exec_mode predict --batch_size {} {}".format(
+        path_to_main, FLAGS.data_dir, FLAGS.model_dir, FLAGS.batch_size, use_amp
+    )
 
 
 def main():
     FLAGS = PARSER.parse_args()
 
-    use_amp = '--amp' if FLAGS.use_amp else ''
-    path_to_main = os.path.join(dirname(dirname(os.path.realpath(__file__))), 'main.py')
+    use_amp = "--amp" if FLAGS.use_amp else ""
+    path_to_main = os.path.join(dirname(dirname(os.path.realpath(__file__))), "main.py")
 
     cmd = build_command(FLAGS, path_to_main, use_amp)
 
-    print('Command to be executed:')
+    print("Command to be executed:")
     print(cmd)
     subprocess.call(cmd, shell=True)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

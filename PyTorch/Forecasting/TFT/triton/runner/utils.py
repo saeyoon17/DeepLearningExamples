@@ -102,7 +102,9 @@ def clean_directory(directory: pathlib.Path) -> None:
             LOGGER.debug(f"Remove file: {item_path.as_posix()}")
             item_path.unlink()
         else:
-            LOGGER.warning(f"Cannot remove item {item_path.name}. Not a file or directory.")
+            LOGGER.warning(
+                f"Cannot remove item {item_path.name}. Not a file or directory."
+            )
 
 
 def exec_command(command: Command) -> None:
@@ -132,7 +134,11 @@ def exec_command(command: Command) -> None:
 
         result = process.poll()
         if result != 0:
-            raise RunnerException(f"Command {command} failed with exit status: {result}")
+            raise RunnerException(
+                f"Command {command} failed with exit status: {result}"
+            )
 
     except subprocess.CalledProcessError as e:
-        raise RunnerException(f"Running command {e.cmd} failed with exit status {e.returncode} : {e.output}")
+        raise RunnerException(
+            f"Running command {e.cmd} failed with exit status {e.returncode} : {e.output}"
+        )

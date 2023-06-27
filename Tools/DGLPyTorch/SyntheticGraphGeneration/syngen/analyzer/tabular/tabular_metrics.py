@@ -32,9 +32,7 @@ from scipy import stats
 from scipy.spatial import distance
 from scipy.special import kl_div
 from sklearn.decomposition import PCA
-
-from syngen.utils.types import DataFrameType, ColumnType
-
+from syngen.utils.types import ColumnType, DataFrameType
 
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 matplotlib._log.disabled = True
@@ -76,9 +74,7 @@ class TabularMetrics:
 
         self.categorical_columns = categorical_columns
         self.numerical_columns = [
-            column
-            for column in real.columns
-            if column not in categorical_columns
+            column for column in real.columns if column not in categorical_columns
         ]
         # Make sure columns and their order are the same.
         if len(real.columns) == len(fake.columns):
@@ -101,14 +97,10 @@ class TabularMetrics:
         self.fake = self.fake.sample(self.nrows)
 
         self.real.loc[:, self.categorical_columns] = (
-            self.real.loc[:, self.categorical_columns]
-            .fillna("[NAN]")
-            .astype(str)
+            self.real.loc[:, self.categorical_columns].fillna("[NAN]").astype(str)
         )
         self.fake.loc[:, self.categorical_columns] = (
-            self.fake.loc[:, self.categorical_columns]
-            .fillna("[NAN]")
-            .astype(str)
+            self.fake.loc[:, self.categorical_columns].fillna("[NAN]").astype(str)
         )
 
         self.real.loc[:, self.numerical_columns] = self.real.loc[
@@ -124,9 +116,7 @@ class TabularMetrics:
             real, synthetic = Counter(real), Counter(synthetic)
             for value in synthetic:
                 if value not in real:
-                    warnings.warn(
-                        f"Unexpected value {value} in synthetic data."
-                    )
+                    warnings.warn(f"Unexpected value {value} in synthetic data.")
                     real[value] += 1e-6  # Regularization to prevent NaN.
 
             for value in real:
@@ -144,9 +134,7 @@ class TabularMetrics:
             rd_cont[pd.isna(rd_cont)] = 0.0
             column1, column2 = rd_cont.columns[:2]
 
-            real, xedges, yedges = np.histogram2d(
-                rd_cont[column1], rd_cont[column2]
-            )
+            real, xedges, yedges = np.histogram2d(rd_cont[column1], rd_cont[column2])
             fake, _, _ = np.histogram2d(
                 self.fake[column1], self.fake[column2], bins=[xedges, yedges]
             )
@@ -171,9 +159,7 @@ class TabularMetrics:
 
         return np.nanmean(cont_scores + cat_scores)
 
-    def correlation_correlation(
-        self, comparison_metric: str = "pearsonr"
-    ) -> float:
+    def correlation_correlation(self, comparison_metric: str = "pearsonr") -> float:
         """
         computes the column-wise correlation of each dataset, and outputs the
         `comparison_metric` score between the datasets.
@@ -189,7 +175,7 @@ class TabularMetrics:
         for ds_name in ["real", "fake"]:
             ds = getattr(self, ds_name)
             corr_df = associations(
-                ds, nominal_columns=self.categorical_columns, nom_nom_assoc='theil'
+                ds, nominal_columns=self.categorical_columns, nom_nom_assoc="theil"
             )
             values = corr_df.values
             values = values[~np.eye(values.shape[0], dtype=bool)].reshape(
@@ -197,9 +183,7 @@ class TabularMetrics:
             )
             total_metrics[ds_name] = values.flatten()
         correlation_correlations = total_metrics
-        corr, p = comparison_metric(
-            total_metrics["real"], total_metrics["fake"]
-        )
+        corr, p = comparison_metric(total_metrics["real"], total_metrics["fake"])
         if self.debug:
             print("\nColumn correlation between datasets:")
             print(total_metrics.to_string())
@@ -218,9 +202,7 @@ class TabularMetrics:
         """
         total_metrics = pd.DataFrame()
         comparison_metric = getattr(stats, comparison_metric)
-        discrete_values = {
-            c: self.real[c].unique() for c in self.categorical_columns
-        }
+        discrete_values = {c: self.real[c].unique() for c in self.categorical_columns}
         for ds_name in ["real", "fake"]:
             ds = getattr(self, ds_name)
             metrics = {}
@@ -274,19 +256,12 @@ class TabularMetrics:
             lengths = []
             for d in self.real.select_dtypes(include=["object"]):
                 lengths.append(
-                    max(
-                        [
-                            len(x.strip())
-                            for x in self.real[d].unique().tolist()
-                        ]
-                    )
+                    max([len(x.strip()) for x in self.real[d].unique().tolist()])
                 )
             max_len = max(lengths)
 
         row_height = 6 + (max_len // 30)
-        fig, ax = plt.subplots(
-            nr_rows, nr_cols, figsize=(16, row_height * nr_rows)
-        )
+        fig, ax = plt.subplots(nr_rows, nr_cols, figsize=(16, row_height * nr_rows))
         fig.suptitle("Cumulative Sums per feature", fontsize=16)
         axes = ax.flatten()
         for i, col in enumerate(self.real.columns):
@@ -312,9 +287,7 @@ class TabularMetrics:
         fake = self.fake
         if ax is None:
             fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-            fig.suptitle(
-                "Absolute Log Mean and STDs of numeric data\n", fontsize=16
-            )
+            fig.suptitle("Absolute Log Mean and STDs of numeric data\n", fontsize=16)
 
         ax[0].grid(True)
         ax[1].grid(True)
@@ -396,7 +369,9 @@ class TabularMetrics:
             ticks_loc = ax.get_xticks()
             r_unique = real_data.sort_values().unique()
             if len(r_unique) > len(ticks_loc):
-                import pdb; pdb.set_trace()
+                import pdb
+
+                pdb.set_trace()
             ticks_loc = ticks_loc[: len(r_unique)]
 
             ax.xaxis.set_major_locator(mticker.FixedLocator(ticks_loc))
@@ -440,7 +415,7 @@ class TabularMetrics:
             real,
             nominal_columns=cat_cols,
             plot=False,
-            nom_nom_assoc='theil',
+            nom_nom_assoc="theil",
             mark_columns=True,
             annot=annot,
             ax=ax[0],
@@ -450,7 +425,7 @@ class TabularMetrics:
             fake,
             nominal_columns=cat_cols,
             plot=False,
-            nom_nom_assoc='theil',
+            nom_nom_assoc="theil",
             mark_columns=True,
             annot=annot,
             ax=ax[1],
@@ -473,9 +448,7 @@ class TabularMetrics:
                 fmt=".2f",
             )
 
-        titles = (
-            ["Real", "Fake", "Difference"] if plot_diff else ["Real", "Fake"]
-        )
+        titles = ["Real", "Fake", "Difference"] if plot_diff else ["Real", "Fake"]
         for i, label in enumerate(titles):
             title_font = {"size": "18"}
             ax[i].set_title(label, **title_font)
@@ -540,9 +513,7 @@ class TabularMetrics:
             )
             self.plot_pca(fname=save_dir / "pca.png")
 
-    def evaluate(
-        self, comparison_metric: str = "pearsonr"
-    ) -> Dict[str, float]:
+    def evaluate(self, comparison_metric: str = "pearsonr") -> Dict[str, float]:
         """
         evaluate synthetic data
 
@@ -554,9 +525,7 @@ class TabularMetrics:
             results (dict<str, float>): dictionary containing computed metrics, <key> := metric_name, <value>:= score
 
         """
-        statistical_correlation = self.statistical_correlation(
-            comparison_metric
-        )
+        statistical_correlation = self.statistical_correlation(comparison_metric)
         kl_divergence = self.kl_divergence()
         correlation_correlation = self.correlation_correlation()
 
@@ -643,13 +612,9 @@ def compute_dd_feat_js(
             # - none of the datsets align on categorical for now..
             pass
 
-    real_heatmaps = dd_feat_heatmap(
-        real, col_info, src_col=src_col, dst_col=dst_col
-    )
+    real_heatmaps = dd_feat_heatmap(real, col_info, src_col=src_col, dst_col=dst_col)
 
-    fake_heatmaps = dd_feat_heatmap(
-        fake, col_info, src_col=src_col, dst_col=dst_col
-    )
+    fake_heatmaps = dd_feat_heatmap(fake, col_info, src_col=src_col, dst_col=dst_col)
 
     heatmaps = list(zip(real_heatmaps, fake_heatmaps))
     score = 0.0

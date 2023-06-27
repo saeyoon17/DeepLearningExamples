@@ -18,7 +18,6 @@ import warnings
 from .homoglyphs import homoglyphs
 from .replacements import replacements
 
-
 _replacements = {uni: asc for uni, asc in replacements}
 _homoglyphs = {g: asc for asc, glyphs in homoglyphs.items() for g in glyphs}
 
@@ -31,7 +30,7 @@ def unidecoder(s, homoglyphs=False):
         homoglyphs (bool): prioritize translating to homoglyphs
     """
     warned = False  # Once per utterance
-    ret = ''
+    ret = ""
     for u in s:
         if ord(u) < 127:
             a = u
@@ -42,9 +41,11 @@ def unidecoder(s, homoglyphs=False):
 
         if a is None:
             if not warned:
-                warnings.warn(f'Unexpected character {u}: '
-                              'please revise your text cleaning rules.',
-                              stacklevel=10**6)
+                warnings.warn(
+                    f"Unexpected character {u}: "
+                    "please revise your text cleaning rules.",
+                    stacklevel=10**6,
+                )
                 warned = True
         else:
             ret += a

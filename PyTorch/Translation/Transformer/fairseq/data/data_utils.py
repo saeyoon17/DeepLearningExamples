@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 #
-#-------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 #
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,12 +23,12 @@
 import contextlib
 import itertools
 import os
+import sys
 
+import fairseq.data.batch_C
 import numpy as np
 import torch
 
-import fairseq.data.batch_C
-import sys
 from .dictionary import Dictionary
 
 
@@ -36,9 +36,9 @@ def infer_language_pair(path):
     """Infer language pair from filename: <split>.<lang1>-<lang2>.(...).idx"""
     src, dst = None, None
     for filename in os.listdir(path):
-        parts = filename.split('.')
-        if len(parts) >= 3 and len(parts[1].split('-')) == 2:
-            return parts[1].split('-')
+        parts = filename.split(".")
+        if len(parts) >= 3 and len(parts[1].split("-")) == 2:
+            return parts[1].split("-")
     return src, dst
 
 
@@ -46,19 +46,23 @@ def load_dictionaries(args):
     if args.source_lang is None or args.target_lang is None:
         args.source_lang, args.target_lang = infer_language_pair(args.data)
     if args.source_lang is None or args.target_lang is None:
-        raise Exception('Could not infer language pair, please provide it explicitly')
+        raise Exception("Could not infer language pair, please provide it explicitly")
 
     # load dictionaries
-    src_dict = Dictionary.load(os.path.join(args.data, 'dict.{}.txt'.format(args.source_lang)))
-    tgt_dict = Dictionary.load(os.path.join(args.data, 'dict.{}.txt'.format(args.target_lang)))
+    src_dict = Dictionary.load(
+        os.path.join(args.data, "dict.{}.txt".format(args.source_lang))
+    )
+    tgt_dict = Dictionary.load(
+        os.path.join(args.data, "dict.{}.txt".format(args.target_lang))
+    )
     assert src_dict.pad() == tgt_dict.pad()
     assert src_dict.eos() == tgt_dict.eos()
     assert src_dict.unk() == tgt_dict.unk()
     args.src_vocab_size = len(src_dict)
     args.tgt_vocab_size = len(tgt_dict)
     args.padding_idx = src_dict.pad()
-    print('| [{}] dictionary: {} types'.format(args.source_lang, len(src_dict)))
-    print('| [{}] dictionary: {} types'.format(args.target_lang, len(tgt_dict)))
+    print("| [{}] dictionary: {} types".format(args.source_lang, len(src_dict)))
+    print("| [{}] dictionary: {} types".format(args.target_lang, len(tgt_dict)))
     return src_dict, tgt_dict
 
 
@@ -67,7 +71,7 @@ class ShardedIterator(object):
 
     def __init__(self, iterable, num_shards, shard_id, fill_value=None):
         if shard_id < 0 or shard_id >= num_shards:
-            raise ValueError('shard_id must be between 0 and num_shards')
+            raise ValueError("shard_id must be between 0 and num_shards")
 
         self._sharded_len = len(iterable) // num_shards
         if len(iterable) % num_shards > 0:
@@ -116,9 +120,11 @@ class CountingIterator(object):
         return self
 
 
-def collate_tokens(values, pad_idx, eos_idx, left_pad, move_eos_to_beginning=False, pad_sequence=1):
+def collate_tokens(
+    values, pad_idx, eos_idx, left_pad, move_eos_to_beginning=False, pad_sequence=1
+):
     """Convert a list of 1d tensors into a padded 2d tensor."""
-    #size = max(v.size(0) for v in values)
+    # size = max(v.size(0) for v in values)
     orig_size = max(v.size(0) for v in values)
     size = 0
     if pad_sequence > 1:
@@ -139,72 +145,95 @@ def collate_tokens(values, pad_idx, eos_idx, left_pad, move_eos_to_beginning=Fal
             dst.copy_(src)
 
     for i, v in enumerate(values):
-        copy_tensor(v, res[i][size - len(v):] if left_pad else res[i][:len(v)])
+        copy_tensor(v, res[i][size - len(v) :] if left_pad else res[i][: len(v)])
     return res
 
 
-def collate(samples, pad_idx, eos_idx, left_pad_source=True, left_pad_target=False, pad_sequence=1):
+def collate(
+    samples,
+    pad_idx,
+    eos_idx,
+    left_pad_source=True,
+    left_pad_target=False,
+    pad_sequence=1,
+):
     if len(samples) == 0:
         return {}
 
     def merge(key, left_pad, move_eos_to_beginning=False):
         return collate_tokens(
             [s[key] for s in samples],
-            pad_idx, eos_idx, left_pad, move_eos_to_beginning,
+            pad_idx,
+            eos_idx,
+            left_pad,
+            move_eos_to_beginning,
             pad_sequence,
         )
 
-    id = torch.LongTensor([s['id'] for s in samples])
-    src_tokens = merge('source', left_pad=left_pad_source)
+    id = torch.LongTensor([s["id"] for s in samples])
+    src_tokens = merge("source", left_pad=left_pad_source)
     # sort by descending source length
-    src_lengths = torch.LongTensor([s['source'].numel() for s in samples])
+    src_lengths = torch.LongTensor([s["source"].numel() for s in samples])
     src_lengths, sort_order = src_lengths.sort(descending=True)
     id = id.index_select(0, sort_order)
     src_tokens = src_tokens.index_select(0, sort_order)
 
     prev_output_tokens = None
     target = None
-    if samples[0].get('target', None) is not None:
-        target = merge('target', left_pad=left_pad_target)
+    if samples[0].get("target", None) is not None:
+        target = merge("target", left_pad=left_pad_target)
         # we create a shifted version of targets for feeding the
         # previous output token(s) into the next decoder step
         prev_output_tokens = merge(
-            'target',
+            "target",
             left_pad=left_pad_target,
             move_eos_to_beginning=True,
         )
         prev_output_tokens = prev_output_tokens.index_select(0, sort_order)
         target = target.index_select(0, sort_order)
-        ntokens = sum(len(s['target']) for s in samples)
+        ntokens = sum(len(s["target"]) for s in samples)
     else:
-        ntokens = sum(len(s['source']) for s in samples)
+        ntokens = sum(len(s["source"]) for s in samples)
 
     return {
-        'id': id,
-        'ntokens': ntokens,
-        'net_input': {
-            'src_tokens': src_tokens,
-            'src_lengths': src_lengths,
-            'prev_output_tokens': prev_output_tokens,
+        "id": id,
+        "ntokens": ntokens,
+        "net_input": {
+            "src_tokens": src_tokens,
+            "src_lengths": src_lengths,
+            "prev_output_tokens": prev_output_tokens,
         },
-        'target': target,
+        "target": target,
     }
 
 
-def get_dummy_batch(num_tokens, src_dict, tgt_dict, src_len=128, tgt_len=128,
-                    left_pad_source=True, left_pad_target=False, pad_sequence=1):
+def get_dummy_batch(
+    num_tokens,
+    src_dict,
+    tgt_dict,
+    src_len=128,
+    tgt_len=128,
+    left_pad_source=True,
+    left_pad_target=False,
+    pad_sequence=1,
+):
     bsz = num_tokens // max(src_len, tgt_len)
     dummy_samples = [
         {
-            'id': i,
-            'source': src_dict.dummy_sentence(src_len),
-            'target': tgt_dict.dummy_sentence(tgt_len) if tgt_dict is not None else None,
+            "id": i,
+            "source": src_dict.dummy_sentence(src_len),
+            "target": tgt_dict.dummy_sentence(tgt_len)
+            if tgt_dict is not None
+            else None,
         }
         for i in range(bsz)
     ]
     return collate(
-        dummy_samples, pad_idx=src_dict.pad(), eos_idx=src_dict.eos(),
-        left_pad_source=left_pad_source, left_pad_target=left_pad_target,
+        dummy_samples,
+        pad_idx=src_dict.pad(),
+        eos_idx=src_dict.eos(),
+        left_pad_source=left_pad_source,
+        left_pad_target=left_pad_target,
         pad_sequence=pad_sequence,
     )
 
@@ -227,13 +256,22 @@ class EpochBatchIterator(object):
     """
 
     def __init__(
-        self, dataset, max_tokens=None, max_sentences=None, max_positions=None,
-        required_batch_size_multiple=1, seed=1,
-        num_shards=1, shard_id=0, epoch=0
+        self,
+        dataset,
+        max_tokens=None,
+        max_sentences=None,
+        max_positions=None,
+        required_batch_size_multiple=1,
+        seed=1,
+        num_shards=1,
+        shard_id=0,
+        epoch=0,
     ):
         self.dataset = dataset
-        self.max_tokens = max_tokens if max_tokens is not None else float('Inf')
-        self.max_sentences = max_sentences if max_sentences is not None else float('Inf')
+        self.max_tokens = max_tokens if max_tokens is not None else float("Inf")
+        self.max_sentences = (
+            max_sentences if max_sentences is not None else float("Inf")
+        )
         self.max_positions = max_positions
         self.bsz_mult = required_batch_size_multiple
         self.seed = seed
@@ -245,15 +283,25 @@ class EpochBatchIterator(object):
 
         with numpy_seed(self.seed):
             indices = self.dataset.ordered_indices(self.seed, self.epoch)
-#need integer, rather than float('Inf') values
+            # need integer, rather than float('Inf') values
             max_sentences = max_sentences if max_sentences is not None else sys.maxsize
             max_positions_num = 1024
             max_tokens = max_tokens if max_tokens is not None else sys.maxsize
-            #Following line is workaround due to the fact we cannot pass None object as argument
-            tgt_sizes = self.dataset.tgt_sizes if self.dataset.tgt_sizes is not None else self.dataset.src_sizes
+            # Following line is workaround due to the fact we cannot pass None object as argument
+            tgt_sizes = (
+                self.dataset.tgt_sizes
+                if self.dataset.tgt_sizes is not None
+                else self.dataset.src_sizes
+            )
             batches = fairseq.data.batch_C.make_batches(
-                self.dataset.src_sizes, tgt_sizes, indices, max_tokens,
-                max_sentences, self.bsz_mult, max_positions_num)
+                self.dataset.src_sizes,
+                tgt_sizes,
+                indices,
+                max_tokens,
+                max_sentences,
+                self.bsz_mult,
+                max_positions_num,
+            )
             self.frozen_batches = tuple(batches)
 
     def __len__(self):
@@ -282,16 +330,18 @@ class EpochBatchIterator(object):
 
     def state_dict(self):
         return {
-            'epoch': self.epoch,
-            'iterations_in_epoch': self.iterations_in_epoch,
+            "epoch": self.epoch,
+            "iterations_in_epoch": self.iterations_in_epoch,
         }
 
     def load_state_dict(self, state_dict):
-        self.epoch = state_dict['epoch']
-        itr_pos = state_dict.get('iterations_in_epoch', 0)
+        self.epoch = state_dict["epoch"]
+        itr_pos = state_dict.get("iterations_in_epoch", 0)
         if itr_pos > 0:
             # fast-forward epoch iterator
-            itr = self._get_iterator_for_epoch(self.epoch, state_dict.get('shuffle', True))
+            itr = self._get_iterator_for_epoch(
+                self.epoch, state_dict.get("shuffle", True)
+            )
             if itr_pos < len(itr):
                 self._next_epoch_itr = itr.skip(itr_pos)
 
@@ -304,12 +354,16 @@ class EpochBatchIterator(object):
                 np.random.shuffle(batches)
         else:
             batches = self.frozen_batches
-        return CountingIterator(torch.utils.data.DataLoader(
-            self.dataset,
-            collate_fn=self.dataset.collater,
-            num_workers=1,
-            batch_sampler=ShardedIterator(batches, self.num_shards, self.shard_id, fill_value=[]),
-        ))
+        return CountingIterator(
+            torch.utils.data.DataLoader(
+                self.dataset,
+                collate_fn=self.dataset.collater,
+                num_workers=1,
+                batch_sampler=ShardedIterator(
+                    batches, self.num_shards, self.shard_id, fill_value=[]
+                ),
+            )
+        )
 
 
 @contextlib.contextmanager

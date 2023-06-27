@@ -85,22 +85,23 @@ def _denormalize_to_coco_bbox(bbox, height, width):
 
 def _extract_image_info(prediction, b):
     return {
-        'id': int(prediction['source_ids'][b]),
-        'width': int(prediction['width'][b]),
-        'height': int(prediction['height'][b]),
+        "id": int(prediction["source_ids"][b]),
+        "width": int(prediction["width"][b]),
+        "height": int(prediction["height"][b]),
     }
 
 
 def _extract_bbox_annotation(prediction, b, obj_i):
     """Constructs COCO format bounding box annotation."""
-    height = prediction['height'][b]
-    width = prediction['width'][b]
+    height = prediction["height"][b]
+    width = prediction["width"][b]
 
     bbox = _denormalize_to_coco_bbox(
-        prediction['groundtruth_boxes'][b][obj_i, :], height, width)
+        prediction["groundtruth_boxes"][b][obj_i, :], height, width
+    )
 
-    if 'groundtruth_area' in prediction:
-        area = float(prediction['groundtruth_area'][b][obj_i])
+    if "groundtruth_area" in prediction:
+        area = float(prediction["groundtruth_area"][b][obj_i])
 
     else:
         # Using the box area to replace the polygon area. This value will not affect
@@ -108,13 +109,13 @@ def _extract_bbox_annotation(prediction, b, obj_i):
         area = bbox[2] * bbox[3]
 
     annotation = {
-        'id': b * 1000 + obj_i,  # place holder of annotation id.
-        'image_id': int(prediction['source_ids'][b]),  # source_id,
-        'category_id': int(prediction['groundtruth_classes'][b][obj_i]),
-        'bbox': bbox,
-        'iscrowd': int(prediction['groundtruth_is_crowd'][b][obj_i]),
-        'area': area,
-        'segmentation': [],
+        "id": b * 1000 + obj_i,  # place holder of annotation id.
+        "image_id": int(prediction["source_ids"][b]),  # source_id,
+        "category_id": int(prediction["groundtruth_classes"][b][obj_i]),
+        "bbox": bbox,
+        "iscrowd": int(prediction["groundtruth_is_crowd"][b][obj_i]),
+        "area": area,
+        "segmentation": [],
     }
     return annotation
 
@@ -134,33 +135,34 @@ def _extract_polygon_info(prediction, polygons, b, obj_i):
       'segmentation'.
     """
     annotation = {}
-    if 'groundtruth_area' in prediction:
-        groundtruth_area = float(prediction['groundtruth_area'][b][obj_i])
+    if "groundtruth_area" in prediction:
+        groundtruth_area = float(prediction["groundtruth_area"][b][obj_i])
     else:
-        height = prediction['height'][b]
-        width = prediction['width'][b]
+        height = prediction["height"][b]
+        width = prediction["width"][b]
         rles = coco_mask.frPyObjects(polygons[obj_i], height, width)
         groundtruth_area = coco_mask.area(rles)
-    annotation['area'] = groundtruth_area
+    annotation["area"] = groundtruth_area
 
-    annotation['segmentation'] = polygons[obj_i]
+    annotation["segmentation"] = polygons[obj_i]
 
     # Add dummy polygon to is_crowd instance.
-    if not annotation['segmentation'][0]:
+    if not annotation["segmentation"][0]:
         # Adds a dummy polygon in case there is no segmentation.
         # Note that this could affect eval number in a very tiny amount since
         # for the instance without masks, it creates a fake single pixel mask
         # in the center of the box.
-        height = prediction['height'][b]
-        width = prediction['width'][b]
+        height = prediction["height"][b]
+        width = prediction["width"][b]
         bbox = _denormalize_to_coco_bbox(
-            prediction['groundtruth_boxes'][b][obj_i, :], height, width)
+            prediction["groundtruth_boxes"][b][obj_i, :], height, width
+        )
         xcenter = bbox[0] + bbox[2] / 2.0
         ycenter = bbox[1] + bbox[3] / 2.0
 
-        annotation['segmentation'] = [[
-            xcenter, ycenter, xcenter, ycenter, xcenter, ycenter, xcenter, ycenter
-        ]]
+        annotation["segmentation"] = [
+            [xcenter, ycenter, xcenter, ycenter, xcenter, ycenter, xcenter, ycenter]
+        ]
 
     return annotation
 
@@ -169,8 +171,8 @@ def _extract_categories(annotations):
     """Extract categories from annotations."""
     categories = {}
     for anno in annotations:
-        category_id = int(anno['category_id'])
-        categories[category_id] = {'id': category_id}
+        category_id = int(anno["category_id"])
+        categories[category_id] = {"id": category_id}
     return list(categories.values())
 
 
@@ -195,32 +197,40 @@ def extract_coco_groundtruth(prediction, include_mask=False):
       ValueError: If any groundtruth fields is missing.
     """
     required_fields = [
-        'source_ids', 'width', 'height', 'num_groundtruth_labels',
-        'groundtruth_boxes', 'groundtruth_classes'
+        "source_ids",
+        "width",
+        "height",
+        "num_groundtruth_labels",
+        "groundtruth_boxes",
+        "groundtruth_classes",
     ]
     if include_mask:
-        required_fields += ['groundtruth_polygons', 'groundtruth_area']
+        required_fields += ["groundtruth_polygons", "groundtruth_area"]
     for key in required_fields:
         if key not in prediction.keys():
-            raise ValueError('Missing groundtruth field: "{}" keys: {}'.format(
-                key, prediction.keys()))
+            raise ValueError(
+                'Missing groundtruth field: "{}" keys: {}'.format(
+                    key, prediction.keys()
+                )
+            )
 
     images = []
     annotations = []
-    for b in range(prediction['source_ids'].shape[0]):
+    for b in range(prediction["source_ids"].shape[0]):
         # Constructs image info.
         image = _extract_image_info(prediction, b)
         images.append(image)
 
         if include_mask:
-            flatten_padded_polygons = prediction['groundtruth_polygons'][b]
+            flatten_padded_polygons = prediction["groundtruth_polygons"][b]
             flatten_polygons = np.delete(
                 flatten_padded_polygons,
-                np.where(flatten_padded_polygons[:] == POLYGON_PAD_VALUE)[0])
+                np.where(flatten_padded_polygons[:] == POLYGON_PAD_VALUE)[0],
+            )
             polygons = _unflat_polygons(flatten_polygons)
 
         # Constructs annotations.
-        num_labels = prediction['num_groundtruth_labels'][b]
+        num_labels = prediction["num_groundtruth_labels"][b]
         for obj_i in range(num_labels):
             annotation = _extract_bbox_annotation(prediction, b, obj_i)
 
@@ -232,19 +242,17 @@ def extract_coco_groundtruth(prediction, include_mask=False):
     return images, annotations
 
 
-def create_coco_format_dataset(images,
-                               annotations,
-                               regenerate_annotation_id=True):
+def create_coco_format_dataset(images, annotations, regenerate_annotation_id=True):
     """Creates COCO format dataset with COCO format images and annotations."""
     if regenerate_annotation_id:
         for i in range(len(annotations)):
             # WARNING: The annotation id must be positive.
-            annotations[i]['id'] = i + 1
+            annotations[i]["id"] = i + 1
 
     categories = _extract_categories(annotations)
     dataset = {
-        'images': images,
-        'annotations': annotations,
-        'categories': categories,
+        "images": images,
+        "annotations": annotations,
+        "categories": categories,
     }
     return dataset

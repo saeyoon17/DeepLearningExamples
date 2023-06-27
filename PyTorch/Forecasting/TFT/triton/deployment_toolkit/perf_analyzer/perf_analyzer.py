@@ -68,7 +68,9 @@ class PerfAnalyzer:
 
             LOGGER.debug(f"Perf Analyze command: {command}")
             try:
-                process = Popen(command, start_new_session=True, stdout=PIPE, encoding="utf-8")
+                process = Popen(
+                    command, start_new_session=True, stdout=PIPE, encoding="utf-8"
+                )
                 streamed_output = ""
                 while True:
                     output = process.stdout.readline()
@@ -81,22 +83,30 @@ class PerfAnalyzer:
                 self._output += streamed_output
                 result = process.poll()
                 if result != 0:
-                    raise CalledProcessError(returncode=result, cmd=command, output=streamed_output)
+                    raise CalledProcessError(
+                        returncode=result, cmd=command, output=streamed_output
+                    )
 
                 return
 
             except CalledProcessError as e:
                 if self._faild_with_measruement_inverval(e.output):
-                    if self._config["measurement-mode"] is None or self._config["measurement-mode"] == "count_windows":
+                    if (
+                        self._config["measurement-mode"] is None
+                        or self._config["measurement-mode"] == "count_windows"
+                    ):
                         self._increase_request_count()
                     else:
                         self._increase_time_interval()
                 else:
                     raise PerfAnalyzerException(
-                        f"Running perf_analyzer with {e.cmd} failed with" f" exit status {e.returncode} : {e.output}"
+                        f"Running perf_analyzer with {e.cmd} failed with"
+                        f" exit status {e.returncode} : {e.output}"
                     )
 
-        raise PerfAnalyzerException(f"Ran perf_analyzer {MAX_INTERVAL_CHANGES} times, but no valid requests recorded.")
+        raise PerfAnalyzerException(
+            f"Ran perf_analyzer {MAX_INTERVAL_CHANGES} times, but no valid requests recorded."
+        )
 
     def output(self):
         """
@@ -107,11 +117,14 @@ class PerfAnalyzer:
         """
         if self._output:
             return self._output
-        raise PerfAnalyzerException("Attempted to get perf_analyzer output" "without calling run first.")
+        raise PerfAnalyzerException(
+            "Attempted to get perf_analyzer output" "without calling run first."
+        )
 
     def _faild_with_measruement_inverval(self, output: str):
         return (
-            output.find("Failed to obtain stable measurement") or output.find("Please use a larger time window")
+            output.find("Failed to obtain stable measurement")
+            or output.find("Please use a larger time window")
         ) != -1
 
     def _increase_request_count(self):

@@ -15,14 +15,13 @@
 """ Model function in charge to collect metrics and feed them to the optimizer """
 import horovod.tensorflow as hvd
 import tensorflow as tf
-
-from model.unet3d import Builder
-from model.losses import make_loss, eval_dice, total_dice
 from dataset.data_loader import CLASSES
+from model.losses import eval_dice, make_loss, total_dice
+from model.unet3d import Builder
 
 
 def unet_3d(features, labels, mode, params):
-    """ Gather loss and feed it to the optimizer
+    """Gather loss and feed it to the optimizer
 
     :param features: Input features
     :param labels: Input labels
@@ -34,18 +33,21 @@ def unet_3d(features, labels, mode, params):
     try:
         normalization = params.normalization
     except:
-        normalization = 'instancenorm'
+        normalization = "instancenorm"
 
-    input_node = tf.identity(features, name='input_node')
+    input_node = tf.identity(features, name="input_node")
 
     logits = Builder(n_classes=4, normalization=normalization, mode=mode)(input_node)
 
-    logits = tf.identity(logits, name='output_node')
+    logits = tf.identity(logits, name="output_node")
 
     if mode == tf.estimator.ModeKeys.PREDICT:
-        prediction = tf.argmax(input=logits, axis=-1, output_type=tf.dtypes.int32, name="predictions")
-        return tf.estimator.EstimatorSpec(mode=mode,
-                                          predictions={'predictions': tf.cast(prediction, tf.int8)})
+        prediction = tf.argmax(
+            input=logits, axis=-1, output_type=tf.dtypes.int32, name="predictions"
+        )
+        return tf.estimator.EstimatorSpec(
+            mode=mode, predictions={"predictions": tf.cast(prediction, tf.int8)}
+        )
 
     labels = tf.cast(labels, tf.float32)
 
@@ -58,10 +60,14 @@ def unet_3d(features, labels, mode, params):
         prediction = tf.cast(prediction, tf.float32)
         eval_acc = eval_dice(y_true=labels, y_pred=prediction)
         total_eval_acc = total_dice(prediction, labels)
-        metrics = {CLASSES[i]: tf.compat.v1.metrics.mean(eval_acc[i]) for i in range(eval_acc.shape[-1])}
-        metrics['whole_tumor'] = tf.compat.v1.metrics.mean(total_eval_acc)
-        return tf.estimator.EstimatorSpec(mode=mode, loss=tf.reduce_mean(eval_acc),
-                                          eval_metric_ops=metrics)
+        metrics = {
+            CLASSES[i]: tf.compat.v1.metrics.mean(eval_acc[i])
+            for i in range(eval_acc.shape[-1])
+        }
+        metrics["whole_tumor"] = tf.compat.v1.metrics.mean(total_eval_acc)
+        return tf.estimator.EstimatorSpec(
+            mode=mode, loss=tf.reduce_mean(eval_acc), eval_metric_ops=metrics
+        )
 
     if not params.include_background:
         labels = labels[..., 1:]
@@ -71,23 +77,30 @@ def unet_3d(features, labels, mode, params):
     loss = tf.identity(loss, name="total_loss_ref")
 
     global_step = tf.compat.v1.train.get_or_create_global_step()
-    boundaries = [params.max_steps // (2 * hvd.size()),
-                  params.max_steps // (2 * hvd.size()),
-                  3 * params.max_steps // (4 * hvd.size())]
+    boundaries = [
+        params.max_steps // (2 * hvd.size()),
+        params.max_steps // (2 * hvd.size()),
+        3 * params.max_steps // (4 * hvd.size()),
+    ]
 
     lr = params.learning_rate
     values = [lr / 4, lr, lr / 5, lr / 20]
-    learning_rate = tf.compat.v1.train.piecewise_constant(global_step, boundaries, values)
+    learning_rate = tf.compat.v1.train.piecewise_constant(
+        global_step, boundaries, values
+    )
     optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate=learning_rate)
 
     if params.use_amp:
         loss_scale = tf.train.experimental.DynamicLossScale()
-        optimizer = tf.compat.v1.train.experimental.MixedPrecisionLossScaleOptimizer(optimizer, loss_scale)
+        optimizer = tf.compat.v1.train.experimental.MixedPrecisionLossScaleOptimizer(
+            optimizer, loss_scale
+        )
 
     optimizer = hvd.DistributedOptimizer(optimizer)
 
-    with tf.control_dependencies(tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)):
+    with tf.control_dependencies(
+        tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
+    ):
         train_op = optimizer.minimize(loss, global_step=global_step)
 
-    return tf.estimator.EstimatorSpec(
-        mode=mode, loss=loss, train_op=train_op)
+    return tf.estimator.EstimatorSpec(mode=mode, loss=loss, train_op=train_op)

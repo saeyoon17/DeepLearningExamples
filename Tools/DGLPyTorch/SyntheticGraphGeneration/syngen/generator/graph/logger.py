@@ -18,7 +18,7 @@ from datetime import datetime
 
 
 class BaseLogger:
-    """ Base logger class
+    """Base logger class
     Args:
         logdir (str): path to the logging directory
     """
@@ -27,15 +27,13 @@ class BaseLogger:
         self.logdir = logdir
         os.makedirs(self.logdir, exist_ok=True)
         currentDateAndTime = datetime.now()
-        self.logname = (
-            f'{currentDateAndTime.strftime("%Y_%m_%d_%H_%M_%S")}.txt'
-        )
+        self.logname = f'{currentDateAndTime.strftime("%Y_%m_%d_%H_%M_%S")}.txt'
         self.logpath = os.path.join(self.logdir, self.logname)
         self.setup_logger()
         self.log("Initialized logger")
 
     def setup_logger(self):
-        """ This function setups logger """
+        """This function setups logger"""
         logging.basicConfig(
             filename=self.logpath,
             filemode="a",
@@ -45,7 +43,7 @@ class BaseLogger:
         )
 
     def log(self, msg: str):
-        """ This function logs messages in debug mode
+        """This function logs messages in debug mode
         Args:
             msg (str): message to be printed
         """

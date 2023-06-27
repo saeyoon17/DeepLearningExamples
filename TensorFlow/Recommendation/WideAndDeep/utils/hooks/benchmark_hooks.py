@@ -15,17 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
 import dllogger
 import tensorflow as tf
-import time
 
 from .training_hooks import MeanAccumulator
 
-__all__ = ['BenchmarkLoggingHook']
+__all__ = ["BenchmarkLoggingHook"]
 
 
 class BenchmarkLoggingHook(tf.train.SessionRunHook):
-
     def __init__(self, global_batch_size, warmup_steps=100):
         self.warmup_steps = warmup_steps
         self.global_batch_size = global_batch_size

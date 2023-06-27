@@ -13,7 +13,9 @@
 
 import glob
 import os
+
 import pubmed_parser as pmp
+
 
 class PubMedTextFormatting:
     def __init__(self, pubmed_path, output_filename, recursive = False):

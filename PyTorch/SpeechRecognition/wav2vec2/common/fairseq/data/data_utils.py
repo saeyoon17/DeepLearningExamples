@@ -21,6 +21,7 @@ try:
     from collections.abc import Iterable
 except ImportError:
     from collections import Iterable
+
 import contextlib
 import itertools
 import logging
@@ -31,7 +32,6 @@ from typing import Optional, Tuple
 
 import numpy as np
 import torch
-
 from common.fairseq import utils
 from common.fairseq.data.data_utils_fast import batch_by_size_vec
 from common.fairseq.file_io import PathManager
@@ -83,6 +83,7 @@ def collate_tokens(
     for i, v in enumerate(values):
         copy_tensor(v, res[i][size - len(v) :] if left_pad else res[i][: len(v)])
     return res
+
 
 def load_indexed_dataset(
     path, dictionary=None, dataset_impl=None, combine=False, default="cached"
@@ -172,7 +173,6 @@ def collect_filtered(function, iterable, filtered):
 
 
 def _filter_by_size_dynamic(indices, size_fn, max_positions, raise_exception=False):
-
     def check_size(idx):
         if isinstance(max_positions, float) or isinstance(max_positions, int):
             return size_fn(idx) <= max_positions
@@ -334,20 +334,21 @@ def batch_by_size(
     for pos in range(indices.shape[0]):
         num_tokens_vec[pos] = num_tokens_fn(indices[pos])
 
-    assert max_tokens <= 0 or np.max(num_tokens_vec) <= max_tokens, (
-        f"Sentences lengths should not exceed max_tokens={max_tokens}"
-    )
+    assert (
+        max_tokens <= 0 or np.max(num_tokens_vec) <= max_tokens
+    ), f"Sentences lengths should not exceed max_tokens={max_tokens}"
 
     if indices.shape[0] == 0:
         return []
 
-    batches =  batch_by_size_vec(indices, num_tokens_vec, max_tokens,
-                                 max_sentences, bsz_mult)
+    batches = batch_by_size_vec(
+        indices, num_tokens_vec, max_tokens, max_sentences, bsz_mult
+    )
 
     if num_concat_batches > 1:
         # Concatenate subsequent batches
         ga = num_concat_batches
-        grouped = [batches[i*ga:(i+1)*ga] for i in range(len(batches) // ga)]
+        grouped = [batches[i * ga : (i + 1) * ga] for i in range(len(batches) // ga)]
         grouped_batches = [np.concatenate(g) for g in grouped]
 
         return grouped_batches, batches
@@ -364,8 +365,9 @@ def post_process(sentence: str, symbol: str):
         sentence = sentence.replace(" ", "").replace("|", " ").strip()
     elif symbol == "silence":
         import re
+
         sentence = sentence.replace("<SIL>", "")
-        sentence = re.sub(' +', ' ', sentence).strip()
+        sentence = re.sub(" +", " ", sentence).strip()
     elif symbol == "_EOW":
         sentence = sentence.replace(" ", "").replace("_EOW", " ").strip()
     elif symbol in {"subword_nmt", "@@ ", "@@"}:
@@ -446,7 +448,9 @@ def compute_mask_indices(
             if mask_type == "static":
                 lengths = np.full(num_mask, mask_length)
             elif mask_type == "uniform":
-                lengths = np.random.randint(mask_other, mask_length * 2 + 1, size=num_mask)
+                lengths = np.random.randint(
+                    mask_other, mask_length * 2 + 1, size=num_mask
+                )
             elif mask_type == "normal":
                 lengths = np.random.normal(mask_length, mask_other, size=num_mask)
                 lengths = [max(1, int(round(x))) for x in lengths]
@@ -539,7 +543,7 @@ def get_buckets(sizes, num_buckets):
         np.percentile(
             sizes,
             np.linspace(0, 100, num_buckets + 1),
-            interpolation='lower',
+            interpolation="lower",
         )[1:]
     )
     return buckets

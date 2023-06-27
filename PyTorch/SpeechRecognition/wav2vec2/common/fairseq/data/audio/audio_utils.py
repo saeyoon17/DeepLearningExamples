@@ -18,18 +18,17 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import BinaryIO, Optional, Tuple, Union, List
+from typing import BinaryIO, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-
 
 SF_AUDIO_FILE_EXTENSIONS = {".wav", ".flac", ".ogg"}
 FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS = {".npy", ".wav", ".flac", ".ogg"}
 
 
 def _convert_to_mono(
-        waveform: torch.FloatTensor, sample_rate: int
+    waveform: torch.FloatTensor, sample_rate: int
 ) -> torch.FloatTensor:
     if waveform.shape[0] > 1:
         try:
@@ -38,7 +37,7 @@ def _convert_to_mono(
             raise ImportError(
                 "Please install torchaudio to convert multi-channel audios"
             )
-        effects = [['channels', '1']]
+        effects = [["channels", "1"]]
         return ta_sox.apply_effects_tensor(waveform, sample_rate, effects)[0]
     return waveform
 
@@ -51,8 +50,12 @@ def convert_to_mono(waveform: np.ndarray, sample_rate: int) -> np.ndarray:
 
 
 def get_waveform(
-        path_or_fp: Union[str, BinaryIO], normalization=True, mono=True,
-        frames=-1, start=0, always_2d=True
+    path_or_fp: Union[str, BinaryIO],
+    normalization=True,
+    mono=True,
+    frames=-1,
+    start=0,
+    always_2d=True,
 ) -> Tuple[np.ndarray, int]:
     """Get the waveform and sample rate of a 16-bit WAV/FLAC/OGG Vorbis audio.
 
@@ -75,9 +78,7 @@ def get_waveform(
     try:
         import soundfile as sf
     except ImportError:
-        raise ImportError(
-            "Please install soundfile to load WAV/FLAC/OGG Vorbis audios"
-        )
+        raise ImportError("Please install soundfile to load WAV/FLAC/OGG Vorbis audios")
 
     waveform, sample_rate = sf.read(
         path_or_fp, dtype="float32", always_2d=True, frames=frames, start=start
@@ -86,19 +87,19 @@ def get_waveform(
     if mono and waveform.shape[0] > 1:
         waveform = convert_to_mono(waveform, sample_rate)
     if not normalization:
-        waveform *= 2 ** 15  # denormalized to 16-bit signed integers
+        waveform *= 2**15  # denormalized to 16-bit signed integers
     if not always_2d:
         waveform = waveform.squeeze(axis=0)
     return waveform, sample_rate
 
 
 def _get_kaldi_fbank(
-        waveform: np.ndarray, sample_rate: int, n_bins=80
+    waveform: np.ndarray, sample_rate: int, n_bins=80
 ) -> Optional[np.ndarray]:
     """Get mel-filter bank features via PyKaldi."""
     try:
+        from kaldi.feat.fbank import Fbank, FbankOptions
         from kaldi.feat.mel import MelBanksOptions
-        from kaldi.feat.fbank import FbankOptions, Fbank
         from kaldi.feat.window import FrameExtractionOptions
         from kaldi.matrix import Vector
 
@@ -117,11 +118,12 @@ def _get_kaldi_fbank(
 
 
 def _get_torchaudio_fbank(
-        waveform: np.ndarray, sample_rate, n_bins=80
+    waveform: np.ndarray, sample_rate, n_bins=80
 ) -> Optional[np.ndarray]:
     """Get mel-filter bank features via TorchAudio."""
     try:
         import torchaudio.compliance.kaldi as ta_kaldi
+
         waveform = torch.from_numpy(waveform)
         features = ta_kaldi.fbank(
             waveform, num_mel_bins=n_bins, sample_frequency=sample_rate
@@ -155,9 +157,9 @@ def is_npy_data(data: bytes) -> bool:
 
 
 def is_sf_audio_data(data: bytes) -> bool:
-    is_wav = (data[0] == 82 and data[1] == 73 and data[2] == 70)
-    is_flac = (data[0] == 102 and data[1] == 76 and data[2] == 97)
-    is_ogg = (data[0] == 79 and data[1] == 103 and data[2] == 103)
+    is_wav = data[0] == 82 and data[1] == 73 and data[2] == 70
+    is_flac = data[0] == 102 and data[1] == 76 and data[2] == 97
+    is_ogg = data[0] == 79 and data[1] == 103 and data[2] == 103
     return is_wav or is_flac or is_ogg
 
 
@@ -170,16 +172,16 @@ def read_from_stored_zip(zip_path: str, offset: int, file_size: int) -> bytes:
 
 def parse_path(path: str) -> Tuple[str, List[int]]:
     """Parse data path which is either a path to
-      1. a .npy/.wav/.flac/.ogg file
-      2. a stored ZIP file with slicing info: "[zip_path]:[offset]:[length]"
+    1. a .npy/.wav/.flac/.ogg file
+    2. a stored ZIP file with slicing info: "[zip_path]:[offset]:[length]"
 
-        Args:
-            path (str): the data path to parse
+      Args:
+          path (str): the data path to parse
 
-        Returns:
-            file_path (str): the file path
-            slice_ptr (list of int): empty in case 1;
-              byte offset and length for the slice in case 2
+      Returns:
+          file_path (str): the file path
+          slice_ptr (list of int): empty in case 1;
+            byte offset and length for the slice in case 2
     """
 
     if Path(path).suffix in FEATURE_OR_SF_AUDIO_FILE_EXTENSIONS:

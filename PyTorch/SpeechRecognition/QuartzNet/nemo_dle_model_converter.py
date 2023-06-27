@@ -6,28 +6,38 @@ from functools import reduce
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
 
+import quartznet.config
 import torch
 import yaml
-
-import quartznet.config
 from common import helpers
 from common.features import FilterbankFeatures
 from quartznet.config import load as load_yaml
-from quartznet.model import QuartzNet, MaskedConv1d
-
+from quartznet.model import MaskedConv1d, QuartzNet
 
 # Corresponding DLE <-> NeMo config keys
 cfg_key_map = {
     ("input_val", "audio_dataset", "sample_rate"): ("preprocessor", "sample_rate"),
     ("input_val", "filterbank_features", "dither"): ("preprocessor", "dither"),
-    ("input_val", "filterbank_features", "frame_splicing"): ("preprocessor", "frame_splicing"),
+    ("input_val", "filterbank_features", "frame_splicing"): (
+        "preprocessor",
+        "frame_splicing",
+    ),
     ("input_val", "filterbank_features", "n_fft"): ("preprocessor", "n_fft"),
     ("input_val", "filterbank_features", "n_filt"): ("preprocessor", "features"),
     ("input_val", "filterbank_features", "normalize"): ("preprocessor", "normalize"),
-    ("input_val", "filterbank_features", "sample_rate"): ("preprocessor", "sample_rate"),
+    ("input_val", "filterbank_features", "sample_rate"): (
+        "preprocessor",
+        "sample_rate",
+    ),
     ("input_val", "filterbank_features", "window"): ("preprocessor", "window"),
-    ("input_val", "filterbank_features", "window_size"): ("preprocessor", "window_size"),
-    ("input_val", "filterbank_features", "window_stride"): ("preprocessor", "window_stride"),
+    ("input_val", "filterbank_features", "window_size"): (
+        "preprocessor",
+        "window_size",
+    ),
+    ("input_val", "filterbank_features", "window_stride"): (
+        "preprocessor",
+        "window_stride",
+    ),
     ("labels",): ("decoder", "vocabulary"),
     ("quartznet", "decoder", "in_feats"): ("decoder", "feat_in"),
     ("quartznet", "encoder", "activation"): ("encoder", "activation"),
@@ -41,16 +51,19 @@ cfg_key_map = {
 def load_nemo_ckpt(fpath):
     """Make a DeepLearningExamples state_dict and config from a .nemo file."""
     try:
-        cmd = ['tar', 'Oxzf', fpath, './model_config.yaml']
+        cmd = ["tar", "Oxzf", fpath, "./model_config.yaml"]
         nemo_cfg = yaml.safe_load(io.BytesIO(check_output(cmd)))
 
-        cmd = ['tar', 'Oxzf', fpath, './model_weights.ckpt']
+        cmd = ["tar", "Oxzf", fpath, "./model_weights.ckpt"]
         ckpt = torch.load(io.BytesIO(check_output(cmd)), map_location="cpu")
 
     except (FileNotFoundError, CalledProcessError):
-        print('WARNING: Could not uncompress with tar. '
-              'Falling back to the tarfile module (might take a few minutes).')
+        print(
+            "WARNING: Could not uncompress with tar. "
+            "Falling back to the tarfile module (might take a few minutes)."
+        )
         import tarfile
+
         with tarfile.open(fpath, "r:gz") as tar:
             f = tar.extractfile(tar.getmember("./model_config.yaml"))
             nemo_cfg = yaml.safe_load(f)
@@ -58,11 +71,14 @@ def load_nemo_ckpt(fpath):
             f = tar.extractfile(tar.getmember("./model_weights.ckpt"))
             ckpt = torch.load(f, map_location="cpu")
 
-    remap = lambda k: (k.replace("encoder.encoder", "encoder.layers")
-                       .replace("decoder.decoder_layers", "decoder.layers")
-                       .replace("conv.weight", "weight"))
-    dle_ckpt = {'state_dict': {remap(k): v for k, v in ckpt.items()
-                               if "preproc" not in k}}
+    remap = lambda k: (
+        k.replace("encoder.encoder", "encoder.layers")
+        .replace("decoder.decoder_layers", "decoder.layers")
+        .replace("conv.weight", "weight")
+    )
+    dle_ckpt = {
+        "state_dict": {remap(k): v for k, v in ckpt.items() if "preproc" not in k}
+    }
     dle_cfg = config_from_nemo(nemo_cfg)
     return dle_ckpt, dle_cfg
 
@@ -74,15 +90,15 @@ def save_nemo_ckpt(dle_ckpt, dle_cfg, dest_path):
     dle_ckpt = torch.load(dle_ckpt, map_location="cpu")["ema_state_dict"]
 
     # Build a DLE model instance and fill with weights
-    symbols = helpers.add_ctc_blank(cfg['labels'])
+    symbols = helpers.add_ctc_blank(cfg["labels"])
     enc_kw = quartznet.config.encoder(cfg)
     dec_kw = quartznet.config.decoder(cfg, n_classes=len(symbols))
     model = QuartzNet(enc_kw, dec_kw)
     model.load_state_dict(dle_ckpt, strict=True)
 
     # Reaname core modules, e.g., encoder.layers -> encoder.encoder
-    model.encoder._modules['encoder'] = model.encoder._modules.pop('layers')
-    model.decoder._modules['decoder_layers'] = model.decoder._modules.pop('layers')
+    model.encoder._modules["encoder"] = model.encoder._modules.pop("layers")
+    model.decoder._modules["decoder_layers"] = model.decoder._modules.pop("layers")
 
     # MaskedConv1d is made via composition in NeMo, and via inheritance in DLE
     # Params for MaskedConv1d in NeMo have an additional '.conv.' infix
@@ -91,7 +107,7 @@ def save_nemo_ckpt(dle_ckpt, dle_cfg, dest_path):
             submod = module._modules[name]
 
             if isinstance(submod, MaskedConv1d):
-                module._modules[f'{name}.conv'] = module._modules.pop(name)
+                module._modules[f"{name}.conv"] = module._modules.pop(name)
             else:
                 rename_convs(submod)
 
@@ -99,7 +115,8 @@ def save_nemo_ckpt(dle_ckpt, dle_cfg, dest_path):
 
     # Use FilterbankFeatures to calculate fbanks and store with model weights
     feature_processor = FilterbankFeatures(
-        **dle_cfg['input_val']['filterbank_features'])
+        **dle_cfg["input_val"]["filterbank_features"]
+    )
 
     nemo_ckpt = model.state_dict()
     nemo_ckpt["preprocessor.featurizer.fb"] = feature_processor.fb
@@ -133,18 +150,18 @@ def set_nested_item(tgt, src, tgt_keys, src_keys):
 def config_from_nemo(nemo_cfg):
     """Convert a DeepLearningExamples config to a NeMo format."""
     dle_cfg = {
-        'name': 'QuartzNet',
-        'input_val': {
-            'audio_dataset': {
-                'normalize_transcripts': True,
+        "name": "QuartzNet",
+        "input_val": {
+            "audio_dataset": {
+                "normalize_transcripts": True,
             },
-            'filterbank_features': {
-                'pad_align': 16,
+            "filterbank_features": {
+                "pad_align": 16,
             },
         },
-        'quartznet': {
-            'decoder': {},
-            'encoder': {},
+        "quartznet": {
+            "decoder": {},
+            "encoder": {},
         },
     }
 
@@ -152,7 +169,7 @@ def config_from_nemo(nemo_cfg):
         try:
             set_nested_item(dle_cfg, nemo_cfg, dle_keys, nemo_keys)
         except KeyError:
-            print(f'WARNING: Could not load config {nemo_keys} as {dle_keys}.')
+            print(f"WARNING: Could not load config {nemo_keys} as {dle_keys}.")
 
     # mapping kernel_size is not expressable with cfg_map
     for block in dle_cfg["quartznet"]["encoder"]["blocks"]:
@@ -172,10 +189,10 @@ def config_to_nemo(dle_cfg):
         },
         "encoder": {
             "_target_": "nemo.collections.asr.modules.ConvASREncoder",
-            "jasper": {}
+            "jasper": {},
         },
         "decoder": {
-          "_target_": "nemo.collections.asr.modules.ConvASRDecoder",
+            "_target_": "nemo.collections.asr.modules.ConvASRDecoder",
         },
     }
 
@@ -200,12 +217,20 @@ def config_to_nemo(dle_cfg):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="QuartzNet DLE <-> NeMo model converter.")
-    parser.add_argument("source_model", type=Path,
-                        help="A DLE or NeMo QuartzNet model to be converted (.pt or .nemo, respectively)")
+    parser = argparse.ArgumentParser(
+        description="QuartzNet DLE <-> NeMo model converter."
+    )
+    parser.add_argument(
+        "source_model",
+        type=Path,
+        help="A DLE or NeMo QuartzNet model to be converted (.pt or .nemo, respectively)",
+    )
     parser.add_argument("dest_dir", type=Path, help="Destination directory")
-    parser.add_argument("--dle_config_yaml", type=Path,
-                        help="A DLE config .yaml file, required only to convert DLE -> NeMo")
+    parser.add_argument(
+        "--dle_config_yaml",
+        type=Path,
+        help="A DLE config .yaml file, required only to convert DLE -> NeMo",
+    )
     args = parser.parse_args()
 
     ext = args.source_model.suffix.lower()
@@ -220,4 +245,4 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Unknown extension {ext}.")
 
-    print('Converted succesfully.')
+    print("Converted succesfully.")

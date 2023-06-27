@@ -20,22 +20,27 @@
 # ==============================================================================
 
 import tensorflow as tf
-
-from model import layers
-from model import blocks
+from model import blocks, layers
 
 __all__ = ["downsample_unet_block"]
 
 
 def downsample_unet_block(
-    inputs, filters, data_format='NCHW', is_training=True, conv2d_hparams=None, block_name='downsample_block'
+    inputs,
+    filters,
+    data_format="NCHW",
+    is_training=True,
+    conv2d_hparams=None,
+    block_name="downsample_block",
 ):
 
     if not isinstance(conv2d_hparams, tf.contrib.training.HParams):
         raise ValueError("The paramater `conv2d_hparams` is not of type `HParams`")
 
-    if data_format not in ['NHWC', 'NCHW']:
-        raise ValueError("Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format)
+    if data_format not in ["NHWC", "NCHW"]:
+        raise ValueError(
+            "Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format
+        )
 
     with tf.variable_scope(block_name):
 
@@ -44,7 +49,7 @@ def downsample_unet_block(
             n_channels=filters,
             kernel_size=(3, 3),
             strides=(1, 1),
-            padding='same',
+            padding="same",
             data_format=data_format,
             use_bias=True,
             trainable=is_training,
@@ -53,7 +58,10 @@ def downsample_unet_block(
         )
 
         net = blocks.activation_block(
-            inputs=net, act_fn=conv2d_hparams.activation_fn, trainable=is_training, block_name='act1'
+            inputs=net,
+            act_fn=conv2d_hparams.activation_fn,
+            trainable=is_training,
+            block_name="act1",
         )
 
         net = layers.conv2d(
@@ -61,7 +69,7 @@ def downsample_unet_block(
             n_channels=filters,
             kernel_size=(3, 3),
             strides=(1, 1),
-            padding='same',
+            padding="same",
             data_format=data_format,
             use_bias=True,
             trainable=is_training,
@@ -70,16 +78,19 @@ def downsample_unet_block(
         )
 
         net = blocks.activation_block(
-            inputs=net, act_fn=conv2d_hparams.activation_fn, trainable=is_training, block_name='act2'
+            inputs=net,
+            act_fn=conv2d_hparams.activation_fn,
+            trainable=is_training,
+            block_name="act2",
         )
 
         outputs = layers.max_pooling2d(
             inputs=net,
             pool_size=(2, 2),
             strides=(2, 2),
-            padding='valid',
+            padding="valid",
             data_format=data_format,
-            name="max_pooling2d"
+            name="max_pooling2d",
         )
 
         return outputs, net

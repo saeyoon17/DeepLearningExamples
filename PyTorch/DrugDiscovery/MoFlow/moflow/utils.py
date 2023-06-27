@@ -38,14 +38,17 @@ import re
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
-from rdkit import Chem
 import torch
+from moflow.config import ATOM_VALENCY, CODE_TO_BOND, DUMMY_CODE, Config
+from rdkit import Chem
 
-from moflow.config import Config, ATOM_VALENCY, CODE_TO_BOND, DUMMY_CODE
 
-
-def postprocess_predictions(x: Union[torch.Tensor, np.ndarray], adj: Union[torch.Tensor, np.ndarray], config: Config) -> Tuple[np.ndarray, np.ndarray]:
-    assert x.ndim == 3 and adj.ndim == 4, 'expected batched predictions'
+def postprocess_predictions(
+    x: Union[torch.Tensor, np.ndarray],
+    adj: Union[torch.Tensor, np.ndarray],
+    config: Config,
+) -> Tuple[np.ndarray, np.ndarray]:
+    assert x.ndim == 3 and adj.ndim == 4, "expected batched predictions"
     n = config.dataset_config.max_num_atoms
     adj = adj[:, :, :n, :n]
     x = x[:, :n]
@@ -63,7 +66,9 @@ def postprocess_predictions(x: Union[torch.Tensor, np.ndarray], adj: Union[torch
     return decoded, adj
 
 
-def convert_predictions_to_mols(adj: np.ndarray, x: np.ndarray, correct_validity: bool = False) -> List[Chem.Mol]:
+def convert_predictions_to_mols(
+    adj: np.ndarray, x: np.ndarray, correct_validity: bool = False
+) -> List[Chem.Mol]:
     molecules = [construct_mol(x_elem, adj_elem) for x_elem, adj_elem in zip(x, adj)]
 
     if correct_validity:
@@ -73,8 +78,9 @@ def convert_predictions_to_mols(adj: np.ndarray, x: np.ndarray, correct_validity
 
 def construct_mol(atoms: np.ndarray, adj: np.ndarray) -> Chem.Mol:
     from rdkit import RDLogger
-    RDLogger.DisableLog('rdApp.*')
-    atoms_exist = (atoms != 0)
+
+    RDLogger.DisableLog("rdApp.*")
+    atoms_exist = atoms != 0
     atoms = atoms[atoms_exist]
     adj = adj[atoms_exist][:, atoms_exist]
 
@@ -106,7 +112,7 @@ def valid_mol(x: Optional[Chem.Mol]) -> Optional[Chem.Mol]:
         # RDKit wasn't able to create the mol
         return None
     smi = Chem.MolToSmiles(x, isomericSmiles=True)
-    if len(smi) == 0 or '.' in smi:
+    if len(smi) == 0 or "." in smi:
         # Mol is empty or fragmented
         return None
     reloaded = Chem.MolFromSmiles(smi)
@@ -124,9 +130,9 @@ def check_valency(mol: Chem.Mol) -> Tuple[bool, List[int]]:
         return True, None
     except ValueError as e:
         e = str(e)
-        p = e.find('#')
+        p = e.find("#")
         e_sub = e[p:]
-        atomid_valence = list(map(int, re.findall(r'\d+', e_sub)))
+        atomid_valence = list(map(int, re.findall(r"\d+", e_sub)))
         return False, atomid_valence
 
 
@@ -139,7 +145,12 @@ def correct_mol(mol: Chem.Mol) -> Chem.Mol:
         queue = []
         for b in mol.GetAtomWithIdx(idx).GetBonds():
             queue.append(
-                (b.GetIdx(), int(b.GetBondType()), b.GetBeginAtomIdx(), b.GetEndAtomIdx())
+                (
+                    b.GetIdx(),
+                    int(b.GetBondType()),
+                    b.GetBeginAtomIdx(),
+                    b.GetEndAtomIdx(),
+                )
             )
         queue.sort(key=lambda tup: tup[1], reverse=True)
         if len(queue) > 0:
@@ -158,10 +169,14 @@ def correct_mol(mol: Chem.Mol) -> Chem.Mol:
     return mol
 
 
-def predictions_to_smiles(adj: torch.Tensor, x: torch.Tensor, config: Config) -> List[str]:
+def predictions_to_smiles(
+    adj: torch.Tensor, x: torch.Tensor, config: Config
+) -> List[str]:
     x, adj = postprocess_predictions(x, adj, config=config)
-    valid = [Chem.MolToSmiles(construct_mol(x_elem, adj_elem), isomericSmiles=True)
-             for x_elem, adj_elem in zip(x, adj)]
+    valid = [
+        Chem.MolToSmiles(construct_mol(x_elem, adj_elem), isomericSmiles=True)
+        for x_elem, adj_elem in zip(x, adj)
+    ]
     return valid
 
 
@@ -173,31 +188,33 @@ def check_validity(molecules: List[Chem.Mol]) -> dict:
     valid_ratio = len(valid) / n_mols
     valid_smiles = [Chem.MolToSmiles(mol, isomericSmiles=False) for mol in valid]
     unique_smiles = list(set(valid_smiles))
-    unique_ratio = 0.
+    unique_ratio = 0.0
     if len(valid) > 0:
         unique_ratio = len(unique_smiles) / len(valid)
     valid_mols = [Chem.MolFromSmiles(s) for s in valid_smiles]
     abs_unique_ratio = len(unique_smiles) / n_mols
 
     results = dict()
-    results['valid_mols'] = valid_mols
-    results['valid_smiles'] = valid_smiles
-    results['valid_ratio'] = valid_ratio * 100
-    results['unique_ratio'] = unique_ratio * 100
-    results['abs_unique_ratio'] = abs_unique_ratio * 100
+    results["valid_mols"] = valid_mols
+    results["valid_smiles"] = valid_smiles
+    results["valid_ratio"] = valid_ratio * 100
+    results["unique_ratio"] = unique_ratio * 100
+    results["abs_unique_ratio"] = abs_unique_ratio * 100
 
     return results
 
 
-def check_novelty(gen_smiles: List[str], train_smiles: List[str], n_generated_mols: int):
+def check_novelty(
+    gen_smiles: List[str], train_smiles: List[str], n_generated_mols: int
+):
     if len(gen_smiles) == 0:
-        novel_ratio = 0.
-        abs_novel_ratio = 0.
+        novel_ratio = 0.0
+        abs_novel_ratio = 0.0
     else:
         duplicates = [1 for mol in gen_smiles if mol in train_smiles]
         novel = len(gen_smiles) - sum(duplicates)
-        novel_ratio = novel * 100. / len(gen_smiles)
-        abs_novel_ratio = novel * 100. / n_generated_mols
+        novel_ratio = novel * 100.0 / len(gen_smiles)
+        abs_novel_ratio = novel * 100.0 / n_generated_mols
     return novel_ratio, abs_novel_ratio
 
 

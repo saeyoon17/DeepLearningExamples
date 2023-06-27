@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pickle
 from collections import OrderedDict
 from functools import partial
-import pickle
+
 import numpy as np
 import pandas as pd
 import scipy
 from sklearn.preprocessing import OrdinalEncoder
-
-from syngen.generator.tabular.base_tabular_generator import BaseTabularGenerator
+from syngen.generator.tabular.base_tabular_generator import \
+    BaseTabularGenerator
 
 
 class GaussianGenerator(BaseTabularGenerator):
@@ -63,8 +64,7 @@ class GaussianGenerator(BaseTabularGenerator):
         data_dict = OrderedDict()
         for column in self.column_order:
             if column in self.categorical_columns:
-                sampled_data = np.random.multinomial(n,
-                    self.fits[column]["pvals"])
+                sampled_data = np.random.multinomial(n, self.fits[column]["pvals"])
                 fsd = []
                 for i, sd in enumerate(sampled_data):
                     t = [i] * sd
@@ -78,8 +78,8 @@ class GaussianGenerator(BaseTabularGenerator):
                 sampled_data = encoder.inverse_transform(sampled_data)
             else:
                 sampled_data = np.random.normal(
-                        self.fits[column]['mean'],
-                        self.fits[column]['std'], n)
+                    self.fits[column]["mean"], self.fits[column]["std"], n
+                )
 
             data_dict[column] = list(sampled_data.reshape(-1))
         df = pd.DataFrame.from_dict(data_dict)
@@ -89,11 +89,11 @@ class GaussianGenerator(BaseTabularGenerator):
         ...
 
     def save(self, path):
-        with open(path, 'wb') as file_handler:
+        with open(path, "wb") as file_handler:
             pickle.dump(self, file_handler, protocol=pickle.HIGHEST_PROTOCOL)
 
     @classmethod
     def load(cls, path):
-        with open(path, 'rb') as file_handler:
+        with open(path, "rb") as file_handler:
             model = pickle.load(file_handler)
         return model

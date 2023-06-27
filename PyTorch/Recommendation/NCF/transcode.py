@@ -12,25 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from argparse import ArgumentParser
 import os
-import torch
-import pandas as pd
+from argparse import ArgumentParser
 
+import pandas as pd
+import torch
 from feature_spec import FeatureSpec
-from neumf_constants import USER_CHANNEL_NAME, ITEM_CHANNEL_NAME, LABEL_CHANNEL_NAME
+from neumf_constants import (ITEM_CHANNEL_NAME, LABEL_CHANNEL_NAME,
+                             USER_CHANNEL_NAME)
 
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('--path', type=str, default='',
-                        help='Path to input data directory')
-    parser.add_argument('--feature_spec_in', type=str, default='feature_spec.yaml',
-                        help='Name of the input feature specification file, or path relative to data directory.')
-    parser.add_argument('--output', type=str, default='/data',
-                        help='Path to output data directory')
-    parser.add_argument('--feature_spec_out', type=str, default='feature_spec.yaml',
-                        help='Name of the output feature specification file, or path relative to data directory.')
+    parser.add_argument(
+        "--path", type=str, default="", help="Path to input data directory"
+    )
+    parser.add_argument(
+        "--feature_spec_in",
+        type=str,
+        default="feature_spec.yaml",
+        help="Name of the input feature specification file, or path relative to data directory.",
+    )
+    parser.add_argument(
+        "--output", type=str, default="/data", help="Path to output data directory"
+    )
+    parser.add_argument(
+        "--feature_spec_out",
+        type=str,
+        default="feature_spec.yaml",
+        help="Name of the output feature specification file, or path relative to data directory.",
+    )
     return parser.parse_args()
 
 
@@ -58,43 +69,57 @@ def main():
         # Load all chunks and link into one df
         chunk_dfs = []
         for chunk in mapping:
-            assert chunk['type'] == 'csv', "Only csv files supported in this transcoder"
+            assert chunk["type"] == "csv", "Only csv files supported in this transcoder"
             file_dfs = []
-            for file in chunk['files']:
+            for file in chunk["files"]:
                 path_to_load = os.path.join(feature_spec.base_directory, file)
                 file_dfs.append(pd.read_csv(path_to_load, header=None))
             chunk_df = pd.concat(file_dfs, ignore_index=True)
-            chunk_df.columns = chunk['features']
+            chunk_df.columns = chunk["features"]
             chunk_df.reset_index(drop=True, inplace=True)
             chunk_dfs.append(chunk_df)
-        mapping_df = pd.concat(chunk_dfs, axis=1)  # This takes care of making sure feature names are unique
+        mapping_df = pd.concat(
+            chunk_dfs, axis=1
+        )  # This takes care of making sure feature names are unique
 
         for feature in categorical_features:
             mapping_cardinality = mapping_df[feature].max() + 1
             previous_cardinality = found_cardinalities[feature]
-            found_cardinalities[feature] = max(previous_cardinality, mapping_cardinality)
+            found_cardinalities[feature] = max(
+                previous_cardinality, mapping_cardinality
+            )
 
         # We group together users and items, while separating labels. This is because of the target dtypes: ids are int,
         # while labels are float to compute loss.
-        ints_tensor = torch.from_numpy(mapping_df[[user_feature_name, item_feature_name]].values).long()
+        ints_tensor = torch.from_numpy(
+            mapping_df[[user_feature_name, item_feature_name]].values
+        ).long()
         ints_file = f"{mapping_name}_data_0.pt"
-        ints_chunk = {"type": "torch_tensor",
-                      "features": [user_feature_name, item_feature_name],
-                      "files": [ints_file]}
+        ints_chunk = {
+            "type": "torch_tensor",
+            "features": [user_feature_name, item_feature_name],
+            "files": [ints_file],
+        }
         torch.save(ints_tensor, os.path.join(args_output, ints_file))
 
-        floats_tensor = torch.from_numpy(mapping_df[[label_feature_name]].values).float()
+        floats_tensor = torch.from_numpy(
+            mapping_df[[label_feature_name]].values
+        ).float()
         floats_file = f"{mapping_name}_data_1.pt"
-        floats_chunk = {"type": "torch_tensor",
-                        "features": [label_feature_name],
-                        "files": [floats_file]}
+        floats_chunk = {
+            "type": "torch_tensor",
+            "features": [label_feature_name],
+            "files": [floats_file],
+        }
         torch.save(floats_tensor, os.path.join(args_output, floats_file))
 
         new_source_spec[mapping_name] = [ints_chunk, floats_chunk]
 
     for feature in categorical_features:
         found_cardinality = found_cardinalities[feature]
-        declared_cardinality = feature_spec.feature_spec[feature].get('cardinality', 'auto')
+        declared_cardinality = feature_spec.feature_spec[feature].get(
+            "cardinality", "auto"
+        )
         if declared_cardinality != "auto":
             declared = int(declared_cardinality)
             assert declared >= found_cardinality, "Specified cardinality conflicts data"
@@ -103,25 +128,25 @@ def main():
     new_inner_feature_spec = {
         user_feature_name: {
             "dtype": "torch.int64",
-            "cardinality": int(found_cardinalities[user_feature_name])
+            "cardinality": int(found_cardinalities[user_feature_name]),
         },
         item_feature_name: {
             "dtype": "torch.int64",
-            "cardinality": int(found_cardinalities[item_feature_name])
+            "cardinality": int(found_cardinalities[item_feature_name]),
         },
-        label_feature_name: {
-            "dtype": "torch.float32"
-        }
+        label_feature_name: {"dtype": "torch.float32"},
     }
 
-    new_feature_spec = FeatureSpec(feature_spec=new_inner_feature_spec,
-                                   source_spec=new_source_spec,
-                                   channel_spec=feature_spec.channel_spec,
-                                   metadata=feature_spec.metadata,
-                                   base_directory="")
+    new_feature_spec = FeatureSpec(
+        feature_spec=new_inner_feature_spec,
+        source_spec=new_source_spec,
+        channel_spec=feature_spec.channel_spec,
+        metadata=feature_spec.metadata,
+        base_directory="",
+    )
     feature_spec_save_path = os.path.join(args_output, args_feature_spec_out)
     new_feature_spec.to_yaml(output_path=feature_spec_save_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

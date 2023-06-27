@@ -28,20 +28,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
+from os.path import abspath, dirname, join
+
 import numpy as np
 import torch
 import torch.nn as nn
 
-import sys
-from os.path import abspath, join, dirname
-
 
 class NeuMF(nn.Module):
-    def __init__(self, nb_users, nb_items,
-                 mf_dim, mlp_layer_sizes, dropout=0):
-        
+    def __init__(self, nb_users, nb_items, mf_dim, mlp_layer_sizes, dropout=0):
+
         if mlp_layer_sizes[0] % 2 != 0:
-            raise RuntimeError('u dummy, mlp_layer_sizes[0] % 2 != 0')
+            raise RuntimeError("u dummy, mlp_layer_sizes[0] % 2 != 0")
         super(NeuMF, self).__init__()
         nb_mlp_layers = len(mlp_layer_sizes)
 
@@ -53,24 +52,27 @@ class NeuMF(nn.Module):
 
         self.mlp = nn.ModuleList()
         for i in range(1, nb_mlp_layers):
-            self.mlp.extend([nn.Linear(mlp_layer_sizes[i - 1], mlp_layer_sizes[i])])  # noqa: E501
+            self.mlp.extend(
+                [nn.Linear(mlp_layer_sizes[i - 1], mlp_layer_sizes[i])]
+            )  # noqa: E501
 
         self.final = nn.Linear(mlp_layer_sizes[-1] + mf_dim, 1)
 
-        self.mf_user_embed.weight.data.normal_(0., 0.01)
-        self.mf_item_embed.weight.data.normal_(0., 0.01)
-        self.mlp_user_embed.weight.data.normal_(0., 0.01)
-        self.mlp_item_embed.weight.data.normal_(0., 0.01)
+        self.mf_user_embed.weight.data.normal_(0.0, 0.01)
+        self.mf_item_embed.weight.data.normal_(0.0, 0.01)
+        self.mlp_user_embed.weight.data.normal_(0.0, 0.01)
+        self.mlp_item_embed.weight.data.normal_(0.0, 0.01)
 
         def glorot_uniform(layer):
             fan_in, fan_out = layer.in_features, layer.out_features
-            limit = np.sqrt(6. / (fan_in + fan_out))
+            limit = np.sqrt(6.0 / (fan_in + fan_out))
             layer.weight.data.uniform_(-limit, limit)
 
         def lecunn_uniform(layer):
             fan_in, fan_out = layer.in_features, layer.out_features  # noqa: F841, E501
-            limit = np.sqrt(3. / fan_in)
+            limit = np.sqrt(3.0 / fan_in)
             layer.weight.data.uniform_(-limit, limit)
+
         for layer in self.mlp:
             if type(layer) != nn.Linear:
                 continue
@@ -89,7 +91,9 @@ class NeuMF(nn.Module):
             xmlp = layer(xmlp)
             xmlp = nn.functional.relu(xmlp)
             if self.dropout != 0:
-                xmlp = nn.functional.dropout(xmlp, p=self.dropout, training=self.training)
+                xmlp = nn.functional.dropout(
+                    xmlp, p=self.dropout, training=self.training
+                )
 
         x = torch.cat((xmf, xmlp), dim=1)
         x = self.final(x)

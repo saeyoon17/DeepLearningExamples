@@ -39,7 +39,6 @@ back to rank 4.
 """
 
 import tensorflow as tf
-
 from mrcnn_tf2.object_detection import box_list
 
 
@@ -76,8 +75,7 @@ def _flip_masks_left_right(masks):
     return masks[:, :, ::-1]
 
 
-def keypoint_flip_horizontal(keypoints, flip_point, flip_permutation,
-                             scope=None):
+def keypoint_flip_horizontal(keypoints, flip_point, flip_permutation, scope=None):
     """Flips the keypoints horizontally around the flip_point.
 
     This operation flips the x coordinate for each keypoint around the flip_point
@@ -109,12 +107,14 @@ def keypoint_flip_horizontal(keypoints, flip_point, flip_permutation,
     return new_keypoints
 
 
-def random_horizontal_flip(image,
-                           boxes=None,
-                           masks=None,
-                           keypoints=None,
-                           keypoint_flip_permutation=None,
-                           seed=None):
+def random_horizontal_flip(
+    image,
+    boxes=None,
+    masks=None,
+    keypoints=None,
+    keypoint_flip_permutation=None,
+    seed=None,
+):
     """Randomly flips the image and detections horizontally.
 
     The probability of flipping the image is 50%.
@@ -161,26 +161,37 @@ def random_horizontal_flip(image,
 
     if keypoints is not None and keypoint_flip_permutation is None:
         raise ValueError(
-            'keypoints are provided but keypoints_flip_permutation is not provided')
+            "keypoints are provided but keypoints_flip_permutation is not provided"
+        )
 
     result = []
     # random variable defining whether to do flip or not
     do_a_flip_random = tf.greater(tf.random.uniform([], seed=seed), 0.5)
 
     # flip image
-    image = tf.cond(pred=do_a_flip_random, true_fn=lambda: _flip_image(image), false_fn=lambda: image)
+    image = tf.cond(
+        pred=do_a_flip_random,
+        true_fn=lambda: _flip_image(image),
+        false_fn=lambda: image,
+    )
     result.append(image)
 
     # flip boxes
     if boxes is not None:
-        boxes = tf.cond(pred=do_a_flip_random, true_fn=lambda: _flip_boxes_left_right(boxes),
-                        false_fn=lambda: boxes)
+        boxes = tf.cond(
+            pred=do_a_flip_random,
+            true_fn=lambda: _flip_boxes_left_right(boxes),
+            false_fn=lambda: boxes,
+        )
         result.append(boxes)
 
     # flip masks
     if masks is not None:
-        masks = tf.cond(pred=do_a_flip_random, true_fn=lambda: _flip_masks_left_right(masks),
-                        false_fn=lambda: masks)
+        masks = tf.cond(
+            pred=do_a_flip_random,
+            true_fn=lambda: _flip_masks_left_right(masks),
+            false_fn=lambda: masks,
+        )
         result.append(masks)
 
     # flip keypoints
@@ -189,7 +200,8 @@ def random_horizontal_flip(image,
         keypoints = tf.cond(
             pred=do_a_flip_random,
             true_fn=lambda: keypoint_flip_horizontal(keypoints, 0.5, permutation),
-            false_fn=lambda: keypoints)
+            false_fn=lambda: keypoints,
+        )
         result.append(keypoints)
 
     return tuple(result)
@@ -258,24 +270,31 @@ def _compute_new_dynamic_size(image, min_dimension, max_dimension):
         # dimension equal to max_dimension, save for floating point rounding
         # errors. For reasonably-sized images, taking the nearest integer will
         # reliably eliminate this error.
-        small_height = tf.cast(tf.round(orig_height * small_scale_factor), dtype=tf.int32)
+        small_height = tf.cast(
+            tf.round(orig_height * small_scale_factor), dtype=tf.int32
+        )
         small_width = tf.cast(tf.round(orig_width * small_scale_factor), dtype=tf.int32)
         small_size = tf.stack([small_height, small_width])
         new_size = tf.cond(
-            pred=tf.cast(tf.reduce_max(input_tensor=large_size), dtype=tf.float32) > max_dimension,
-            true_fn=lambda: small_size, false_fn=lambda: large_size)
+            pred=tf.cast(tf.reduce_max(input_tensor=large_size), dtype=tf.float32)
+            > max_dimension,
+            true_fn=lambda: small_size,
+            false_fn=lambda: large_size,
+        )
     else:
         new_size = large_size
     return tf.stack(tf.unstack(new_size) + [num_channels])
 
 
-def resize_to_range(image,
-                    masks=None,
-                    min_dimension=None,
-                    max_dimension=None,
-                    method=tf.image.ResizeMethod.BILINEAR,
-                    align_corners=False,
-                    pad_to_max_dimension=False):
+def resize_to_range(
+    image,
+    masks=None,
+    min_dimension=None,
+    max_dimension=None,
+    method=tf.image.ResizeMethod.BILINEAR,
+    align_corners=False,
+    pad_to_max_dimension=False,
+):
     """Resizes an image so its dimensions are within the provided value.
 
     The output size can be described by two cases:
@@ -317,30 +336,30 @@ def resize_to_range(image,
       ValueError: if the image is not a 3D tensor.
     """
     if len(image.get_shape()) != 3:
-        raise ValueError('Image should be 3D tensor')
+        raise ValueError("Image should be 3D tensor")
 
     if image.get_shape().is_fully_defined():
         new_size = _compute_new_static_size(image, min_dimension, max_dimension)
     else:
         new_size = _compute_new_dynamic_size(image, min_dimension, max_dimension)
-    new_image = tf.image.resize(
-        image, new_size[:-1], method=method)
+    new_image = tf.image.resize(image, new_size[:-1], method=method)
 
     if pad_to_max_dimension:
         new_image = tf.image.pad_to_bounding_box(
-            new_image, 0, 0, max_dimension, max_dimension)
+            new_image, 0, 0, max_dimension, max_dimension
+        )
 
     result = [new_image]
     if masks is not None:
         new_masks = tf.expand_dims(masks, 3)
         new_masks = tf.image.resize(
-            new_masks,
-            new_size[:-1],
-            method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
+            new_masks, new_size[:-1], method=tf.image.ResizeMethod.NEAREST_NEIGHBOR
+        )
         new_masks = tf.squeeze(new_masks, 3)
         if pad_to_max_dimension:
             new_masks = tf.image.pad_to_bounding_box(
-                new_masks, 0, 0, max_dimension, max_dimension)
+                new_masks, 0, 0, max_dimension, max_dimension
+            )
         result.append(new_masks)
 
     result.append(new_size)
@@ -378,13 +397,13 @@ def box_list_scale(boxlist, y_scale, x_scale, scope=None):
     y_scale = tf.cast(y_scale, tf.float32)
     x_scale = tf.cast(x_scale, tf.float32)
     y_min, x_min, y_max, x_max = tf.split(
-        value=boxlist.get(), num_or_size_splits=4, axis=1)
+        value=boxlist.get(), num_or_size_splits=4, axis=1
+    )
     y_min = y_scale * y_min
     y_max = y_scale * y_max
     x_min = x_scale * x_min
     x_max = x_scale * x_max
-    scaled_boxlist = box_list.BoxList(
-        tf.concat([y_min, x_min, y_max, x_max], 1))
+    scaled_boxlist = box_list.BoxList(tf.concat([y_min, x_min, y_max, x_max], 1))
     return _copy_extra_fields(scaled_boxlist, boxlist)
 
 

@@ -1,16 +1,15 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 import torch
-
+from maskrcnn_benchmark import _C as C
 from maskrcnn_benchmark.modeling.box_coder import BoxCoder
 from maskrcnn_benchmark.structures.bounding_box import BoxList
-from maskrcnn_benchmark.structures.boxlist_ops import cat_boxlist
-from maskrcnn_benchmark.structures.boxlist_ops import boxlist_nms
-from maskrcnn_benchmark.structures.boxlist_ops import remove_small_boxes
+from maskrcnn_benchmark.structures.boxlist_ops import (boxlist_nms,
+                                                       cat_boxlist,
+                                                       remove_small_boxes)
 
 from ..utils import cat
 
-from maskrcnn_benchmark import _C as C
 
 class RPNPostProcessor(torch.nn.Module):
     """
@@ -86,10 +85,10 @@ class RPNPostProcessor(torch.nn.Module):
         num_anchors = A * H * W
 
         # If inputs are on GPU, use a faster path
-        use_fast_cuda_path = (objectness.is_cuda and box_regression.is_cuda)
+        use_fast_cuda_path = objectness.is_cuda and box_regression.is_cuda
         # Encompasses box decode, clip_to_image and remove_small_boxes calls
         if use_fast_cuda_path:
-            objectness = objectness.reshape(N, -1) # Now [N, AHW]
+            objectness = objectness.reshape(N, -1)  # Now [N, AHW]
             objectness = objectness.sigmoid()
 
             pre_nms_top_n = min(self.pre_nms_top_n, num_anchors)
@@ -97,14 +96,16 @@ class RPNPostProcessor(torch.nn.Module):
 
             # Get all image shapes, and cat them together
             image_shapes = [box.size for box in anchors]
-            image_shapes_cat = torch.tensor([box.size for box in anchors], device=objectness.device).float()
+            image_shapes_cat = torch.tensor(
+                [box.size for box in anchors], device=objectness.device
+            ).float()
 
             # Get a single tensor for all anchors
             concat_anchors = torch.cat([a.bbox for a in anchors], dim=0)
 
             # Note: Take all anchors, we'll index accordingly inside the kernel
             # only take the anchors corresponding to the topk boxes
-            concat_anchors = concat_anchors.reshape(N, -1, 4) # [batch_idx, topk_idx]
+            concat_anchors = concat_anchors.reshape(N, -1, 4)  # [batch_idx, topk_idx]
 
             # Return pre-nms boxes, associated scores and keep flag
             # Encompasses:
@@ -114,26 +115,27 @@ class RPNPostProcessor(torch.nn.Module):
             # At the end we need to keep only the proposals & scores flagged
             # Note: topk_idx, objectness are sorted => proposals, objectness, keep are also
             # sorted -- this is important later
-            
-            use_nhwc_kernel = box_regression.is_contiguous(memory_format=torch.channels_last)
 
+            use_nhwc_kernel = box_regression.is_contiguous(
+                memory_format=torch.channels_last
+            )
 
             proposals, objectness, keep = C.GeneratePreNMSUprightBoxes(
-                                    N,
-                                    A,
-                                    H,
-                                    W,
-                                    topk_idx,
-                                    objectness.float(),    # Need to cast these as kernel doesn't support fp16
-                                    box_regression.float(),
-                                    concat_anchors,
-                                    image_shapes_cat,
-                                    pre_nms_top_n,
-                                    self.min_size,
-                                    self.box_coder.bbox_xform_clip,
-                                    True,
-                                    use_nhwc_kernel)
-
+                N,
+                A,
+                H,
+                W,
+                topk_idx,
+                objectness.float(),  # Need to cast these as kernel doesn't support fp16
+                box_regression.float(),
+                concat_anchors,
+                image_shapes_cat,
+                pre_nms_top_n,
+                self.min_size,
+                self.box_coder.bbox_xform_clip,
+                True,
+                use_nhwc_kernel,
+            )
 
             # view as [N, pre_nms_top_n, 4]
             proposals = proposals.view(N, -1, 4)
@@ -150,7 +152,6 @@ class RPNPostProcessor(torch.nn.Module):
             # put in the same format as anchors
             box_regression = box_regression.view(N, -1, 4, H, W).permute(0, 3, 4, 1, 2)
             box_regression = box_regression.reshape(N, -1, 4)
-
 
             batch_idx = torch.arange(N, device=device)[:, None]
             box_regression = box_regression[batch_idx, topk_idx]
@@ -171,7 +172,9 @@ class RPNPostProcessor(torch.nn.Module):
 
         result = []
         keep = keep.to(torch.bool)
-        for proposal, score, im_shape, k in zip(proposals, objectness, image_shapes, keep):
+        for proposal, score, im_shape, k in zip(
+            proposals, objectness, image_shapes, keep
+        ):
             if use_fast_cuda_path:
                 # Note: Want k to be applied per-image instead of all-at-once in batched code earlier
                 #       clip_to_image and remove_small_boxes already done in single kernel

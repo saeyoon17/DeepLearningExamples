@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 #
-#-------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 #
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,6 @@ import torch.optim
 
 
 class FairseqOptimizer(object):
-
     def __init__(self, args, params):
         super().__init__()
         self.args = args
@@ -38,10 +37,10 @@ class FairseqOptimizer(object):
     @property
     def optimizer(self):
         """Return a torch.optim.optimizer.Optimizer instance."""
-        if not hasattr(self, '_optimizer'):
+        if not hasattr(self, "_optimizer"):
             raise NotImplementedError
         if not isinstance(self._optimizer, torch.optim.Optimizer):
-            raise ValueError('_optimizer must be an instance of torch.optim.Optimizer')
+            raise ValueError("_optimizer must be an instance of torch.optim.Optimizer")
         return self._optimizer
 
     @property
@@ -56,12 +55,12 @@ class FairseqOptimizer(object):
 
     def get_lr(self):
         """Return the current learning rate."""
-        return self.optimizer.param_groups[0]['lr']
+        return self.optimizer.param_groups[0]["lr"]
 
     def set_lr(self, lr):
         """Set the learning rate."""
         for param_group in self.optimizer.param_groups:
-            param_group['lr'] = lr
+            param_group["lr"] = lr
 
     def state_dict(self):
         """Return the optimizer's state dict."""
@@ -88,7 +87,7 @@ class FairseqOptimizer(object):
     def zero_grad(self):
         """Clears the gradients of all optimized parameters."""
         for group in self.optimizer.param_groups:
-            for p in group['params']:
+            for p in group["params"]:
                 p.grad = None
 
         return self.optimizer.zero_grad()

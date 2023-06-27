@@ -15,8 +15,6 @@
 
 from tokenization_utils import BertTokenizer
 
-from tokenization_utils import BertTokenizer
-
 VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt"}
 
 PRETRAINED_VOCAB_FILES_MAP = {
@@ -64,5 +62,3 @@ class ElectraTokenizer(BertTokenizer):
     pretrained_vocab_files_map = PRETRAINED_VOCAB_FILES_MAP
     max_model_input_sizes = PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES
     pretrained_init_configuration = PRETRAINED_INIT_CONFIGURATION
-
-

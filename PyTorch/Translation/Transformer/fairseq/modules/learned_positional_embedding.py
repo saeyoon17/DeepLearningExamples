@@ -6,7 +6,6 @@
 # can be found in the PATENTS file in the same directory.
 
 import torch.nn as nn
-
 from fairseq import utils
 
 
@@ -27,5 +26,7 @@ class LearnedPositionalEmbedding(nn.Embedding):
             # positions is the same for every token when decoding a single step
             positions = input.data.new(1, 1).fill_(self.padding_idx + input.size(1))
         else:
-            positions = utils.make_positions(input.data, self.padding_idx, self.left_pad)
+            positions = utils.make_positions(
+                input.data, self.padding_idx, self.left_pad
+            )
         return super().forward(positions)

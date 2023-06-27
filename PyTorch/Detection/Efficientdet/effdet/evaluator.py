@@ -12,15 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import abc
+import itertools
+import json
+
+import numpy as np
 import torch
 import torch.distributed as dist
-import abc
-import json
-from .distributed import synchronize, is_main_process, all_gather_container
 from pycocotools.cocoeval import COCOeval
 from tabulate import tabulate
-import numpy as np
-import itertools
+
+from .distributed import all_gather_container, is_main_process, synchronize
+
 
 def create_small_table(small_dict):
     """
@@ -46,7 +49,6 @@ def create_small_table(small_dict):
 
 
 class Evaluator:
-
     def __init__(self):
         pass
 
@@ -60,7 +62,6 @@ class Evaluator:
 
 
 class COCOEvaluator(Evaluator):
-
     def __init__(self, coco_api, distributed=False, waymo=False):
         super().__init__()
         self.coco_api = coco_api
@@ -81,12 +82,12 @@ class COCOEvaluator(Evaluator):
                 self.distributed_device = detections.device
             synchronize()
             detections = all_gather_container(detections)
-            #target = all_gather_container(target)
-            sample_ids = all_gather_container(target['img_id'])
+            # target = all_gather_container(target)
+            sample_ids = all_gather_container(target["img_id"])
             if not is_main_process():
                 return
         else:
-            sample_ids = target['img_id']
+            sample_ids = target["img_id"]
 
         detections = detections.cpu()
         sample_ids = sample_ids.cpu()
@@ -94,29 +95,36 @@ class COCOEvaluator(Evaluator):
             image_id = int(sample_ids[index])
             for det in sample:
                 score = float(det[4])
-                if score < .001:  # stop when below this threshold, scores in descending order
+                if (
+                    score < 0.001
+                ):  # stop when below this threshold, scores in descending order
                     break
                 coco_det = dict(
                     image_id=image_id,
                     bbox=det[0:4].tolist(),
                     score=score,
-                    category_id=int(det[5]))
+                    category_id=int(det[5]),
+                )
                 self.img_ids.append(image_id)
                 self.predictions.append(coco_det)
 
     def evaluate(self):
         if not self.distributed or dist.get_rank() == 0:
             assert len(self.predictions)
-            json.dump(self.predictions, open('./temp.json', 'w'), indent=4)
-            results = self.coco_api.loadRes('./temp.json')
-            coco_eval = COCOeval(self.coco_api, results, 'bbox')
+            json.dump(self.predictions, open("./temp.json", "w"), indent=4)
+            results = self.coco_api.loadRes("./temp.json")
+            coco_eval = COCOeval(self.coco_api, results, "bbox")
             coco_eval.params.imgIds = self.img_ids  # score only ids we've used
             coco_eval.evaluate()
             coco_eval.accumulate()
             coco_eval.summarize()
             metric = coco_eval.stats[0]  # mAP 0.5-0.95
             if self.waymo:
-                results = self._derive_coco_results(coco_eval, iou_type="bbox", class_names=['Vehicle', 'Pedestrian', 'Cyclist'])
+                results = self._derive_coco_results(
+                    coco_eval,
+                    iou_type="bbox",
+                    class_names=["Vehicle", "Pedestrian", "Cyclist"],
+                )
             if self.distributed:
                 dist.broadcast(torch.tensor(metric, device=self.distributed_device), 0)
         else:
@@ -126,13 +134,11 @@ class COCOEvaluator(Evaluator):
         self.reset()
         return metric
 
-
     def save_predictions(self, file_path):
         if not self.distributed or dist.get_rank() == 0:
             assert len(self.predictions)
-            json.dump(self.predictions, open(file_path, 'w'), indent=4)
+            json.dump(self.predictions, open(file_path, "w"), indent=4)
 
-    
     def _derive_coco_results(self, coco_eval, iou_type, class_names=None):
         """
         Derive the desired score numbers from summarized COCOeval.
@@ -159,11 +165,14 @@ class COCOEvaluator(Evaluator):
 
         # the standard metrics
         results = {
-            metric: float(coco_eval.stats[idx] * 100 if coco_eval.stats[idx] >= 0 else "nan")
+            metric: float(
+                coco_eval.stats[idx] * 100 if coco_eval.stats[idx] >= 0 else "nan"
+            )
             for idx, metric in enumerate(metrics)
         }
         print(
-            "Evaluation results for {}: \n".format(iou_type) + create_small_table(results)
+            "Evaluation results for {}: \n".format(iou_type)
+            + create_small_table(results)
         )
         if not np.isfinite(sum(results.values())):
             print("Note that some metrics cannot be computed.")
@@ -188,7 +197,9 @@ class COCOEvaluator(Evaluator):
         # tabulate it
         N_COLS = min(6, len(results_per_category) * 2)
         results_flatten = list(itertools.chain(*results_per_category))
-        results_2d = itertools.zip_longest(*[results_flatten[i::N_COLS] for i in range(N_COLS)])
+        results_2d = itertools.zip_longest(
+            *[results_flatten[i::N_COLS] for i in range(N_COLS)]
+        )
         table = tabulate(
             results_2d,
             tablefmt="pipe",
@@ -202,8 +213,10 @@ class COCOEvaluator(Evaluator):
 
         # get index for threshold closest to coco api iouThrs
         def _get_thr_ind(coco_eval, thr):
-            ind = np.where((coco_eval.params.iouThrs > thr - 1e-5) &
-                        (coco_eval.params.iouThrs < thr + 1e-5))[0][0]
+            ind = np.where(
+                (coco_eval.params.iouThrs > thr - 1e-5)
+                & (coco_eval.params.iouThrs < thr + 1e-5)
+            )[0][0]
             iou_thr = coco_eval.params.iouThrs[ind]
             assert np.isclose(iou_thr, thr)
             return ind
@@ -214,7 +227,7 @@ class COCOEvaluator(Evaluator):
         # Vehicle @ IoU 0.7, Pedestrian/Cyclist @ IoU 0.5
         # IoU thresholds defined in coco api:
         # iouThrs = np.array([0.5 , 0.55, 0.6 , 0.65, 0.7 , 0.75, 0.8 , 0.85, 0.9 , 0.95])
-        thresholds = [.7, .5, .5]
+        thresholds = [0.7, 0.5, 0.5]
         threshold_ids = [_get_thr_ind(coco_eval, thr) for thr in thresholds]
         mean_precision = np.array([])
         for idx, name in enumerate(class_names):
@@ -226,18 +239,29 @@ class COCOEvaluator(Evaluator):
             ap = np.mean(precision) if precision.size else float("nan")
             waymo_results_per_category.append(("{}".format(name), float(ap * 100)))
         # compute mAP (Waymo evaluation format
-        # AP (all categories) 
-        # L2 (easy + hard detections) 
+        # AP (all categories)
+        # L2 (easy + hard detections)
         # ALL_NS (all categories except stop signs))
         ap = np.mean(mean_precision) if mean_precision.size else float("nan")
-        waymo_results_per_category = [("L2_ALL_NS", float(ap * 100))] + waymo_results_per_category
+        waymo_results_per_category = [
+            ("L2_ALL_NS", float(ap * 100))
+        ] + waymo_results_per_category
 
         # tabulate waymo evaluation results
         results_flatten = list(itertools.chain(*waymo_results_per_category))
-        results_2d = itertools.zip_longest(*[results_flatten[i::len(results_flatten)] for i in range(len(results_flatten))])
-        headers = [("category", "mAP")] + \
-            [("category", "AP @ IoU {}".format(coco_eval.params.iouThrs[threshold_ids[i]]))
-            for i in range(len(threshold_ids))]                                     
+        results_2d = itertools.zip_longest(
+            *[
+                results_flatten[i :: len(results_flatten)]
+                for i in range(len(results_flatten))
+            ]
+        )
+        headers = [("category", "mAP")] + [
+            (
+                "category",
+                "AP @ IoU {}".format(coco_eval.params.iouThrs[threshold_ids[i]]),
+            )
+            for i in range(len(threshold_ids))
+        ]
         table = tabulate(
             results_2d,
             tablefmt="pipe",
@@ -246,14 +270,14 @@ class COCOEvaluator(Evaluator):
             numalign="left",
         )
         print("Waymo Evaluation: {} AP: \n".format(iou_type) + table)
-        results.update({"WaymoAP" + name: ap for name, ap in waymo_results_per_category})
+        results.update(
+            {"WaymoAP" + name: ap for name, ap in waymo_results_per_category}
+        )
 
         return results
 
 
-
 class FastMapEvalluator(Evaluator):
-
     def __init__(self, distributed=False):
         super().__init__()
         self.distributed = distributed

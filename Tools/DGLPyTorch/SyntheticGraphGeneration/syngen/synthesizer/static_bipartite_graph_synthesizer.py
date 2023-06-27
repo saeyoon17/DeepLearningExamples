@@ -13,37 +13,35 @@
 # limitations under the License.
 
 import gc
+import json
 import logging
 import os
-import json
 import warnings
 from typing import Optional, Union
 
 import cudf
+import dask.dataframe as dd
 import dask_cudf
 import pandas as pd
-import dask.dataframe as dd
-
-from syngen.utils import LocalCudaClusterManager
-from syngen.utils import dynamic_import, get_object_path
-from syngen.generator.graph.base_graph_generator import BaseBipartiteGraphGenerator
-from syngen.generator.tabular.base_tabular_generator import BaseTabularGenerator
+from syngen.generator.graph.base_graph_generator import \
+    BaseBipartiteGraphGenerator
+from syngen.generator.tabular.base_tabular_generator import \
+    BaseTabularGenerator
 from syngen.graph_aligner.base_graph_aligner import BaseGraphAligner
 from syngen.synthesizer.base_synthesizer import BaseSynthesizer
-from syngen.utils.gen_utils import (
-    chunk_sample_generation,
-    dump_generated_graph_to_txt,
-    merge_csv_files,
-    read_edge_list
-)
+from syngen.utils import (LocalCudaClusterManager, dynamic_import,
+                          get_object_path)
 from syngen.utils.df_reader import DFReader
+from syngen.utils.gen_utils import (chunk_sample_generation,
+                                    dump_generated_graph_to_txt,
+                                    merge_csv_files, read_edge_list)
 from syngen.utils.types import DataFrameType, MetaData
 from syngen.utils.utils import CustomTimer, df_to_pandas
 
 logger = logging.getLogger(__name__)
 log = logger
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 
 
 class StaticBipartiteGraphSynthesizer(BaseSynthesizer):
@@ -138,9 +136,7 @@ class StaticBipartiteGraphSynthesizer(BaseSynthesizer):
             node_data (DataFrameType): DataFrameType containing node data (default: None)
         """
 
-        assert (
-            node_data is not None and self.node_feature_generator is not None
-        ) or (
+        assert (node_data is not None and self.node_feature_generator is not None) or (
             node_data is None and self.node_feature_generator is None
         ), "both `node_data` and `node_feature_generator` \
                 must be either provided or none"
@@ -164,9 +160,7 @@ class StaticBipartiteGraphSynthesizer(BaseSynthesizer):
             categorical_columns = list(
                 set(categorical_columns) - {self.src_name, self.dst_name}
             )
-            cols = list(
-                set(edge_data.columns) - {self.src_name, self.dst_name}
-            )
+            cols = list(set(edge_data.columns) - {self.src_name, self.dst_name})
             edge_features = edge_data[cols]
             self.edge_feature_generator.fit(
                 edge_features, categorical_columns=categorical_columns
@@ -175,12 +169,8 @@ class StaticBipartiteGraphSynthesizer(BaseSynthesizer):
             categorical_columns = self.graph_info[MetaData.NODE_DATA].get(
                 MetaData.CATEGORICAL_COLUMNS, []
             )
-            categorical_columns = list(
-                set(categorical_columns) - {self.node_id}
-            )
-            cols = list(
-                set(node_data.columns) - {self.src_name, self.dst_name}
-            )
+            categorical_columns = list(set(categorical_columns) - {self.node_id})
+            cols = list(set(node_data.columns) - {self.src_name, self.dst_name})
             node_features = node_data[cols]
             self.node_feature_generator.fit(
                 node_features, categorical_columns=categorical_columns
@@ -273,9 +263,7 @@ class StaticBipartiteGraphSynthesizer(BaseSynthesizer):
             graph = list(set(map(frozenset, graph)))
 
         # - dump edge list
-        generated_graph_path = os.path.join(
-            self.save_path, self.edge_list_save_name
-        )
+        generated_graph_path = os.path.join(self.save_path, self.edge_list_save_name)
 
         dump_generated_graph_to_txt(generated_graph_path, graph)
         num_edges = len(graph)
@@ -285,18 +273,14 @@ class StaticBipartiteGraphSynthesizer(BaseSynthesizer):
 
         edge_feature_save_name = "edge_" + self.feature_save_name
         node_feature_save_name = "node_" + self.feature_save_name
-        edge_generated_table_path = os.path.join(
-            self.save_path, edge_feature_save_name
-        )
+        edge_generated_table_path = os.path.join(self.save_path, edge_feature_save_name)
         if os.path.exists(edge_generated_table_path):
             os.remove(edge_generated_table_path)
-       
-        node_generated_table_path = os.path.join(
-            self.save_path, node_feature_save_name
-        )
+
+        node_generated_table_path = os.path.join(self.save_path, node_feature_save_name)
         if os.path.exists(node_generated_table_path):
             os.remove(node_generated_table_path)
-        
+
         # - generate features
         self.timer.start_counter("gen_t")
         if self.edge_feature_generator is not None:
@@ -330,15 +314,13 @@ class StaticBipartiteGraphSynthesizer(BaseSynthesizer):
         # - align graph + features
         node_generated_df = None
         edge_generated_df = None
-        reader = (
-            DFReader.get_dask_reader() if self.use_dask else DFReader.df_reader
-        )
+        reader = DFReader.get_dask_reader() if self.use_dask else DFReader.df_reader
         if os.path.exists(edge_generated_table_path):
             edge_generated_df = reader.read_csv(edge_generated_table_path)
 
         if os.path.exists(node_generated_table_path):
             node_generated_df = reader.read_csv(node_generated_table_path)
-        
+
         src_col = self.graph_info[MetaData.EDGE_DATA][MetaData.SRC_NAME]
         dst_col = self.graph_info[MetaData.EDGE_DATA][MetaData.DST_NAME]
         generated_graph_el_df = read_edge_list(
@@ -349,7 +331,9 @@ class StaticBipartiteGraphSynthesizer(BaseSynthesizer):
 
         log.info("Generating final graph...")
         # - there's nothing to align simply return generated graph
-        if (edge_generated_df is None and node_generated_df is None) or self.graph_aligner is None:
+        if (
+            edge_generated_df is None and node_generated_df is None
+        ) or self.graph_aligner is None:
             aligned_df = {MetaData.EDGE_DATA: generated_graph_el_df}
         else:  # - add edges/nodes features using aligner
             data = {
@@ -383,8 +367,7 @@ class StaticBipartiteGraphSynthesizer(BaseSynthesizer):
         return aligned_df
 
     def cleanup_session(self):
-        """clean up session and free up resources
-        """
+        """clean up session and free up resources"""
         if self.use_dask:
             self.dask_cluster.destroy_local_cluster()
 
@@ -393,25 +376,31 @@ class StaticBipartiteGraphSynthesizer(BaseSynthesizer):
         meta_data = json.load(
             open(os.path.join(path, "synthesizer_metadata.json"), "r")
         )
-        graph_generator = dynamic_import(meta_data['graph_generator_path']).load(os.path.join(path, 'graph_generator'))
-        meta_data.pop('graph_generator_path')
+        graph_generator = dynamic_import(meta_data["graph_generator_path"]).load(
+            os.path.join(path, "graph_generator")
+        )
+        meta_data.pop("graph_generator_path")
 
         graph_aligner = None
-        if os.path.exists(os.path.join(path, 'graph_aligner')):
-            graph_aligner = dynamic_import(meta_data['graph_aligner_path']).load(os.path.join(path, 'graph_aligner'))
-            meta_data.pop('graph_aligner_path')
+        if os.path.exists(os.path.join(path, "graph_aligner")):
+            graph_aligner = dynamic_import(meta_data["graph_aligner_path"]).load(
+                os.path.join(path, "graph_aligner")
+            )
+            meta_data.pop("graph_aligner_path")
 
         edge_feature_generator = None
-        if os.path.exists(os.path.join(path, 'edge_feature_generator')):
-            edge_feature_generator = dynamic_import(meta_data['edge_feature_generator_path']). \
-                load(os.path.join(path, 'edge_feature_generator'))
-            meta_data.pop('edge_feature_generator_path')
+        if os.path.exists(os.path.join(path, "edge_feature_generator")):
+            edge_feature_generator = dynamic_import(
+                meta_data["edge_feature_generator_path"]
+            ).load(os.path.join(path, "edge_feature_generator"))
+            meta_data.pop("edge_feature_generator_path")
 
         node_feature_generator = None
-        if os.path.exists(os.path.join(path, 'node_feature_generator')):
-            node_feature_generator = dynamic_import(meta_data['node_feature_generator_path']). \
-                load(os.path.join(path, 'node_feature_generator'))
-            meta_data.pop('node_feature_generator_path')
+        if os.path.exists(os.path.join(path, "node_feature_generator")):
+            node_feature_generator = dynamic_import(
+                meta_data["node_feature_generator_path"]
+            ).load(os.path.join(path, "node_feature_generator"))
+            meta_data.pop("node_feature_generator_path")
 
         return cls(
             graph_generator=graph_generator,
@@ -420,7 +409,6 @@ class StaticBipartiteGraphSynthesizer(BaseSynthesizer):
             node_feature_generator=node_feature_generator,
             **meta_data,
         )
-
 
     def save(self, path):
         meta_data = {
@@ -440,19 +428,27 @@ class StaticBipartiteGraphSynthesizer(BaseSynthesizer):
         if not os.path.exists(path):
             os.makedirs(path)
 
-        self.graph_generator.save(os.path.join(path, 'graph_generator'))
+        self.graph_generator.save(os.path.join(path, "graph_generator"))
 
         if self.graph_aligner:
-            self.graph_aligner.save(os.path.join(path, 'graph_aligner'))
+            self.graph_aligner.save(os.path.join(path, "graph_aligner"))
             meta_data["graph_aligner_path"] = get_object_path(self.graph_aligner)
 
         if self.edge_feature_generator is not None:
-            self.edge_feature_generator.save(os.path.join(path, 'edge_feature_generator'))
-            meta_data['edge_feature_generator_path'] = get_object_path(self.edge_feature_generator)
+            self.edge_feature_generator.save(
+                os.path.join(path, "edge_feature_generator")
+            )
+            meta_data["edge_feature_generator_path"] = get_object_path(
+                self.edge_feature_generator
+            )
 
         if self.node_feature_generator is not None:
-            self.node_feature_generator.save(os.path.join(path, 'node_feature_generator'))
-            meta_data['node_feature_generator_path'] = get_object_path(self.node_feature_generator)
+            self.node_feature_generator.save(
+                os.path.join(path, "node_feature_generator")
+            )
+            meta_data["node_feature_generator_path"] = get_object_path(
+                self.node_feature_generator
+            )
 
         with open(os.path.join(path, "synthesizer_metadata.json"), "w") as fp:
             json.dump(meta_data, fp)

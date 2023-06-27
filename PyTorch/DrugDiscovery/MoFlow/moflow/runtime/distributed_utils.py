@@ -51,7 +51,7 @@ def init_distributed() -> bool:
     distributed = world_size > 1
     if distributed:
         backend = "nccl" if torch.cuda.is_available() else "gloo"
-        os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "0" # Needed for CUDA graphs
+        os.environ["NCCL_ASYNC_ERROR_HANDLING"] = "0"  # Needed for CUDA graphs
         dist.init_process_group(backend=backend, init_method="env://")
         assert dist.is_initialized()
 

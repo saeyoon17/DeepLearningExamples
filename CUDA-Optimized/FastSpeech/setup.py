@@ -23,12 +23,12 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 
-def get_requirements(filename='requirements.txt'):
+def get_requirements(filename="requirements.txt"):
     deps = []
-    with open(filename, 'r') as f:
+    with open(filename, "r") as f:
         for pkg in f.readlines():
             if pkg.strip():
                 deps.append(pkg)
@@ -36,13 +36,13 @@ def get_requirements(filename='requirements.txt'):
 
 
 setup(
-    name='fastspeech',
-    version='0.2.2',
-    description='FastSpeech training and inference in PyTorch and TensorRT',
-    author='Dabi Ahn',
-    keywords='tts',
+    name="fastspeech",
+    version="0.2.2",
+    description="FastSpeech training and inference in PyTorch and TensorRT",
+    author="Dabi Ahn",
+    keywords="tts",
     packages=find_packages(),
     install_requires=get_requirements(),
-    python_requires='>=3',
-    include_package_data=True
+    python_requires=">=3",
+    include_package_data=True,
 )

@@ -22,7 +22,6 @@ Feature Pyramid Networks were proposed in:
 from __future__ import absolute_import, division, print_function
 
 import tensorflow as tf
-
 from mrcnn_tf2.ops import spatial_transform_ops
 
 
@@ -52,7 +51,9 @@ class FPNNetwork(tf.keras.models.Model):
 
         self._backbone_max_level = 5  # max(feats_bottom_up.keys())
         self._upsample_max_level = (
-            self._backbone_max_level if self._max_level > self._backbone_max_level else self._max_level
+            self._backbone_max_level
+            if self._max_level > self._backbone_max_level
+            else self._max_level
         )
 
         self._local_layers["stage1"] = dict()
@@ -60,9 +61,9 @@ class FPNNetwork(tf.keras.models.Model):
             self._local_layers["stage1"][str(level)] = tf.keras.layers.Conv2D(
                 filters=self._filters,
                 kernel_size=(1, 1),
-                padding='same',
-                name=f'l{level}',
-                trainable=trainable
+                padding="same",
+                name=f"l{level}",
+                trainable=trainable,
             )
 
         self._local_layers["stage2"] = dict()
@@ -72,9 +73,9 @@ class FPNNetwork(tf.keras.models.Model):
                 filters=self._filters,
                 strides=(1, 1),
                 kernel_size=(3, 3),
-                padding='same',
-                name=f'post_hoc_d{level}',
-                trainable=trainable
+                padding="same",
+                name=f"post_hoc_d{level}",
+                trainable=trainable,
             )
 
         self._local_layers["stage3_1"] = dict()
@@ -84,9 +85,9 @@ class FPNNetwork(tf.keras.models.Model):
             self._local_layers["stage3_1"] = tf.keras.layers.MaxPool2D(
                 pool_size=1,
                 strides=2,
-                padding='valid',
-                name='p%d' % self._max_level,
-                trainable=trainable
+                padding="valid",
+                name="p%d" % self._max_level,
+                trainable=trainable,
             )
 
         else:
@@ -95,9 +96,9 @@ class FPNNetwork(tf.keras.models.Model):
                     filters=self._filters,
                     strides=(2, 2),
                     kernel_size=(3, 3),
-                    padding='same',
-                    name=f'p{level}',
-                    trainable=trainable
+                    padding="same",
+                    name=f"p{level}",
+                    trainable=trainable,
                 )
 
     def call(self, inputs, *args, **kwargs):
@@ -108,25 +109,32 @@ class FPNNetwork(tf.keras.models.Model):
         feats_lateral = {}
 
         for level in range(self._min_level, self._upsample_max_level + 1):
-            feats_lateral[level] = self._local_layers["stage1"][str(level)](feats_bottom_up[level])
+            feats_lateral[level] = self._local_layers["stage1"][str(level)](
+                feats_bottom_up[level]
+            )
 
         # add top-down path
         feats = {self._upsample_max_level: feats_lateral[self._upsample_max_level]}
 
         for level in range(self._upsample_max_level - 1, self._min_level - 1, -1):
-            feats[level] = spatial_transform_ops.nearest_upsampling(
-                feats[level + 1], 2
-            ) + feats_lateral[level]
+            feats[level] = (
+                spatial_transform_ops.nearest_upsampling(feats[level + 1], 2)
+                + feats_lateral[level]
+            )
 
         # add post-hoc 3x3 convolution kernel
         for level in range(self._min_level, self._upsample_max_level + 1):
             feats[level] = self._local_layers["stage2"][str(level)](feats[level])
 
         if self._max_level == self._upsample_max_level + 1:
-            feats[self._max_level] = self._local_layers["stage3_1"](feats[self._max_level - 1])
+            feats[self._max_level] = self._local_layers["stage3_1"](
+                feats[self._max_level - 1]
+            )
 
         else:
             for level in range(self._upsample_max_level + 1, self._max_level + 1):
-                feats[level] = self._local_layers["stage3_2"][str(level)](feats[level - 1])
+                feats[level] = self._local_layers["stage3_2"][str(level)](
+                    feats[level - 1]
+                )
 
         return feats

@@ -10,11 +10,11 @@ class DatasetCatalog(object):
     DATASETS = {
         "coco_2017_train": {
             "img_dir": "train2017",
-            "ann_file": "annotations/instances_train2017.json"
+            "ann_file": "annotations/instances_train2017.json",
         },
         "coco_2017_val": {
             "img_dir": "val2017",
-            "ann_file": "annotations/instances_val2017.json"
+            "ann_file": "annotations/instances_val2017.json",
         },
     }
 
@@ -78,7 +78,7 @@ class ModelCatalog(object):
     @staticmethod
     def get_c2_imagenet_pretrained(name):
         prefix = ModelCatalog.S3_C2_DETECTRON_URL
-        name = name[len("ImageNetPretrained/"):]
+        name = name[len("ImageNetPretrained/") :]
         name = ModelCatalog.C2_IMAGENET_MODELS[name]
         url = "/".join([prefix, name])
         return url
@@ -91,7 +91,7 @@ class ModelCatalog(object):
         prefix = ModelCatalog.S3_C2_DETECTRON_URL
         suffix = ModelCatalog.C2_DETECTRON_SUFFIX
         # remove identification prefix
-        name = name[len("Caffe2Detectron/COCO/"):]
+        name = name[len("Caffe2Detectron/COCO/") :]
         # split in <model_id> and <model_name>
         model_id, model_name = name.split("/")
         # parsing to make it match the url address from the Caffe2 models

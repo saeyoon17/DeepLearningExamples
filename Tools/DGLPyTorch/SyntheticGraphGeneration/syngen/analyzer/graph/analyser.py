@@ -16,27 +16,17 @@ import time
 
 import matplotlib.pyplot as plt
 import pandas as pd
-
 from syngen.analyzer.graph.plotting import (
-    plot_clustering_coef_distribution,
-    plot_degree_distribution,
-    plot_eigenvalue_histogram_distribution,
-    plot_eigenvalue_rank_distribution,
-    plot_hopplot,
-    plot_in_degree_distribution,
-    plot_leading_singular_vector_rank,
-    plot_out_degree_distribution,
+    plot_clustering_coef_distribution, plot_degree_distribution,
+    plot_eigenvalue_histogram_distribution, plot_eigenvalue_rank_distribution,
+    plot_hopplot, plot_in_degree_distribution,
+    plot_leading_singular_vector_rank, plot_out_degree_distribution,
     plot_singular_value_histogram_distribution,
     plot_singular_value_rank_distribution,
     plot_strongly_connected_component_distribution,
-    plot_weakly_connected_component_distribution,
-)
-from syngen.analyzer.graph.stats import (
-    get_connectivity,
-    get_global_stats,
-    get_path_stats,
-    get_transitivity,
-)
+    plot_weakly_connected_component_distribution)
+from syngen.analyzer.graph.stats import (get_connectivity, get_global_stats,
+                                         get_path_stats, get_transitivity)
 from syngen.analyzer.graph.utils import timed
 
 
@@ -94,8 +84,7 @@ class AnalysisModule:
                 print(f'Category "{category}" took {elapsed:.2f}s')
 
         names = [
-            graph.name if graph.name else f"G{i}"
-            for i, graph in enumerate(graphs, 1)
+            graph.name if graph.name else f"G{i}" for i, graph in enumerate(graphs, 1)
         ]
         columns = ["Category", "Statistic"] + names
         return pd.DataFrame(results, columns=columns)

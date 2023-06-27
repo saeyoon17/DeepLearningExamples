@@ -15,28 +15,30 @@
 
 import logging
 from typing import Iterable
+
 import torch
 
+
 def initialize_module(module: torch.nn.Module, inputs: Iterable[torch.Tensor]) -> None:
-    """Use given sample input to initialize the module. 
+    """Use given sample input to initialize the module.
     Module must implement method called `initialize` which takes list of input tensors
     """
-    assert hasattr(module, 'initialize')
-    assert len(inputs) == 1, f'{len(inputs)} inputs'
-    assert module.initialized.item() == 0, 'initialized'
+    assert hasattr(module, "initialize")
+    assert len(inputs) == 1, f"{len(inputs)} inputs"
+    assert module.initialized.item() == 0, "initialized"
     module.initialize(*inputs)
-    assert module.initialized.item() == 1, 'not initialized'
+    assert module.initialized.item() == 1, "not initialized"
 
 
 def initialize(model: torch.nn.Module, single_batch: Iterable[torch.Tensor]) -> None:
     """Initialize all sub-modules in the model given the sample input batch."""
     hooks = []
     for name, module in model.named_modules():
-        if hasattr(module, 'initialize'):
-            logging.info(f'marking {name} for initialization')
+        if hasattr(module, "initialize"):
+            logging.info(f"marking {name} for initialization")
             hook = module.register_forward_pre_hook(initialize_module)
             hooks.append(hook)
     _ = model(*single_batch)
-    logging.info('all modules initialized, removing hooks')
+    logging.info("all modules initialized, removing hooks")
     for hook in hooks:
         hook.remove()

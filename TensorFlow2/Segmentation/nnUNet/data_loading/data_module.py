@@ -13,11 +13,10 @@
 # limitations under the License.
 
 import horovod.tensorflow as hvd
-from runtime.utils import get_config_file, is_main_process
-from sklearn.model_selection import KFold
-
 from data_loading.dali_loader import fetch_dali_loader
 from data_loading.utils import get_path, get_split, get_test_fnames, load_data
+from runtime.utils import get_config_file, is_main_process
+from sklearn.model_selection import KFold
 
 
 class DataModule:
@@ -50,7 +49,9 @@ class DataModule:
         imgs = load_data(self.data_path, "*_x.npy")
         lbls = load_data(self.data_path, "*_y.npy")
 
-        self.test_imgs, self.kwargs["meta"] = get_test_fnames(self.args, self.data_path, self.kwargs["meta"])
+        self.test_imgs, self.kwargs["meta"] = get_test_fnames(
+            self.args, self.data_path, self.kwargs["meta"]
+        )
         if self.args.exec_mode != "predict" or self.args.benchmark:
             train_idx, val_idx = list(self.kfold.split(imgs))[self.args.fold]
             self.train_imgs = get_split(imgs, train_idx)
@@ -82,7 +83,9 @@ class DataModule:
 
     def val_dataset(self):
         if self.cached_val_loader is None:
-            self.cached_val_loader = fetch_dali_loader(self.val_imgs, self.val_lbls, 1, "eval", **self.kwargs)
+            self.cached_val_loader = fetch_dali_loader(
+                self.val_imgs, self.val_lbls, 1, "eval", **self.kwargs
+            )
         return self.cached_val_loader
 
     def val_size(self):

@@ -20,10 +20,9 @@
 # ==============================================================================
 
 import tensorflow as tf
-
 from model.layers.utils import _log_hparams
 
-__all__ = ['dropout']
+__all__ = ["dropout"]
 
 
 def dropout(inputs, rate=0.5, noise_shape=None, seed=None, training=False, name=None):
@@ -32,13 +31,13 @@ def dropout(inputs, rate=0.5, noise_shape=None, seed=None, training=False, name=
     net = layer.apply(inputs, training=training)
 
     _log_hparams(
-        classname='Dropout',
+        classname="Dropout",
         layername=net.name,
         noise_shape=noise_shape,
         training=training,
         seed=seed,
         out_shape=str(net.get_shape()),
-        out_dtype=net.dtype
+        out_dtype=net.dtype,
     )
 
     return net

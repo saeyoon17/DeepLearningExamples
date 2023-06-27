@@ -33,6 +33,7 @@ Region Similarity Calculators compare a pairwise measure of similarity
 between the boxes in two BoxLists.
 """
 import torch
+
 from .box_list import BoxList
 
 
@@ -85,7 +86,9 @@ def iou(boxlist1: BoxList, boxlist2: BoxList):
     areas1 = area(boxlist1)
     areas2 = area(boxlist2)
     unions = areas1.unsqueeze(1) + areas2.unsqueeze(0) - intersections
-    return torch.where(intersections == 0.0, torch.zeros_like(intersections), intersections / unions)
+    return torch.where(
+        intersections == 0.0, torch.zeros_like(intersections), intersections / unions
+    )
 
 
 @torch.jit.script
@@ -94,6 +97,7 @@ class IouSimilarity(object):
 
     This class computes pairwise similarity between two BoxLists based on IOU.
     """
+
     def __init__(self):
         pass
 

@@ -21,7 +21,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.sparse.linalg import eigsh
-
 from syngen.analyzer.graph.graph import safeSNAP
 from syngen.utils.types import ColumnType
 
@@ -169,9 +168,7 @@ def _add_to_axis_scc(G, i, ax):
 def _add_to_axis_wcc(G, i, ax):
     is_directed = G.is_directed
     weakly_string = " weakly " if is_directed else " "
-    title = (
-        f"Log-log distribution of sizes of{weakly_string}connected components"
-    )
+    title = f"Log-log distribution of sizes of{weakly_string}connected components"
     graph_name = G.name or f"Graph {i}"
     G = G.snapGraph
     x, y = get_weakly_connected_component(G)
@@ -217,9 +214,7 @@ def _add_to_axis_svr(G, i, ax, num_spectral_values=100):
     ax.set_ylabel("Singular value")
     ax.set_yscale("log")
     ax.set_title(title)
-    ax.plot(
-        ranks, sin_values, "--", marker="o", label=graph_name, markersize=5
-    )
+    ax.plot(ranks, sin_values, "--", marker="o", label=graph_name, markersize=5)
 
 
 @safeSNAP
@@ -237,9 +232,7 @@ def _add_to_axis_evr(G, i, ax, num_spectral_values=100):
     ax.set_ylabel("Eigenvalue")
     ax.set_yscale("log")
     ax.set_title(title)
-    ax.plot(
-        ranks, eig_values, "--", marker="o", label=graph_name, markersize=5
-    )
+    ax.plot(ranks, eig_values, "--", marker="o", label=graph_name, markersize=5)
 
 
 @safeSNAP
@@ -256,9 +249,7 @@ def _add_to_axis_svd(G, i, ax, num_spectral_values=100):
     ax.set_ylabel("Count")
     ax.set_yscale("symlog")
     ax.set_title(title)
-    ax.plot(
-        sin_values, counts, "--", marker="o", label=graph_name, markersize=5
-    )
+    ax.plot(sin_values, counts, "--", marker="o", label=graph_name, markersize=5)
 
 
 @safeSNAP
@@ -275,9 +266,7 @@ def _add_to_axis_evd(G, i, ax, num_spectral_values=100):
     ax.set_ylabel("Count")
     ax.set_yscale("symlog")
     ax.set_title(title)
-    ax.plot(
-        eig_values, counts, "--", marker="o", label=graph_name, markersize=5
-    )
+    ax.plot(eig_values, counts, "--", marker="o", label=graph_name, markersize=5)
 
 
 @safeSNAP
@@ -295,9 +284,7 @@ def _add_to_axis_lsv(G, i, ax):
     ax.set_ylabel("Component of leading singular vector")
     ax.set_yscale("log")
     ax.set_title(title)
-    ax.plot(
-        ranks, components, "--", marker="o", label=graph_name, markersize=5
-    )
+    ax.plot(ranks, components, "--", marker="o", label=graph_name, markersize=5)
 
 
 def plot_node_degree_centrality_feat_dist(
@@ -361,17 +348,13 @@ def plot_node_degree_centrality_feat_dist(
     c = 0
     for feat in feat_name_col_info:
         if nr * len(feat_name_col_info) == 1:
-            heatmap, extent = heat_map(
-                data["src_degree"].values, data[feat].values
-            )
+            heatmap, extent = heat_map(data["src_degree"].values, data[feat].values)
             axs.imshow(heatmap, extent=extent, origin="lower")
             axs.set_xlabel("src_degree")
             axs.set_ylabel("feat")
         else:
             # - src degree dist
-            heatmap, extent = heat_map(
-                data["src_degree"].values, data[feat].values
-            )
+            heatmap, extent = heat_map(data["src_degree"].values, data[feat].values)
             axs[c].imshow(heatmap, extent=extent, origin="lower")
             axs[c].set_xlabel("src_degree")
             axs[c].set_ylabel("feat")
@@ -391,13 +374,9 @@ plot_hopplot = partial(common_plot, _add_to_axis_hp)
 # Clustering coefficient distribution
 plot_clustering_coef_distribution = partial(common_plot, _add_to_axis_ccd)
 # Strongly connected component distribution
-plot_strongly_connected_component_distribution = partial(
-    common_plot, _add_to_axis_scc
-)
+plot_strongly_connected_component_distribution = partial(common_plot, _add_to_axis_scc)
 # Weakly connected component distribution
-plot_weakly_connected_component_distribution = partial(
-    common_plot, _add_to_axis_wcc
-)
+plot_weakly_connected_component_distribution = partial(common_plot, _add_to_axis_wcc)
 # Eigenvalue rank distribution
 plot_eigenvalue_rank_distribution = partial(common_plot, _add_to_axis_evr)
 # Singular value rank distribution
@@ -405,8 +384,6 @@ plot_singular_value_rank_distribution = partial(common_plot, _add_to_axis_svr)
 # Eigenvalue rank distribution
 plot_eigenvalue_histogram_distribution = partial(common_plot, _add_to_axis_evd)
 # Singular value rank distribution
-plot_singular_value_histogram_distribution = partial(
-    common_plot, _add_to_axis_svd
-)
+plot_singular_value_histogram_distribution = partial(common_plot, _add_to_axis_svd)
 # Leading singular vector rank distribution
 plot_leading_singular_vector_rank = partial(common_plot, _add_to_axis_lsv)

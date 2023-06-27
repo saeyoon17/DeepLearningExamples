@@ -12,20 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 import os
 import time
-import logging
+
+import dllogger
 import paddle
 import paddle.distributed.fleet as fleet
-
-from utils.config import parse_args, print_args
-from utils.save_load import init_program
-from utils.logger import setup_loggers
-from utils.affinity import set_cpu_affinity
-from utils.utility import set_seed, get_trainer_id, get_num_trainers
 import program
-import dllogger
 from lddl.paddle import get_bert_pretrain_data_loader
+from utils.affinity import set_cpu_affinity
+from utils.config import parse_args, print_args
+from utils.logger import setup_loggers
+from utils.save_load import init_program
+from utils.utility import get_num_trainers, get_trainer_id, set_seed
 
 
 def main():
@@ -44,7 +44,7 @@ def main():
     if args.show_config:
         print_args(args)
 
-    device = paddle.set_device('gpu')
+    device = paddle.set_device("gpu")
     fleet.init(is_collective=True)
     if args.enable_cpu_affinity:
         set_cpu_affinity()
@@ -54,15 +54,15 @@ def main():
 
     dllogger.log(step="PARAMETER", data={"SEED": args.seed})
     dllogger.log(step="PARAMETER", data={"train_start": True})
-    dllogger.log(step="PARAMETER",
-                 data={"batch_size_per_gpu": args.batch_size})
+    dllogger.log(step="PARAMETER", data={"batch_size_per_gpu": args.batch_size})
     dllogger.log(step="PARAMETER", data={"learning_rate": args.learning_rate})
 
     main_program = paddle.static.default_main_program()
     startup_program = paddle.static.default_startup_program()
 
     model, lr_scheduler, optimizer, loss, feeds = program.build(
-        args, main_program, startup_program)
+        args, main_program, startup_program
+    )
 
     exe = paddle.static.Executor(device)
     exe.run(startup_program)
@@ -72,40 +72,53 @@ def main():
         args.input_dir,
         vocab_file=args.vocab_file,
         data_loader_kwargs={
-            'batch_size': args.batch_size,
-            'num_workers': args.num_workers,
-            'persistent_workers': True,
-            'feed_list': feeds
+            "batch_size": args.batch_size,
+            "num_workers": args.num_workers,
+            "persistent_workers": True,
+            "feed_list": feeds,
         },
         base_seed=args.seed,
-        log_dir=None if args.output_dir is None else
-        os.path.join(args.output_dir, 'lddl_log'),
+        log_dir=None
+        if args.output_dir is None
+        else os.path.join(args.output_dir, "lddl_log"),
         log_level=logging.WARNING,
-        start_epoch=0 if progress is None else progress.get("epoch", 0), )
+        start_epoch=0 if progress is None else progress.get("epoch", 0),
+    )
 
     if args.amp:
         optimizer.amp_init(device)
 
     global_step, actual_steps_this_run, final_loss, train_time_raw = program.run(
-        exe, main_program, args, lr_scheduler, loss, train_dataloader,
-        progress)
+        exe, main_program, args, lr_scheduler, loss, train_dataloader, progress
+    )
 
     if get_trainer_id() == 0:
         e2e_time = time.time() - now
         if args.benchmark:
-            training_perf = args.batch_size * args.gradient_merge_steps * (
-                actual_steps_this_run - args.benchmark_warmup_steps
-            ) * get_num_trainers() / train_time_raw
+            training_perf = (
+                args.batch_size
+                * args.gradient_merge_steps
+                * (actual_steps_this_run - args.benchmark_warmup_steps)
+                * get_num_trainers()
+                / train_time_raw
+            )
         else:
-            training_perf = args.batch_size * args.gradient_merge_steps * actual_steps_this_run * get_num_trainers(
-            ) / train_time_raw
-        dllogger.log(step=tuple(),
-                     data={
-                         "e2e_train_time": e2e_time,
-                         "training_sequences_per_second": training_perf,
-                         "final_loss": final_loss,
-                         "raw_train_time": train_time_raw
-                     })
+            training_perf = (
+                args.batch_size
+                * args.gradient_merge_steps
+                * actual_steps_this_run
+                * get_num_trainers()
+                / train_time_raw
+            )
+        dllogger.log(
+            step=tuple(),
+            data={
+                "e2e_train_time": e2e_time,
+                "training_sequences_per_second": training_perf,
+                "final_loss": final_loss,
+                "raw_train_time": train_time_raw,
+            },
+        )
 
 
 if __name__ == "__main__":

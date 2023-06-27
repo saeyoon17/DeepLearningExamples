@@ -14,18 +14,19 @@
 
 import warnings
 
-
 # NGC 22.04-py3 container (PyTorch 1.12.0a0+bd13bc6)
 warnings.filterwarnings(
     "ignore",
     message='positional arguments and argument "destination" are deprecated.'
-            ' nn.Module.state_dict will not accept them in the future.')
+    " nn.Module.state_dict will not accept them in the future.",
+)
 
 # NGC ~22.05-py3
 warnings.filterwarnings(
-    "ignore", message="pyprof will be removed by the end of June, 2022")
+    "ignore", message="pyprof will be removed by the end of June, 2022"
+)
 
 # 22.08-py3 RC
 warnings.filterwarnings(
-    "ignore",
-    message="is_namedtuple is deprecated, please use the python checks")
+    "ignore", message="is_namedtuple is deprecated, please use the python checks"
+)

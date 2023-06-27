@@ -13,20 +13,21 @@
 # limitations under the License.
 
 import errno
+import io
+import json
+import logging
 import os
 import re
-import io
 import shutil
 import tempfile
-import logging
-import json
-import paddle
+
 import numpy as np
+import paddle
 from utils.task import Task
 
-_PROGRESS_SUFFIX = '_progress.json'
-_PDOPT_SUFFIX = '.pdopt'
-_PDPARAMS_SUFFIX = '.pdparams'
+_PROGRESS_SUFFIX = "_progress.json"
+_PDOPT_SUFFIX = ".pdopt"
+_PDPARAMS_SUFFIX = ".pdparams"
 
 
 def mkdir_if_not_exist(path):
@@ -38,8 +39,7 @@ def mkdir_if_not_exist(path):
             os.makedirs(path)
         except OSError as e:
             if e.errno == errno.EEXIST and os.path.isdir(path):
-                logging.warning(
-                    f"be happy if some process has already created {path}")
+                logging.warning(f"be happy if some process has already created {path}")
             else:
                 raise OSError(f"Failed to mkdir {path}")
 
@@ -55,7 +55,7 @@ def load_train_progress(progress_file):
     """
     progress_dict = {}
     if os.path.isfile(progress_file):
-        with open(progress_file, "r", encoding='utf-8') as reader:
+        with open(progress_file, "r", encoding="utf-8") as reader:
             json_obj = json.loads(reader.read())
         for k, v in json_obj.items():
             progress_dict[k] = v
@@ -105,23 +105,26 @@ def load_params(prog, path, ignore_params=None):
     for block in prog.blocks:
         for param in block.all_parameters():
             all_var_shape[param.name] = param.shape
-    ignore_set.update([
-        name for name, shape in all_var_shape.items()
-        if name in state and shape != state[name].shape
-    ])
+    ignore_set.update(
+        [
+            name
+            for name, shape in all_var_shape.items()
+            if name in state and shape != state[name].shape
+        ]
+    )
 
     if ignore_params:
         all_var_names = [var.name for var in prog.list_vars()]
         ignore_list = filter(
             lambda var: any([re.match(name, var) for name in ignore_params]),
-            all_var_names)
+            all_var_names,
+        )
         ignore_set.update(list(ignore_list))
 
     if len(ignore_set) > 0:
         for k in ignore_set:
             if k in state:
-                logging.warning(
-                    f"variable {k} is already excluded automatically")
+                logging.warning(f"variable {k} is already excluded automatically")
                 del state[k]
 
     for n, p in state.items():
@@ -157,8 +160,7 @@ def init_pretrained(path_to_pretrained, program):
             pretrained_model = [path_to_pretrained]
         for pretrain in pretrained_model:
             load_params(program, pretrain)
-        logging.info(
-            f"Finish initing pretrained model from {pretrained_model}")
+        logging.info(f"Finish initing pretrained model from {pretrained_model}")
 
 
 def reset_program_state_dict(model, pretrained_file=None):
@@ -176,15 +178,22 @@ def reset_program_state_dict(model, pretrained_file=None):
     for n, p in state_dict.items():
         if pretrained_state_dict is not None and n in pretrained_state_dict:
             reset_state_dict[p.name] = np.array(
-                pretrained_state_dict[n], dtype=np.float32)
+                pretrained_state_dict[n], dtype=np.float32
+            )
             reset_parameter_names.append(n)
-        elif pretrained_state_dict is not None and p.name in pretrained_state_dict and "bert" in n:
+        elif (
+            pretrained_state_dict is not None
+            and p.name in pretrained_state_dict
+            and "bert" in n
+        ):
             reset_state_dict[p.name] = np.array(
-                pretrained_state_dict[p.name], dtype=np.float32)
+                pretrained_state_dict[p.name], dtype=np.float32
+            )
             reset_parameter_names.append(n)
         elif "layer_norm" not in p.name and "b_0" not in p.name:
             reset_state_dict[p.name] = np.random.normal(
-                loc=0.0, scale=scale, size=p.shape).astype("float32")
+                loc=0.0, scale=scale, size=p.shape
+            ).astype("float32")
     logging.info(
         f"the following parameter had reset, please check. {reset_parameter_names}"
     )
@@ -205,12 +214,11 @@ def init_program(args, program, exe, model, task=Task.pretrain):
     if args.from_checkpoint is not None:
         init_ckpt(args.from_checkpoint, program, exe)
         progress = load_train_progress(args.from_checkpoint + _PROGRESS_SUFFIX)
-    #elif task == Task.pretrain and args.from_pretrained_params is not None:
+    # elif task == Task.pretrain and args.from_pretrained_params is not None:
     elif args.from_pretrained_params is not None:
         init_pretrained(args.from_pretrained_params, program)
     else:
-        reset_state_dict = reset_program_state_dict(
-            model, args.from_pretrained_params)
+        reset_state_dict = reset_program_state_dict(model, args.from_pretrained_params)
         paddle.static.set_program_state(program, reset_state_dict)
     return progress
 
@@ -231,6 +239,6 @@ def save_model(program, model_path, prefix, progress=None):
     if progress is not None:
         progress_file = os.path.join(model_path, prefix + _PROGRESS_SUFFIX)
         out_json = json.dumps(progress, indent=2, sort_keys=True) + "\n"
-        with io.open(progress_file, 'w', encoding="utf-8") as f:
+        with io.open(progress_file, "w", encoding="utf-8") as f:
             f.write(out_json)
     logging.info(f"Already save model in {model_path}")

@@ -52,13 +52,12 @@ def pad_or_clip_nd(tensor, output_shape):
     """
     tensor_shape = tf.shape(input=tensor)
     clip_size = [
-        tf.where(tensor_shape[i] - shape > 0, shape, -1)
-        if shape is not None else -1 for i, shape in enumerate(output_shape)
+        tf.where(tensor_shape[i] - shape > 0, shape, -1) if shape is not None else -1
+        for i, shape in enumerate(output_shape)
     ]
     clipped_tensor = tf.slice(
-        tensor,
-        begin=tf.zeros(len(clip_size), dtype=tf.int32),
-        size=clip_size)
+        tensor, begin=tf.zeros(len(clip_size), dtype=tf.int32), size=clip_size
+    )
 
     # Pad tensor if the shape of clipped tensor is smaller than the expected
     # shape.
@@ -68,11 +67,8 @@ def pad_or_clip_nd(tensor, output_shape):
         for i, shape in enumerate(output_shape)
     ]
     paddings = tf.stack(
-        [
-            tf.zeros(len(trailing_paddings), dtype=tf.int32),
-            trailing_paddings
-        ],
-        axis=1)
+        [tf.zeros(len(trailing_paddings), dtype=tf.int32), trailing_paddings], axis=1
+    )
     padded_tensor = tf.pad(tensor=clipped_tensor, paddings=paddings)
     output_static_shape = [
         dim if not isinstance(dim, tf.Tensor) else None for dim in output_shape

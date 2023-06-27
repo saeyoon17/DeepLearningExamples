@@ -19,10 +19,11 @@ import hydra
 warnings.filterwarnings("ignore")
 from inference.inference import run_inference
 
+
 @hydra.main(config_path="conf/", config_name="inference_config")
 def main(cfg):
     print(cfg)
-    cfg.inference.config.checkpoint=cfg.checkpoint
+    cfg.inference.config.checkpoint = cfg.checkpoint
     hydra.utils.call(cfg, _recursive_=False)
 
 

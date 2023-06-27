@@ -21,7 +21,6 @@ import warnings
 from collections import defaultdict
 
 import torch
-
 from common.fairseq.optim.dynamic_loss_scaler import DynamicLossScaler
 
 
@@ -294,7 +293,7 @@ class _FP16OptimizerMixin(object):
             fp32_params = []
             for p in params:
                 p32 = torch.nn.Parameter(p.data.float())
-                if hasattr(p, 'expert'):
+                if hasattr(p, "expert"):
                     p32.expert = True
                 p32.grad = torch.zeros_like(p32.data)
                 if hasattr(p, "param_group"):
@@ -437,7 +436,9 @@ class _FP16OptimizerMixin(object):
         self._sync_fp16_grads_to_fp32()
 
         if getattr(self, "supports_step_with_scale", False):
-            self.fp32_optimizer.step(closure, scale=(1.0 / self._multiply_factor), groups=groups)
+            self.fp32_optimizer.step(
+                closure, scale=(1.0 / self._multiply_factor), groups=groups
+            )
         else:
             self._unscale_grads()
             self.fp32_optimizer.step(closure, groups=groups)
@@ -480,7 +481,7 @@ class FP16Optimizer(_FP16OptimizerMixin, FairseqOptimizer):
         self.fp32_optimizer = fp32_optimizer
         self.fp32_params = fp32_params
 
-        scale_window = int(2 ** 14 / cfg.world_size / cfg.update_freq)
+        scale_window = int(2**14 / cfg.world_size / cfg.update_freq)
 
         if not (cfg.bf16 and cfg.bf16_disable_loss_scaler):
             self.scaler = DynamicLossScaler(
@@ -491,7 +492,7 @@ class FP16Optimizer(_FP16OptimizerMixin, FairseqOptimizer):
                 min_loss_scale=cfg.min_loss_scale,
             )
         else:
-            print('Disabled loss scaler.')
+            print("Disabled loss scaler.")
             # disable loss scaling for bfloat16
             self.scaler = None
 

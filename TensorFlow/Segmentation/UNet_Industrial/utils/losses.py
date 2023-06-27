@@ -21,19 +21,30 @@
 
 import tensorflow as tf
 
-__all__ = ["regularization_l2loss", "reconstruction_l2loss", "reconstruction_x_entropy", "adaptive_loss"]
+__all__ = [
+    "regularization_l2loss",
+    "reconstruction_l2loss",
+    "reconstruction_x_entropy",
+    "adaptive_loss",
+]
 
 
 def regularization_l2loss(weight_decay):
-
     def loss_filter_fn(name):
         """we don't need to compute L2 loss for BN"""
 
         return all(
-            [tensor_name not in name.lower() for tensor_name in ["batchnorm", "batch_norm", "batch_normalization"]]
+            [
+                tensor_name not in name.lower()
+                for tensor_name in ["batchnorm", "batch_norm", "batch_normalization"]
+            ]
         )
 
-    filtered_params = [tf.cast(v, tf.float32) for v in tf.trainable_variables() if loss_filter_fn(v.name)]
+    filtered_params = [
+        tf.cast(v, tf.float32)
+        for v in tf.trainable_variables()
+        if loss_filter_fn(v.name)
+    ]
 
     if len(filtered_params) != 0:
 
@@ -48,14 +59,20 @@ def regularization_l2loss(weight_decay):
 
 def reconstruction_l2loss(y_pred, y_true):
     reconstruction_err = tf.subtract(y_pred, y_true)
-    return tf.reduce_mean(tf.nn.l2_loss(reconstruction_err), name='reconstruction_loss_l2_loss')
+    return tf.reduce_mean(
+        tf.nn.l2_loss(reconstruction_err), name="reconstruction_loss_l2_loss"
+    )
 
 
 def reconstruction_x_entropy(y_pred, y_true, from_logits=False):
-    return tf.reduce_mean(tf.keras.losses.binary_crossentropy(y_true=y_true, y_pred=y_pred, from_logits=from_logits))
+    return tf.reduce_mean(
+        tf.keras.losses.binary_crossentropy(
+            y_true=y_true, y_pred=y_pred, from_logits=from_logits
+        )
+    )
 
 
-def dice_coe(y_pred, y_true, loss_type='jaccard', smooth=1.):
+def dice_coe(y_pred, y_true, loss_type="jaccard", smooth=1.0):
     """Soft dice (Sørensen or Jaccard) coefficient for comparing the similarity
     of two batch of data, usually be used for binary image segmentation
     i.e. labels are binary. The coefficient between 0 to 1, 1 means totally match.
@@ -87,24 +104,30 @@ def dice_coe(y_pred, y_true, loss_type='jaccard', smooth=1.):
 
     intersection = tf.reduce_sum(y_true_f * y_pred_f)
 
-    if loss_type == 'jaccard':
+    if loss_type == "jaccard":
         union = tf.reduce_sum(tf.square(y_pred_f)) + tf.reduce_sum(tf.square(y_true_f))
 
-    elif loss_type == 'sorensen':
+    elif loss_type == "sorensen":
         union = tf.reduce_sum(y_pred_f) + tf.reduce_sum(y_true_f)
 
     else:
         raise ValueError("Unknown `loss_type`: %s" % loss_type)
 
-    return (2. * intersection + smooth) / (union + smooth)
+    return (2.0 * intersection + smooth) / (union + smooth)
 
 
-def adaptive_loss(y_pred, y_pred_logits, y_true, switch_at_threshold=0.3, loss_type='jaccard'):
+def adaptive_loss(
+    y_pred, y_pred_logits, y_true, switch_at_threshold=0.3, loss_type="jaccard"
+):
 
-    dice_loss = 1 - dice_coe(y_pred=y_pred, y_true=y_true, loss_type=loss_type, smooth=1.)
+    dice_loss = 1 - dice_coe(
+        y_pred=y_pred, y_true=y_true, loss_type=loss_type, smooth=1.0
+    )
 
     return tf.cond(
         dice_loss < switch_at_threshold,
         true_fn=lambda: dice_loss,
-        false_fn=lambda: reconstruction_x_entropy(y_pred=y_pred_logits, y_true=y_true, from_logits=True)
+        false_fn=lambda: reconstruction_x_entropy(
+            y_pred=y_pred_logits, y_true=y_true, from_logits=True
+        ),
     )

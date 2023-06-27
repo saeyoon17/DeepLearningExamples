@@ -23,25 +23,13 @@ import re
 import unicodedata
 from typing import Any, Dict, List, Optional, Tuple, Union, overload
 
-from utils.file_utils import add_end_docstrings
 from bart.tokenization.tokenization_utils_base import (
-    ENCODE_KWARGS_DOCSTRING,
-    ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING,
-    INIT_TOKENIZER_DOCSTRING,
-    AddedToken,
-    BatchEncoding,
-    EncodedInput,
-    EncodedInputPair,
-    PaddingStrategy,
-    PreTokenizedInput,
-    PreTokenizedInputPair,
-    PreTrainedTokenizerBase,
-    TensorType,
-    TextInput,
-    TextInputPair,
-    TruncationStrategy,
-)
-
+    ENCODE_KWARGS_DOCSTRING, ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING,
+    INIT_TOKENIZER_DOCSTRING, AddedToken, BatchEncoding, EncodedInput,
+    EncodedInputPair, PaddingStrategy, PreTokenizedInput,
+    PreTokenizedInputPair, PreTrainedTokenizerBase, TensorType, TextInput,
+    TextInputPair, TruncationStrategy)
+from utils.file_utils import add_end_docstrings
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +65,12 @@ def _is_punctuation(char):
     # Characters such as "^", "$", and "`" are not in the Unicode
     # Punctuation class but we treat them as punctuation anyways, for
     # consistency.
-    if (cp >= 33 and cp <= 47) or (cp >= 58 and cp <= 64) or (cp >= 91 and cp <= 96) or (cp >= 123 and cp <= 126):
+    if (
+        (cp >= 33 and cp <= 47)
+        or (cp >= 58 and cp <= 64)
+        or (cp >= 91 and cp <= 96)
+        or (cp >= 123 and cp <= 126)
+    ):
         return True
     cat = unicodedata.category(char)
     if cat.startswith("P"):
@@ -88,13 +81,19 @@ def _is_punctuation(char):
 def _is_end_of_word(text):
     """Checks whether the last character in text is one of a punctuation, control or whitespace character."""
     last_char = text[-1]
-    return bool(_is_control(last_char) | _is_punctuation(last_char) | _is_whitespace(last_char))
+    return bool(
+        _is_control(last_char) | _is_punctuation(last_char) | _is_whitespace(last_char)
+    )
 
 
 def _is_start_of_word(text):
     """Checks whether the first character in text is one of a punctuation, control or whitespace character."""
     first_char = text[0]
-    return bool(_is_control(first_char) | _is_punctuation(first_char) | _is_whitespace(first_char))
+    return bool(
+        _is_control(first_char)
+        | _is_punctuation(first_char)
+        | _is_whitespace(first_char)
+    )
 
 
 @add_end_docstrings(INIT_TOKENIZER_DOCSTRING, """    .. automethod:: __call__""")
@@ -159,7 +158,11 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
         """
         return self.vocab_size + len(self.added_tokens_encoder)
 
-    def _add_tokens(self, new_tokens: Union[List[str], List[AddedToken]], special_tokens: bool = False) -> int:
+    def _add_tokens(
+        self,
+        new_tokens: Union[List[str], List[AddedToken]],
+        special_tokens: bool = False,
+    ) -> int:
         """
         Add a list of new tokens to the tokenizer class. If the new tokens are not in the
         vocabulary, they are added to it with indices starting from length of the current vocabulary.
@@ -194,24 +197,31 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
                 token = token.lower()
             if (
                 token != self.unk_token
-                and self.convert_tokens_to_ids(token) == self.convert_tokens_to_ids(self.unk_token)
+                and self.convert_tokens_to_ids(token)
+                == self.convert_tokens_to_ids(self.unk_token)
                 and token not in tokens_to_add
             ):
                 tokens_to_add.append(token)
                 if self.verbose:
                     logger.info("Adding %s to the vocabulary", token)
 
-        added_tok_encoder = dict((tok, len(self) + i) for i, tok in enumerate(tokens_to_add))
+        added_tok_encoder = dict(
+            (tok, len(self) + i) for i, tok in enumerate(tokens_to_add)
+        )
         added_tok_decoder = {v: k for k, v in added_tok_encoder.items()}
         self.added_tokens_encoder.update(added_tok_encoder)
         self.added_tokens_decoder.update(added_tok_decoder)
 
         # Make sure we don't split on any special tokens (even they were already in the vocab before e.g. for Albert)
         if special_tokens:
-            self.unique_no_split_tokens = sorted(set(self.unique_no_split_tokens).union(set(new_tokens)))
+            self.unique_no_split_tokens = sorted(
+                set(self.unique_no_split_tokens).union(set(new_tokens))
+            )
         else:
             # Or on the newly added tokens
-            self.unique_no_split_tokens = sorted(set(self.unique_no_split_tokens).union(set(tokens_to_add)))
+            self.unique_no_split_tokens = sorted(
+                set(self.unique_no_split_tokens).union(set(tokens_to_add))
+            )
 
         return len(tokens_to_add)
 
@@ -233,7 +243,11 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
         """
         token_ids_0 = []
         token_ids_1 = []
-        return len(self.build_inputs_with_special_tokens(token_ids_0, token_ids_1 if pair else None))
+        return len(
+            self.build_inputs_with_special_tokens(
+                token_ids_0, token_ids_1 if pair else None
+            )
+        )
 
     def tokenize(self, text: TextInput, **kwargs) -> List[str]:
         """
@@ -253,7 +267,9 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
         """
         # Simple mapping string => AddedToken for special tokens with specific tokenization behaviors
         all_special_tokens_extended = dict(
-            (str(t), t) for t in self.all_special_tokens_extended if isinstance(t, AddedToken)
+            (str(t), t)
+            for t in self.all_special_tokens_extended
+            if isinstance(t, AddedToken)
         )
 
         text, kwargs = self.prepare_for_tokenization(text, **kwargs)
@@ -264,9 +280,13 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
         # TODO: should this be in the base class?
         if self.init_kwargs.get("do_lower_case", False):
             # convert non-special tokens to lowercase
-            escaped_special_toks = [re.escape(s_tok) for s_tok in self.all_special_tokens]
+            escaped_special_toks = [
+                re.escape(s_tok) for s_tok in self.all_special_tokens
+            ]
             pattern = r"(" + r"|".join(escaped_special_toks) + r")|" + r"(.+?)"
-            text = re.sub(pattern, lambda m: m.groups()[0] or m.groups()[1].lower(), text)
+            text = re.sub(
+                pattern, lambda m: m.groups()[0] or m.groups()[1].lower(), text
+            )
 
         def split_on_token(tok, text):
             result = []
@@ -339,7 +359,9 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
             return list(
                 itertools.chain.from_iterable(
                     (
-                        self._tokenize(token) if token not in self.unique_no_split_tokens else [token]
+                        self._tokenize(token)
+                        if token not in self.unique_no_split_tokens
+                        else [token]
                         for token in tokenized_text
                     )
                 )
@@ -359,7 +381,9 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
         """
         raise NotImplementedError
 
-    def convert_tokens_to_ids(self, tokens: Union[str, List[str]]) -> Union[int, List[int]]:
+    def convert_tokens_to_ids(
+        self, tokens: Union[str, List[str]]
+    ) -> Union[int, List[int]]:
         """
         Converts a token string (or a sequence of tokens) in a single integer id (or a sequence of ids), using the
         vocabulary.
@@ -411,19 +435,34 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
         return_offsets_mapping: bool = False,
         return_length: bool = False,
         verbose: bool = True,
-        **kwargs
+        **kwargs,
     ) -> BatchEncoding:
         def get_input_ids(text):
             if isinstance(text, str):
                 tokens = self.tokenize(text, **kwargs)
                 return self.convert_tokens_to_ids(tokens)
-            elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], str):
+            elif (
+                isinstance(text, (list, tuple))
+                and len(text) > 0
+                and isinstance(text[0], str)
+            ):
                 if is_pretokenized:
-                    tokens = list(itertools.chain(*(self.tokenize(t, is_pretokenized=True, **kwargs) for t in text)))
+                    tokens = list(
+                        itertools.chain(
+                            *(
+                                self.tokenize(t, is_pretokenized=True, **kwargs)
+                                for t in text
+                            )
+                        )
+                    )
                     return self.convert_tokens_to_ids(tokens)
                 else:
                     return self.convert_tokens_to_ids(text)
-            elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], int):
+            elif (
+                isinstance(text, (list, tuple))
+                and len(text) > 0
+                and isinstance(text[0], int)
+            ):
                 return text
             else:
                 if is_pretokenized:
@@ -491,19 +530,34 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
         return_offsets_mapping: bool = False,
         return_length: bool = False,
         verbose: bool = True,
-        **kwargs
+        **kwargs,
     ) -> BatchEncoding:
         def get_input_ids(text):
             if isinstance(text, str):
                 tokens = self.tokenize(text, **kwargs)
                 return self.convert_tokens_to_ids(tokens)
-            elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], str):
+            elif (
+                isinstance(text, (list, tuple))
+                and len(text) > 0
+                and isinstance(text[0], str)
+            ):
                 if is_pretokenized:
-                    tokens = list(itertools.chain(*(self.tokenize(t, is_pretokenized=True, **kwargs) for t in text)))
+                    tokens = list(
+                        itertools.chain(
+                            *(
+                                self.tokenize(t, is_pretokenized=True, **kwargs)
+                                for t in text
+                            )
+                        )
+                    )
                     return self.convert_tokens_to_ids(tokens)
                 else:
                     return self.convert_tokens_to_ids(text)
-            elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], int):
+            elif (
+                isinstance(text, (list, tuple))
+                and len(text) > 0
+                and isinstance(text[0], int)
+            ):
                 return text
             else:
                 raise ValueError(
@@ -549,7 +603,9 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
 
         return BatchEncoding(batch_outputs)
 
-    @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
+    @add_end_docstrings(
+        ENCODE_KWARGS_DOCSTRING, ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING
+    )
     def _batch_prepare_for_model(
         self,
         batch_ids_pairs: List[Union[PreTokenizedInputPair, Tuple[List[int], None]]],
@@ -637,7 +693,10 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
         return (text, kwargs)
 
     def get_special_tokens_mask(
-        self, token_ids_0: List, token_ids_1: Optional[List] = None, already_has_special_tokens: bool = False
+        self,
+        token_ids_0: List,
+        token_ids_1: Optional[List] = None,
+        already_has_special_tokens: bool = False,
     ) -> List[int]:
         """
         Retrieves sequence ids from a token list that has no special tokens added. This method is called when adding
@@ -661,7 +720,9 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
         ...
 
     @overload
-    def convert_ids_to_tokens(self, ids: List[int], skip_special_tokens: bool = False) -> List[str]:
+    def convert_ids_to_tokens(
+        self, ids: List[int], skip_special_tokens: bool = False
+    ) -> List[str]:
         ...
 
     def convert_ids_to_tokens(
@@ -714,7 +775,10 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
         return " ".join(tokens)
 
     def decode(
-        self, token_ids: List[int], skip_special_tokens: bool = False, clean_up_tokenization_spaces: bool = True
+        self,
+        token_ids: List[int],
+        skip_special_tokens: bool = False,
+        clean_up_tokenization_spaces: bool = True,
     ) -> str:
         """
         Converts a sequence of ids in a string, using the tokenizer and vocabulary
@@ -733,7 +797,9 @@ class PreTrainedTokenizer(PreTrainedTokenizerBase):
         Returns:
             :obj:`str`: The decoded sentence.
         """
-        filtered_tokens = self.convert_ids_to_tokens(token_ids, skip_special_tokens=skip_special_tokens)
+        filtered_tokens = self.convert_ids_to_tokens(
+            token_ids, skip_special_tokens=skip_special_tokens
+        )
 
         # To avoid mixing byte-level and unicode for byte-level BPT
         # we need to build string separatly for added tokens and byte-level tokens

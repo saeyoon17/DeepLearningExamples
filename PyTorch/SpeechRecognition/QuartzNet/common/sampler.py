@@ -1,6 +1,5 @@
-import torch
 import numpy as np
-
+import torch
 from torch.utils.data.sampler import Sampler
 
 
@@ -23,8 +22,9 @@ class DistributedSampler(Sampler):
 
         self.data_len = len(self.dataset)
 
-        self.num_samples = self.data_len // self.global_batch_size \
-            * self.global_batch_size
+        self.num_samples = (
+            self.data_len // self.global_batch_size * self.global_batch_size
+        )
 
     def distribute_batches(self, indices):
         """
@@ -35,7 +35,7 @@ class DistributedSampler(Sampler):
         assert len(indices) == self.num_samples
 
         indices = indices.view(-1, self.batch_size)
-        indices = indices[self.rank::self.world_size].contiguous()
+        indices = indices[self.rank :: self.world_size].contiguous()
         indices = indices.view(-1)
         indices = indices.tolist()
 
@@ -62,7 +62,7 @@ class DistributedSampler(Sampler):
         indices = torch.randperm(self.data_len, generator=rng)
 
         # make indices evenly divisible by (batch_size * world_size)
-        indices = indices[:self.num_samples]
+        indices = indices[: self.num_samples]
 
         # assign batches to workers
         indices = self.distribute_batches(indices)
@@ -94,9 +94,10 @@ class BucketingSampler(DistributedSampler):
         super().__init__(dataset, batch_size, world_size, rank)
 
         self.num_buckets = num_buckets
-        len_ids = np.argsort([sample['duration'] for sample in dataset.samples])
-        self.buckets = [torch.from_numpy(t)
-                        for t in np.array_split(len_ids, num_buckets)]
+        len_ids = np.argsort([sample["duration"] for sample in dataset.samples])
+        self.buckets = [
+            torch.from_numpy(t) for t in np.array_split(len_ids, num_buckets)
+        ]
         global_bs = self.global_batch_size
 
     def __iter__(self):

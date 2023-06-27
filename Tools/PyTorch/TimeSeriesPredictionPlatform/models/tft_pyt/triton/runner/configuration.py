@@ -57,7 +57,9 @@ class Configuration(DataObject):
             batch_size = map(lambda item: int(item), batch_size.split(","))
 
         if isinstance(triton_preferred_batch_sizes, str):
-            triton_preferred_batch_sizes = map(lambda item: int(item), triton_preferred_batch_sizes.split(" "))
+            triton_preferred_batch_sizes = map(
+                lambda item: int(item), triton_preferred_batch_sizes.split(" ")
+            )
 
         self.precision = precision
         self.format = format
@@ -68,7 +70,9 @@ class Configuration(DataObject):
         self.capture_cuda_graph = capture_cuda_graph
         self.max_batch_size = max(self.batch_size)
         self.checkpoint_variant = checkpoint_variant
-        self.triton_preferred_batch_sizes = " ".join(map(lambda i: str(i), sorted(triton_preferred_batch_sizes)))
+        self.triton_preferred_batch_sizes = " ".join(
+            map(lambda i: str(i), sorted(triton_preferred_batch_sizes))
+        )
 
         for key, value in kwargs.items():
             self.__setattr__(key, value)

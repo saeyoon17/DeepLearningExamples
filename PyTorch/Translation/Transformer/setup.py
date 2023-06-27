@@ -6,7 +6,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 #
-#-------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 #
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,59 +21,68 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from setuptools import setup, find_packages, Extension
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CppExtension
 import sys
 
+from setuptools import Extension, find_packages, setup
+from torch.utils.cpp_extension import (BuildExtension, CppExtension,
+                                       CUDAExtension)
 
 if sys.version_info < (3,):
-    sys.exit('Sorry, Python3 is required for fairseq.')
+    sys.exit("Sorry, Python3 is required for fairseq.")
 
-with open('README.md') as f:
+with open("README.md") as f:
     readme = f.read()
 
-with open('LICENSE') as f:
+with open("LICENSE") as f:
     license = f.read()
 
-with open('requirements.txt') as f:
+with open("requirements.txt") as f:
     reqs = f.read()
 
 
-extra_compile_args = {'cxx' : ['-O2']}
-extra_compile_args['nvcc'] = ['-O3',
-                              '-I./cutlass/',
-                              '-U__CUDA_NO_HALF_OPERATORS__',
-                              '-U__CUDA_NO_HALF_CONVERSIONS__',
-                              '-gencode', 'arch=compute_70,code=sm_70',
-                              '-gencode', 'arch=compute_70,code=compute_70',
-                              '-gencode', 'arch=compute_80,code=sm_80',
-                              '-gencode', 'arch=compute_80,code=compute_80',
-                              ]
+extra_compile_args = {"cxx": ["-O2"]}
+extra_compile_args["nvcc"] = [
+    "-O3",
+    "-I./cutlass/",
+    "-U__CUDA_NO_HALF_OPERATORS__",
+    "-U__CUDA_NO_HALF_CONVERSIONS__",
+    "-gencode",
+    "arch=compute_70,code=sm_70",
+    "-gencode",
+    "arch=compute_70,code=compute_70",
+    "-gencode",
+    "arch=compute_80,code=sm_80",
+    "-gencode",
+    "arch=compute_80,code=compute_80",
+]
 
 strided_batched_gemm = CUDAExtension(
-                        name='strided_batched_gemm',
-                        sources=['fairseq/modules/strided_batched_gemm/strided_batched_gemm.cpp', 'fairseq/modules/strided_batched_gemm/strided_batched_gemm_cuda.cu'],
-                        extra_compile_args=extra_compile_args
+    name="strided_batched_gemm",
+    sources=[
+        "fairseq/modules/strided_batched_gemm/strided_batched_gemm.cpp",
+        "fairseq/modules/strided_batched_gemm/strided_batched_gemm_cuda.cu",
+    ],
+    extra_compile_args=extra_compile_args,
 )
 
 batch_utils = CppExtension(
-                        name='fairseq.data.batch_C',
-                        sources=['fairseq/data/csrc/make_batches.cpp'],
-                        extra_compile_args={
-                                'cxx': ['-O2',],
-                        }
+    name="fairseq.data.batch_C",
+    sources=["fairseq/data/csrc/make_batches.cpp"],
+    extra_compile_args={
+        "cxx": [
+            "-O2",
+        ],
+    },
 )
 setup(
-    name='fairseq',
-    version='0.5.0',
-    description='Facebook AI Research Sequence-to-Sequence Toolkit',
+    name="fairseq",
+    version="0.5.0",
+    description="Facebook AI Research Sequence-to-Sequence Toolkit",
     long_description=readme,
     license=license,
-    install_requires=reqs.strip().split('\n'),
+    install_requires=reqs.strip().split("\n"),
     packages=find_packages(),
     ext_modules=[strided_batched_gemm, batch_utils],
-    cmdclass={
-                'build_ext': BuildExtension.with_options(use_ninja=False)
-    },
-    test_suite='tests',
+    cmdclass={"build_ext": BuildExtension.with_options(use_ninja=False)},
+    test_suite="tests",
 )

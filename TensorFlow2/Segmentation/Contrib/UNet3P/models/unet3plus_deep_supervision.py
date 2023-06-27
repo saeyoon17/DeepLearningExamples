@@ -3,11 +3,12 @@ UNet3+ with Deep Supervision
 """
 import tensorflow as tf
 import tensorflow.keras as k
+
 from .unet3plus_utils import conv_block
 
 
 def unet3plus_deepsup(encoder_layer, output_channels, filters, training=False):
-    """ UNet_3Plus with Deep Supervision """
+    """UNet_3Plus with Deep Supervision"""
 
     """ Encoder """
     e1 = encoder_layer[0]
@@ -33,7 +34,9 @@ def unet3plus_deepsup(encoder_layer, output_channels, filters, training=False):
 
     e4_d4 = conv_block(e4, cat_channels, n=1)  # 40*40*512  --> 40*40*64
 
-    e5_d4 = k.layers.UpSampling2D(size=(2, 2), interpolation='bilinear')(e5)  # 80*80*256  --> 40*40*256
+    e5_d4 = k.layers.UpSampling2D(size=(2, 2), interpolation="bilinear")(
+        e5
+    )  # 80*80*256  --> 40*40*256
     e5_d4 = conv_block(e5_d4, cat_channels, n=1)  # 20*20*1024  --> 20*20*64
 
     d4 = k.layers.concatenate([e1_d4, e2_d4, e3_d4, e4_d4, e5_d4])
@@ -48,10 +51,14 @@ def unet3plus_deepsup(encoder_layer, output_channels, filters, training=False):
 
     e3_d3 = conv_block(e3, cat_channels, n=1)  # 80*80*512 --> 80*80*64
 
-    e4_d3 = k.layers.UpSampling2D(size=(2, 2), interpolation='bilinear')(d4)  # 40*40*320 --> 80*80*320
+    e4_d3 = k.layers.UpSampling2D(size=(2, 2), interpolation="bilinear")(
+        d4
+    )  # 40*40*320 --> 80*80*320
     e4_d3 = conv_block(e4_d3, cat_channels, n=1)  # 80*80*320 --> 80*80*64
 
-    e5_d3 = k.layers.UpSampling2D(size=(4, 4), interpolation='bilinear')(e5)  # 20*20*320 --> 80*80*320
+    e5_d3 = k.layers.UpSampling2D(size=(4, 4), interpolation="bilinear")(
+        e5
+    )  # 20*20*320 --> 80*80*320
     e5_d3 = conv_block(e5_d3, cat_channels, n=1)  # 80*80*320 --> 80*80*64
 
     d3 = k.layers.concatenate([e1_d3, e2_d3, e3_d3, e4_d3, e5_d3])
@@ -63,13 +70,19 @@ def unet3plus_deepsup(encoder_layer, output_channels, filters, training=False):
 
     e2_d2 = conv_block(e2, cat_channels, n=1)  # 160*160*256 --> 160*160*64
 
-    d3_d2 = k.layers.UpSampling2D(size=(2, 2), interpolation='bilinear')(d3)  # 80*80*320 --> 160*160*320
+    d3_d2 = k.layers.UpSampling2D(size=(2, 2), interpolation="bilinear")(
+        d3
+    )  # 80*80*320 --> 160*160*320
     d3_d2 = conv_block(d3_d2, cat_channels, n=1)  # 160*160*320 --> 160*160*64
 
-    d4_d2 = k.layers.UpSampling2D(size=(4, 4), interpolation='bilinear')(d4)  # 40*40*320 --> 160*160*320
+    d4_d2 = k.layers.UpSampling2D(size=(4, 4), interpolation="bilinear")(
+        d4
+    )  # 40*40*320 --> 160*160*320
     d4_d2 = conv_block(d4_d2, cat_channels, n=1)  # 160*160*320 --> 160*160*64
 
-    e5_d2 = k.layers.UpSampling2D(size=(8, 8), interpolation='bilinear')(e5)  # 20*20*320 --> 160*160*320
+    e5_d2 = k.layers.UpSampling2D(size=(8, 8), interpolation="bilinear")(
+        e5
+    )  # 20*20*320 --> 160*160*320
     e5_d2 = conv_block(e5_d2, cat_channels, n=1)  # 160*160*320 --> 160*160*64
 
     d2 = k.layers.concatenate([e1_d2, e2_d2, d3_d2, d4_d2, e5_d2])
@@ -78,29 +91,45 @@ def unet3plus_deepsup(encoder_layer, output_channels, filters, training=False):
     """ d1 """
     e1_d1 = conv_block(e1, cat_channels, n=1)  # 320*320*64 --> 320*320*64
 
-    d2_d1 = k.layers.UpSampling2D(size=(2, 2), interpolation='bilinear')(d2)  # 160*160*320 --> 320*320*320
+    d2_d1 = k.layers.UpSampling2D(size=(2, 2), interpolation="bilinear")(
+        d2
+    )  # 160*160*320 --> 320*320*320
     d2_d1 = conv_block(d2_d1, cat_channels, n=1)  # 160*160*320 --> 160*160*64
 
-    d3_d1 = k.layers.UpSampling2D(size=(4, 4), interpolation='bilinear')(d3)  # 80*80*320 --> 320*320*320
+    d3_d1 = k.layers.UpSampling2D(size=(4, 4), interpolation="bilinear")(
+        d3
+    )  # 80*80*320 --> 320*320*320
     d3_d1 = conv_block(d3_d1, cat_channels, n=1)  # 320*320*320 --> 320*320*64
 
-    d4_d1 = k.layers.UpSampling2D(size=(8, 8), interpolation='bilinear')(d4)  # 40*40*320 --> 320*320*320
+    d4_d1 = k.layers.UpSampling2D(size=(8, 8), interpolation="bilinear")(
+        d4
+    )  # 40*40*320 --> 320*320*320
     d4_d1 = conv_block(d4_d1, cat_channels, n=1)  # 320*320*320 --> 320*320*64
 
-    e5_d1 = k.layers.UpSampling2D(size=(16, 16), interpolation='bilinear')(e5)  # 20*20*320 --> 320*320*320
+    e5_d1 = k.layers.UpSampling2D(size=(16, 16), interpolation="bilinear")(
+        e5
+    )  # 20*20*320 --> 320*320*320
     e5_d1 = conv_block(e5_d1, cat_channels, n=1)  # 320*320*320 --> 320*320*64
 
-    d1 = k.layers.concatenate([e1_d1, d2_d1, d3_d1, d4_d1, e5_d1, ])
+    d1 = k.layers.concatenate(
+        [
+            e1_d1,
+            d2_d1,
+            d3_d1,
+            d4_d1,
+            e5_d1,
+        ]
+    )
     d1 = conv_block(d1, upsample_channels, n=1)  # 320*320*320 --> 320*320*320
 
     # last layer does not have batch norm and relu
     d1 = conv_block(d1, output_channels, n=1, is_bn=False, is_relu=False)
 
     if output_channels == 1:
-        d1 = k.layers.Activation('sigmoid', dtype='float32')(d1)
+        d1 = k.layers.Activation("sigmoid", dtype="float32")(d1)
     else:
         # d1 = k.activations.softmax(d1)
-        d1 = k.layers.Activation('softmax', dtype='float32')(d1)
+        d1 = k.layers.Activation("softmax", dtype="float32")(d1)
 
     """ Deep Supervision Part"""
     if training:
@@ -110,23 +139,25 @@ def unet3plus_deepsup(encoder_layer, output_channels, filters, training=False):
         e5 = conv_block(e5, output_channels, n=1, is_bn=False, is_relu=False)
 
         # d1 = no need for up sampling
-        d2 = k.layers.UpSampling2D(size=(2, 2), interpolation='bilinear')(d2)
-        d3 = k.layers.UpSampling2D(size=(4, 4), interpolation='bilinear')(d3)
-        d4 = k.layers.UpSampling2D(size=(8, 8), interpolation='bilinear')(d4)
-        e5 = k.layers.UpSampling2D(size=(16, 16), interpolation='bilinear')(e5)
+        d2 = k.layers.UpSampling2D(size=(2, 2), interpolation="bilinear")(d2)
+        d3 = k.layers.UpSampling2D(size=(4, 4), interpolation="bilinear")(d3)
+        d4 = k.layers.UpSampling2D(size=(8, 8), interpolation="bilinear")(d4)
+        e5 = k.layers.UpSampling2D(size=(16, 16), interpolation="bilinear")(e5)
 
         if output_channels == 1:
-            d2 = k.layers.Activation('sigmoid', dtype='float32')(d2)
-            d3 = k.layers.Activation('sigmoid', dtype='float32')(d3)
-            d4 = k.layers.Activation('sigmoid', dtype='float32')(d4)
-            e5 = k.layers.Activation('sigmoid', dtype='float32')(e5)
+            d2 = k.layers.Activation("sigmoid", dtype="float32")(d2)
+            d3 = k.layers.Activation("sigmoid", dtype="float32")(d3)
+            d4 = k.layers.Activation("sigmoid", dtype="float32")(d4)
+            e5 = k.layers.Activation("sigmoid", dtype="float32")(e5)
         else:
-            d2 = k.layers.Activation('softmax', dtype='float32')(d2)
-            d3 = k.layers.Activation('softmax', dtype='float32')(d3)
-            d4 = k.layers.Activation('softmax', dtype='float32')(d4)
-            e5 = k.layers.Activation('softmax', dtype='float32')(e5)
+            d2 = k.layers.Activation("softmax", dtype="float32")(d2)
+            d3 = k.layers.Activation("softmax", dtype="float32")(d3)
+            d4 = k.layers.Activation("softmax", dtype="float32")(d4)
+            e5 = k.layers.Activation("softmax", dtype="float32")(e5)
 
     if training:
-        return [d1, d2, d3, d4, e5], 'UNet3Plus_DeepSup'
+        return [d1, d2, d3, d4, e5], "UNet3Plus_DeepSup"
     else:
-        return [d1, ], 'UNet3Plus_DeepSup'
+        return [
+            d1,
+        ], "UNet3Plus_DeepSup"

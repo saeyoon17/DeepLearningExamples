@@ -40,15 +40,17 @@ Users of a BoxCoder can call two methods:
 In both cases, the arguments are assumed to be in 1-1 correspondence already;
 it is not the job of a BoxCoder to perform matching.
 """
-import torch
 from typing import List, Optional
+
+import torch
+
 from .box_list import BoxList
 
 # Box coder types.
-FASTER_RCNN = 'faster_rcnn'
-KEYPOINT = 'keypoint'
-MEAN_STDDEV = 'mean_stddev'
-SQUARE = 'square'
+FASTER_RCNN = "faster_rcnn"
+KEYPOINT = "keypoint"
+MEAN_STDDEV = "mean_stddev"
+SQUARE = "square"
 
 
 """Faster RCNN box coder.
@@ -70,7 +72,7 @@ Faster RCNN box coder follows the coding schema described below:
 EPS = 1e-8
 
 
-#@torch.jit.script
+# @torch.jit.script
 class FasterRcnnBoxCoder(object):
     """Faster RCNN box coder."""
 
@@ -89,7 +91,7 @@ class FasterRcnnBoxCoder(object):
                 assert scalar > 0
         self.eps = eps
 
-    #@property
+    # @property
     def code_size(self):
         return 4
 
@@ -146,10 +148,10 @@ class FasterRcnnBoxCoder(object):
         h = torch.exp(th) * ha
         ycenter = ty * ha + ycenter_a
         xcenter = tx * wa + xcenter_a
-        ymin = ycenter - h / 2.
-        xmin = xcenter - w / 2.
-        ymax = ycenter + h / 2.
-        xmax = xcenter + w / 2.
+        ymin = ycenter - h / 2.0
+        xmin = xcenter - w / 2.0
+        ymax = ycenter + h / 2.0
+        xmax = xcenter + w / 2.0
         return BoxList(torch.stack([ymin, xmin, ymax, xmax]).t())
 
 
@@ -176,12 +178,14 @@ def batch_decode(encoded_boxes, box_coder: FasterRcnnBoxCoder, anchors: BoxList)
     """
     assert len(encoded_boxes.shape) == 3
     if encoded_boxes.shape[1] != anchors.num_boxes():
-        raise ValueError('The number of anchors inferred from encoded_boxes'
-                         ' and anchors are inconsistent: shape[1] of encoded_boxes'
-                         ' %s should be equal to the number of anchors: %s.' %
-                         (encoded_boxes.shape[1], anchors.num_boxes()))
+        raise ValueError(
+            "The number of anchors inferred from encoded_boxes"
+            " and anchors are inconsistent: shape[1] of encoded_boxes"
+            " %s should be equal to the number of anchors: %s."
+            % (encoded_boxes.shape[1], anchors.num_boxes())
+        )
 
-    decoded_boxes = torch.stack([
-        box_coder.decode(boxes, anchors).boxes for boxes in encoded_boxes.unbind()
-    ])
+    decoded_boxes = torch.stack(
+        [box_coder.decode(boxes, anchors).boxes for boxes in encoded_boxes.unbind()]
+    )
     return decoded_boxes

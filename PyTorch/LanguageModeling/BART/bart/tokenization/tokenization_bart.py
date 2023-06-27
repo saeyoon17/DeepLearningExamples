@@ -17,16 +17,20 @@
 import logging
 from typing import List, Optional
 
-from bart.tokenization.tokenization_roberta import RobertaTokenizer, RobertaTokenizerFast
+from bart.tokenization.tokenization_roberta import (RobertaTokenizer,
+                                                    RobertaTokenizerFast)
 from bart.tokenization.tokenization_utils_base import BatchEncoding
-
 
 logger = logging.getLogger(__name__)
 
 
 # vocab and merges same as roberta
-vocab_url = "https://s3.amazonaws.com/models.huggingface.co/bert/roberta-large-vocab.json"
-merges_url = "https://s3.amazonaws.com/models.huggingface.co/bert/roberta-large-merges.txt"
+vocab_url = (
+    "https://s3.amazonaws.com/models.huggingface.co/bert/roberta-large-vocab.json"
+)
+merges_url = (
+    "https://s3.amazonaws.com/models.huggingface.co/bert/roberta-large-merges.txt"
+)
 _all_bart_models = [
     "facebook/bart-base",
     "facebook/bart-large",

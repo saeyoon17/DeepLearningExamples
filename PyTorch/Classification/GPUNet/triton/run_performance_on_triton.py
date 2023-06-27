@@ -22,8 +22,10 @@ import pathlib
 if __package__ is None:
     __package__ = pathlib.Path(__file__).parent.name
 
-from .deployment_toolkit.core import EvaluationMode, MeasurementMode, OfflineMode, PerformanceTool
-from .deployment_toolkit.triton_performance_runner import TritonPerformanceRunner
+from .deployment_toolkit.core import (EvaluationMode, MeasurementMode,
+                                      OfflineMode, PerformanceTool)
+from .deployment_toolkit.triton_performance_runner import \
+    TritonPerformanceRunner
 
 LOGGER = logging.getLogger("run_performance_on_triton")
 

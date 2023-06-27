@@ -12,32 +12,36 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import cudf
-import pandas as pd
-
-import pynvml
-import numpy as np
-import xgboost as xgb
-import os
 import glob
+import os
 
+import cudf
 import dask_cudf
+import numpy as np
+import pandas as pd
+import pynvml
+import xgboost as xgb
 from distributed_utils import create_client
-class TSPPXGBoost():
+
+
+class TSPPXGBoost:
     def __init__(self, config):
         self.config = config
         self.models = []
 
     def fit(self, train, label, valid, valid_label, **kwargs):
-        X = xgb.DeviceQuantileDMatrix(cudf.from_pandas(train), label=cudf.from_pandas(label))
+        X = xgb.DeviceQuantileDMatrix(
+            cudf.from_pandas(train), label=cudf.from_pandas(label)
+        )
         V = xgb.DMatrix(cudf.from_pandas(valid), label=cudf.from_pandas(valid_label))
-        model = xgb.train(params=self.config,
-                          dtrain=X,
-                          num_boost_round=self.config.n_rounds,
-                          evals=[(X, 'train'), (V, 'valid')],
-                          early_stopping_rounds=kwargs.get('patience', 5),
-                          verbose_eval=kwargs.get("log_interval", 25),
-                          )
+        model = xgb.train(
+            params=self.config,
+            dtrain=X,
+            num_boost_round=self.config.n_rounds,
+            evals=[(X, "train"), (V, "valid")],
+            early_stopping_rounds=kwargs.get("patience", 5),
+            verbose_eval=kwargs.get("log_interval", 25),
+        )
         self.models.append(model)
 
     def predict(self, test, i):
@@ -46,20 +50,21 @@ class TSPPXGBoost():
         return model.predict(X)
 
     def save(self, path):
-        os.makedirs(os.path.join(path, 'checkpoints'), exist_ok=True)
+        os.makedirs(os.path.join(path, "checkpoints"), exist_ok=True)
         for i in range(len(self.models)):
             model = self.models[i]
-            model.save_model(os.path.join(path, f'checkpoints/xgb_{i+1}.model'))
+            model.save_model(os.path.join(path, f"checkpoints/xgb_{i+1}.model"))
 
     def load(self, path):
         self.models = []
         for i in range(self.config.example_length - self.config.encoder_length):
-            p = os.path.join(path, f'checkpoints/xgb_{i+1}.model')
+            p = os.path.join(path, f"checkpoints/xgb_{i+1}.model")
             model = xgb.Booster()
             model.load_model(p)
             self.models.append(model)
 
-class TSPPDaskXGBoost():
+
+class TSPPDaskXGBoost:
     def __init__(self, config):
         self.config = config
         self.models = []
@@ -67,20 +72,29 @@ class TSPPDaskXGBoost():
         self.npartitions = self.config.cluster.npartitions
 
     def fit(self, train, label, valid, valid_label, **kwargs):
-        X = xgb.dask.DaskDeviceQuantileDMatrix(self.client,
-                                               dask_cudf.from_cudf(cudf.from_pandas(train), npartitions=self.npartitions),
-                                               label=dask_cudf.from_cudf(cudf.from_pandas(label), npartitions=self.npartitions))
-        V = xgb.dask.DaskDMatrix(self.client,
-                                 dask_cudf.from_cudf(cudf.from_pandas(valid), npartitions=self.npartitions),
-                                 label=dask_cudf.from_cudf(cudf.from_pandas(valid_label), npartitions=self.npartitions))
-        model = xgb.dask.train(client=self.client,
-                          params=self.config,
-                          dtrain=X,
-                          num_boost_round=self.config.n_rounds,
-                          evals=[(X, 'train'), (V, 'valid')],
-                          early_stopping_rounds=kwargs.get('patience', 5),
-                          verbose_eval=kwargs.get("log_interval", 25),
-                          )
+        X = xgb.dask.DaskDeviceQuantileDMatrix(
+            self.client,
+            dask_cudf.from_cudf(cudf.from_pandas(train), npartitions=self.npartitions),
+            label=dask_cudf.from_cudf(
+                cudf.from_pandas(label), npartitions=self.npartitions
+            ),
+        )
+        V = xgb.dask.DaskDMatrix(
+            self.client,
+            dask_cudf.from_cudf(cudf.from_pandas(valid), npartitions=self.npartitions),
+            label=dask_cudf.from_cudf(
+                cudf.from_pandas(valid_label), npartitions=self.npartitions
+            ),
+        )
+        model = xgb.dask.train(
+            client=self.client,
+            params=self.config,
+            dtrain=X,
+            num_boost_round=self.config.n_rounds,
+            evals=[(X, "train"), (V, "valid")],
+            early_stopping_rounds=kwargs.get("patience", 5),
+            verbose_eval=kwargs.get("log_interval", 25),
+        )
         self.models.append(model)
         self.client.restart()
 
@@ -89,19 +103,21 @@ class TSPPDaskXGBoost():
         model = self.models[i]
         test = dask_cudf.from_cudf(cudf.from_pandas(test), npartitions=self.npartitions)
         test = xgb.dask.DaskDMatrix(self.client, test)
-        out =  xgb.dask.predict(self.client, model, test)
+        out = xgb.dask.predict(self.client, model, test)
         return out.compute()
 
     def save(self, path):
-        os.makedirs(os.path.join(path, 'checkpoints'), exist_ok=True)
+        os.makedirs(os.path.join(path, "checkpoints"), exist_ok=True)
         for i in range(len(self.models)):
             model = self.models[i]
-            model['booster'].save_model(os.path.join(path, f'checkpoints/xgb_{i+1}.model'))
+            model["booster"].save_model(
+                os.path.join(path, f"checkpoints/xgb_{i+1}.model")
+            )
 
     def load(self, path):
         self.models = []
         for i in range(self.config.example_length - self.config.encoder_length):
-            p = os.path.join(path, f'checkpoints/xgb_{i+1}.model')
-            model = {'booster': xgb.dask.Booster()}
-            model['booster'].load_model(p)
+            p = os.path.join(path, f"checkpoints/xgb_{i+1}.model")
+            model = {"booster": xgb.dask.Booster()}
+            model["booster"].load_model(p)
             self.models.append(model)

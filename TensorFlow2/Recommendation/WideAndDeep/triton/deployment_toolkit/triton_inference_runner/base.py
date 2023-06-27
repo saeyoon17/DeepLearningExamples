@@ -35,7 +35,11 @@ class BaseRunner:
         self._model_version = model_version
         self._dataloader = dataloader
         self._verbose = verbose
-        self._response_wait_t = int(self.DEFAULT_MAX_RESP_WAIT_S if response_wait_time is None else response_wait_time)
+        self._response_wait_t = int(
+            self.DEFAULT_MAX_RESP_WAIT_S
+            if response_wait_time is None
+            else response_wait_time
+        )
         self._response_wait_t_ms = self._response_wait_t * 1000 * 1000
         self._max_wait_time = max(self._response_wait_t, self.DEFAULT_MAX_FINISH_WAIT_S)
         self._server_url = server_url
@@ -47,5 +51,7 @@ class BaseRunner:
         elif not triton_client.is_server_ready():
             errors.append(f"Triton server {self._server_url} is not ready")
         elif not triton_client.is_model_ready(self._model_name, self._model_version):
-            errors.append(f"Model {self._model_name}:{self._model_version} is not ready")
+            errors.append(
+                f"Model {self._model_name}:{self._model_version} is not ready"
+            )
         return errors

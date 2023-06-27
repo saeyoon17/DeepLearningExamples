@@ -17,7 +17,7 @@ import tensorflow as tf
 
 class EmbeddingInitializer(tf.keras.initializers.Initializer):
     def __call__(self, shape, dtype=tf.float32):
-        maxval = tf.sqrt(tf.constant(1.) / tf.cast(shape[0], tf.float32))
+        maxval = tf.sqrt(tf.constant(1.0) / tf.cast(shape[0], tf.float32))
         maxval = tf.cast(maxval, dtype=dtype)
         minval = -maxval
 

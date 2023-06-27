@@ -21,9 +21,18 @@ from data_preprocessing.preprocessor import Preprocessor
 from runtime.utils import get_task_code
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument("--data", type=Path, default=Path("/data"), help="Path to data directory")
-parser.add_argument("--results", type=Path, default=Path("/data"), help="Path for saving results directory")
-parser.add_argument("-f", "--force", action="store_true", help="Force remove colliding files")
+parser.add_argument(
+    "--data", type=Path, default=Path("/data"), help="Path to data directory"
+)
+parser.add_argument(
+    "--results",
+    type=Path,
+    default=Path("/data"),
+    help="Path for saving results directory",
+)
+parser.add_argument(
+    "-f", "--force", action="store_true", help="Force remove colliding files"
+)
 parser.add_argument(
     "--exec_mode",
     type=str,
@@ -31,9 +40,18 @@ parser.add_argument(
     choices=["training", "val", "test"],
     help="Mode for data preprocessing",
 )
-parser.add_argument("--task", type=str, help="Number of task to be run. MSD uses numbers 01-10")
-parser.add_argument("--dim", type=int, default=3, choices=[2, 3], help="Data dimension to prepare")
-parser.add_argument("--n_jobs", type=int, default=-1, help="Number of parallel jobs for data preprocessing")
+parser.add_argument(
+    "--task", type=str, help="Number of task to be run. MSD uses numbers 01-10"
+)
+parser.add_argument(
+    "--dim", type=int, default=3, choices=[2, 3], help="Data dimension to prepare"
+)
+parser.add_argument(
+    "--n_jobs",
+    type=int,
+    default=-1,
+    help="Number of parallel jobs for data preprocessing",
+)
 
 
 if __name__ == "__main__":

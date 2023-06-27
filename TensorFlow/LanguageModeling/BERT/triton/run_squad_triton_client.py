@@ -11,21 +11,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import modeling
-import tokenization
-import tritongrpcclient
-from utils.create_squad_data import *
-import grpc
-from run_squad import write_predictions, get_predictions, RawResult
-import numpy as np
-import tqdm
+import sys
 from functools import partial
 
-import sys
+import grpc
+import modeling
+import numpy as np
+import tokenization
+import tqdm
+import tritongrpcclient
+from run_squad import RawResult, get_predictions, write_predictions
+from utils.create_squad_data import *
+
 if sys.version_info >= (3, 0):
-  import queue
+    import queue
 else:
-  import Queue as queue
+    import Queue as queue
 
 
 flags = tf.flags
@@ -33,70 +34,96 @@ FLAGS = flags.FLAGS
 
 ## Required parameters
 
-flags.DEFINE_string("vocab_file", None,
-                    "The vocabulary file that the BERT model was trained on.")
+flags.DEFINE_string(
+    "vocab_file", None, "The vocabulary file that the BERT model was trained on."
+)
 
 flags.DEFINE_string(
-    "output_dir", None,
-    "The output directory where the model checkpoints will be written.")
+    "output_dir",
+    None,
+    "The output directory where the model checkpoints will be written.",
+)
 
 flags.DEFINE_bool(
-    "do_lower_case", True,
+    "do_lower_case",
+    True,
     "Whether to lower case the input text. Should be True for uncased "
-    "models and False for cased models.")
+    "models and False for cased models.",
+)
 
 flags.DEFINE_integer(
-    "max_seq_length", 384,
+    "max_seq_length",
+    384,
     "The maximum total input sequence length after WordPiece tokenization. "
     "Sequences longer than this will be truncated, and sequences shorter "
-    "than this will be padded.")
+    "than this will be padded.",
+)
 
 flags.DEFINE_integer(
-    "doc_stride", 128,
+    "doc_stride",
+    128,
     "When splitting up a long document into chunks, how much stride to "
-    "take between chunks.")
+    "take between chunks.",
+)
 
 flags.DEFINE_integer(
-    "max_query_length", 64,
+    "max_query_length",
+    64,
     "The maximum number of tokens for the question. Questions longer than "
-    "this will be truncated to this length.")
+    "this will be truncated to this length.",
+)
 
-flags.DEFINE_integer("predict_batch_size", 8,
-                     "Total batch size for predictions.")
+flags.DEFINE_integer("predict_batch_size", 8, "Total batch size for predictions.")
 
 flags.DEFINE_integer(
-    "n_best_size", 20,
+    "n_best_size",
+    20,
     "The total number of n-best predictions to generate in the "
-    "nbest_predictions.json output file.")
+    "nbest_predictions.json output file.",
+)
 
 flags.DEFINE_integer(
-    "max_answer_length", 30,
+    "max_answer_length",
+    30,
     "The maximum length of an answer that can be generated. This is needed "
-    "because the start and end predictions are not conditioned on one another.")
+    "because the start and end predictions are not conditioned on one another.",
+)
 
 flags.DEFINE_bool(
-    "version_2_with_negative", False,
-    "If true, the SQuAD examples contain some that do not have an answer.")
+    "version_2_with_negative",
+    False,
+    "If true, the SQuAD examples contain some that do not have an answer.",
+)
 
 flags.DEFINE_bool(
-    "verbose_logging", False,
+    "verbose_logging",
+    False,
     "If true, all of the warnings related to data processing will be printed. "
-    "A number of warnings are expected for a normal SQuAD evaluation.")
+    "A number of warnings are expected for a normal SQuAD evaluation.",
+)
 flags.DEFINE_bool(
-    "trt_engine", False,
-    "If true, expects a trt engine defined input/output")
+    "trt_engine", False, "If true, expects a trt engine defined input/output"
+)
 
 # Triton Specific flags
-flags.DEFINE_string("triton_model_name", "bert", "exports to appropriate directory for Triton")
-flags.DEFINE_integer("triton_model_version", 1, "exports to appropriate directory for Triton")
-flags.DEFINE_string("triton_server_url", "localhost:8001", "exports to appropriate directory for Triton")
+flags.DEFINE_string(
+    "triton_model_name", "bert", "exports to appropriate directory for Triton"
+)
+flags.DEFINE_integer(
+    "triton_model_version", 1, "exports to appropriate directory for Triton"
+)
+flags.DEFINE_string(
+    "triton_server_url", "localhost:8001", "exports to appropriate directory for Triton"
+)
 
 # Input Text for Inference
 flags.DEFINE_string("question", None, "Question for Inference")
 flags.DEFINE_string("context", None, "Context for Inference")
 flags.DEFINE_string(
-    "predict_file", None,
-    "SQuAD json for predictions. E.g., dev-v1.1.json or test-v1.1.json")
+    "predict_file",
+    None,
+    "SQuAD json for predictions. E.g., dev-v1.1.json or test-v1.1.json",
+)
 
 
 # Set this to either 'label_ids' for Google bert or 'unique_ids' for JoC
@@ -108,11 +135,13 @@ class UserData:
     def __init__(self):
         self._completed_requests = queue.Queue()
 
+
 # Callback function used for async_run(), it can capture
 # additional information using functools.partial as long as the last
 # two arguments are reserved for InferContext and request id
 def completion_callback(user_data, idx, start_time, inputs, result, error):
     user_data._completed_requests.put((result, error, idx, start_time, inputs))
+
 
 def batch(iterable, n=1):
     l = len(iterable)
@@ -121,24 +150,44 @@ def batch(iterable, n=1):
         input_ids_data = ()
         input_mask_data = ()
         segment_ids_data = ()
-        for i in range(0, min(n, l-ndx)):
-            label_ids_data = label_ids_data + (np.array([iterable[ndx + i].unique_id], dtype=np.int32),)
-            input_ids_data = input_ids_data+ (np.array(iterable[ndx + i].input_ids, dtype=np.int32),)
-            input_mask_data = input_mask_data+ (np.array(iterable[ndx + i].input_mask, dtype=np.int32),)
-            segment_ids_data = segment_ids_data+ (np.array(iterable[ndx + i].segment_ids, dtype=np.int32),)
-        if FLAGS.trt_engine and len(label_ids_data) != n: #TRT needs exact batch size. Pad as necessary
+        for i in range(0, min(n, l - ndx)):
+            label_ids_data = label_ids_data + (
+                np.array([iterable[ndx + i].unique_id], dtype=np.int32),
+            )
+            input_ids_data = input_ids_data + (
+                np.array(iterable[ndx + i].input_ids, dtype=np.int32),
+            )
+            input_mask_data = input_mask_data + (
+                np.array(iterable[ndx + i].input_mask, dtype=np.int32),
+            )
+            segment_ids_data = segment_ids_data + (
+                np.array(iterable[ndx + i].segment_ids, dtype=np.int32),
+            )
+        if (
+            FLAGS.trt_engine and len(label_ids_data) != n
+        ):  # TRT needs exact batch size. Pad as necessary
             pad_size = n - len(label_ids_data)
-            label_ids_data = label_ids_data + ((np.array([0], dtype=np.int32),) * pad_size)
-            input_ids_data = input_ids_data + ((np.zeros(FLAGS.max_seq_length, dtype=np.int32),) * pad_size)
-            input_mask_data = input_mask_data + ((np.zeros(FLAGS.max_seq_length, dtype=np.int32),) * pad_size)
-            segment_ids_data = segment_ids_data + ((np.zeros(FLAGS.max_seq_length, dtype=np.int32),) * pad_size)
+            label_ids_data = label_ids_data + (
+                (np.array([0], dtype=np.int32),) * pad_size
+            )
+            input_ids_data = input_ids_data + (
+                (np.zeros(FLAGS.max_seq_length, dtype=np.int32),) * pad_size
+            )
+            input_mask_data = input_mask_data + (
+                (np.zeros(FLAGS.max_seq_length, dtype=np.int32),) * pad_size
+            )
+            segment_ids_data = segment_ids_data + (
+                (np.zeros(FLAGS.max_seq_length, dtype=np.int32),) * pad_size
+            )
 
-
-        inputs_dict = {label_id_key: label_ids_data,
-                       'input_ids': input_ids_data,
-                       'input_mask': input_mask_data,
-                       'segment_ids': segment_ids_data}
+        inputs_dict = {
+            label_id_key: label_ids_data,
+            "input_ids": input_ids_data,
+            "input_mask": input_mask_data,
+            "segment_ids": segment_ids_data,
+        }
         yield inputs_dict
+
 
 def main(_):
     """
@@ -148,30 +197,49 @@ def main(_):
     :param question_id: int
     :return:
     """
-    os.environ["TF_XLA_FLAGS"] = "--tf_xla_enable_lazy_compilation=false" #causes memory fragmentation for bert leading to OOM
+    os.environ[
+        "TF_XLA_FLAGS"
+    ] = "--tf_xla_enable_lazy_compilation=false"  # causes memory fragmentation for bert leading to OOM
 
     tf.compat.v1.logging.info("***** Configuaration *****")
     for key in FLAGS.__flags.keys():
-      tf.compat.v1.logging.info('  {}: {}'.format(key, getattr(FLAGS, key)))
+        tf.compat.v1.logging.info("  {}: {}".format(key, getattr(FLAGS, key)))
     tf.compat.v1.logging.info("**************************")
 
-    tokenizer = tokenization.FullTokenizer(vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
+    tokenizer = tokenization.FullTokenizer(
+        vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case
+    )
 
     # Get the Data
     if FLAGS.question and FLAGS.context:
-        input_data = [{"paragraphs":[{"context":FLAGS.context,
-                        "qas":[{"id":0, "question":FLAGS.question}]}]}]
-        eval_examples = read_squad_examples(input_file=None, is_training=False,
-            version_2_with_negative=FLAGS.version_2_with_negative, input_data=input_data)
+        input_data = [
+            {
+                "paragraphs": [
+                    {
+                        "context": FLAGS.context,
+                        "qas": [{"id": 0, "question": FLAGS.question}],
+                    }
+                ]
+            }
+        ]
+        eval_examples = read_squad_examples(
+            input_file=None,
+            is_training=False,
+            version_2_with_negative=FLAGS.version_2_with_negative,
+            input_data=input_data,
+        )
     elif FLAGS.predict_file:
         eval_examples = read_squad_examples(
-            input_file=FLAGS.predict_file, is_training=False,
-            version_2_with_negative=FLAGS.version_2_with_negative)
+            input_file=FLAGS.predict_file,
+            is_training=False,
+            version_2_with_negative=FLAGS.version_2_with_negative,
+        )
     else:
         raise ValueError("Either predict_file or question+answer need to defined")
 
     # Get Eval Features = Preprocessing
     eval_features = []
+
     def append_feature(feature):
         eval_features.append(feature)
 
@@ -182,9 +250,10 @@ def main(_):
         doc_stride=FLAGS.doc_stride,
         max_query_length=FLAGS.max_query_length,
         is_training=False,
-        output_fn=append_feature)
+        output_fn=append_feature,
+    )
 
-    protocol_str = 'grpc' # http or grpc
+    protocol_str = "grpc"  # http or grpc
     url = FLAGS.triton_server_url
     verbose = False
     model_name = FLAGS.triton_model_name
@@ -193,9 +262,11 @@ def main(_):
 
     triton_client = tritongrpcclient.InferenceServerClient(url, verbose)
     model_metadata = triton_client.get_model_metadata(
-        model_name=model_name, model_version=model_version)
+        model_name=model_name, model_version=model_version
+    )
     model_config = triton_client.get_model_config(
-        model_name=model_name, model_version=model_version)
+        model_name=model_name, model_version=model_version
+    )
 
     user_data = UserData()
 
@@ -208,18 +279,18 @@ def main(_):
 
     def process_outstanding(do_wait, outstanding):
 
-        if (outstanding == 0 or do_wait is False):
+        if outstanding == 0 or do_wait is False:
             return outstanding
 
         # Wait for deferred items from callback functions
         (result, error, idx, start_time, inputs) = user_data._completed_requests.get()
 
-        if (result is None):
+        if result is None:
             return outstanding
 
         stop = time.time()
 
-        if (error is not None):
+        if error is not None:
             raise ValueError("Context returned null for async id marked as done")
 
         outstanding -= 1
@@ -229,12 +300,16 @@ def main(_):
         batch_count = len(inputs[label_id_key])
         if FLAGS.trt_engine:
             cls_squad_logits = result.as_numpy("cls_squad_logits")
-            try: #when batch size > 1
+            try:  # when batch size > 1
                 start_logits_results = np.array(cls_squad_logits.squeeze()[:, :, 0])
                 end_logits_results = np.array(cls_squad_logits.squeeze()[:, :, 1])
             except:
-                start_logits_results = np.expand_dims(np.array(cls_squad_logits.squeeze()[:, 0]), axis=0)
-                end_logits_results = np.expand_dims(np.array(cls_squad_logits.squeeze()[:, 1]), axis=0)
+                start_logits_results = np.expand_dims(
+                    np.array(cls_squad_logits.squeeze()[:, 0]), axis=0
+                )
+                end_logits_results = np.expand_dims(
+                    np.array(cls_squad_logits.squeeze()[:, 1]), axis=0
+                )
         else:
             start_logits_results = result.as_numpy("start_logits")
             end_logits_results = result.as_numpy("end_logits")
@@ -246,7 +321,9 @@ def main(_):
                 RawResult(
                     unique_id=unique_id,
                     start_logits=start_logits,
-                    end_logits=end_logits))
+                    end_logits=end_logits,
+                )
+            )
 
         recv_prog.update(n=batch_count)
         return outstanding
@@ -264,27 +341,35 @@ def main(_):
 
         if not FLAGS.trt_engine:
             label_ids_data = np.stack(inputs_dict[label_id_key])
-        input_ids_data = np.stack(inputs_dict['input_ids'])
-        input_mask_data = np.stack(inputs_dict['input_mask'])
-        segment_ids_data = np.stack(inputs_dict['segment_ids'])
+        input_ids_data = np.stack(inputs_dict["input_ids"])
+        input_mask_data = np.stack(inputs_dict["input_mask"])
+        segment_ids_data = np.stack(inputs_dict["segment_ids"])
 
         inputs = []
-        inputs.append(tritongrpcclient.InferInput('input_ids', input_ids_data.shape, "INT32"))
+        inputs.append(
+            tritongrpcclient.InferInput("input_ids", input_ids_data.shape, "INT32")
+        )
         inputs[0].set_data_from_numpy(input_ids_data)
-        inputs.append(tritongrpcclient.InferInput('input_mask', input_mask_data.shape, "INT32"))
+        inputs.append(
+            tritongrpcclient.InferInput("input_mask", input_mask_data.shape, "INT32")
+        )
         inputs[1].set_data_from_numpy(input_mask_data)
-        inputs.append(tritongrpcclient.InferInput('segment_ids', segment_ids_data.shape, "INT32"))
+        inputs.append(
+            tritongrpcclient.InferInput("segment_ids", segment_ids_data.shape, "INT32")
+        )
         inputs[2].set_data_from_numpy(segment_ids_data)
         if not FLAGS.trt_engine:
-            inputs.append(tritongrpcclient.InferInput(label_id_key, label_ids_data.shape, "INT32"))
+            inputs.append(
+                tritongrpcclient.InferInput(label_id_key, label_ids_data.shape, "INT32")
+            )
             inputs[3].set_data_from_numpy(label_ids_data)
 
         outputs = []
         if FLAGS.trt_engine:
-            outputs.append(tritongrpcclient.InferRequestedOutput('cls_squad_logits'))
+            outputs.append(tritongrpcclient.InferRequestedOutput("cls_squad_logits"))
         else:
-            outputs.append(tritongrpcclient.InferRequestedOutput('start_logits'))
-            outputs.append(tritongrpcclient.InferRequestedOutput('end_logits'))
+            outputs.append(tritongrpcclient.InferRequestedOutput("start_logits"))
+            outputs.append(tritongrpcclient.InferRequestedOutput("end_logits"))
 
         start_time = time.time()
         triton_client.async_infer(
@@ -293,7 +378,8 @@ def main(_):
             partial(completion_callback, user_data, idx, start_time, inputs_dict),
             request_id=str(idx),
             model_version=model_version,
-            outputs=outputs)
+            outputs=outputs,
+        )
         outstanding += 1
         idx += 1
 
@@ -302,10 +388,14 @@ def main(_):
         # Try to process at least one response per request
         outstanding = process_outstanding(outstanding >= max_outstanding, outstanding)
 
-    tqdm.tqdm.write("All Requests Sent! Waiting for responses. Outstanding: {}.\n".format(outstanding))
+    tqdm.tqdm.write(
+        "All Requests Sent! Waiting for responses. Outstanding: {}.\n".format(
+            outstanding
+        )
+    )
 
     # Now process all outstanding requests
-    while (outstanding > 0):
+    while outstanding > 0:
         outstanding = process_outstanding(True, outstanding)
 
     all_results_end = time.time()
@@ -316,9 +406,14 @@ def main(_):
     print("-----------------------------")
 
     print("-----------------------------")
-    print("Total Inference Time = %0.2f for"
-          "Sentences processed = %d" % (sum(time_list), len(eval_features)))
-    print("Throughput Average (sentences/sec) = %0.2f" % (len(eval_features) / all_results_total * 1000.0))
+    print(
+        "Total Inference Time = %0.2f for"
+        "Sentences processed = %d" % (sum(time_list), len(eval_features))
+    )
+    print(
+        "Throughput Average (sentences/sec) = %0.2f"
+        % (len(eval_features) / all_results_total * 1000.0)
+    )
     print("-----------------------------")
 
     if FLAGS.output_dir and FLAGS.predict_file:
@@ -326,9 +421,9 @@ def main(_):
         time_list.sort()
 
         avg = np.mean(time_list)
-        cf_95 = max(time_list[:int(len(time_list) * 0.95)])
-        cf_99 = max(time_list[:int(len(time_list) * 0.99)])
-        cf_100 = max(time_list[:int(len(time_list) * 1)])
+        cf_95 = max(time_list[: int(len(time_list) * 0.95)])
+        cf_99 = max(time_list[: int(len(time_list) * 0.99)])
+        cf_100 = max(time_list[: int(len(time_list) * 1)])
         print("-----------------------------")
         print("Summary Statistics")
         print("Batch size =", FLAGS.predict_batch_size)
@@ -339,27 +434,41 @@ def main(_):
         print("Latency Average (ms)  =", avg * 1000)
         print("-----------------------------")
 
-
         output_prediction_file = os.path.join(FLAGS.output_dir, "predictions.json")
         output_nbest_file = os.path.join(FLAGS.output_dir, "nbest_predictions.json")
         output_null_log_odds_file = os.path.join(FLAGS.output_dir, "null_odds.json")
 
-        write_predictions(eval_examples, eval_features, all_results,
-                          FLAGS.n_best_size, FLAGS.max_answer_length,
-                          FLAGS.do_lower_case, output_prediction_file,
-                          output_nbest_file, output_null_log_odds_file,
-                          FLAGS.version_2_with_negative, FLAGS.verbose_logging)
+        write_predictions(
+            eval_examples,
+            eval_features,
+            all_results,
+            FLAGS.n_best_size,
+            FLAGS.max_answer_length,
+            FLAGS.do_lower_case,
+            output_prediction_file,
+            output_nbest_file,
+            output_null_log_odds_file,
+            FLAGS.version_2_with_negative,
+            FLAGS.verbose_logging,
+        )
     else:
         # When inferencing on a single example, write best answer to stdout
         all_predictions, all_nbest_json, scores_diff_json = get_predictions(
-                  eval_examples, eval_features, all_results,
-                  FLAGS.n_best_size, FLAGS.max_answer_length,
-                  FLAGS.do_lower_case, FLAGS.version_2_with_negative,
-                  FLAGS.verbose_logging)
-        print("Context is: %s \n\nQuestion is: %s \n\nPredicted Answer is: %s" %(FLAGS.context, FLAGS.question, all_predictions[0]))
+            eval_examples,
+            eval_features,
+            all_results,
+            FLAGS.n_best_size,
+            FLAGS.max_answer_length,
+            FLAGS.do_lower_case,
+            FLAGS.version_2_with_negative,
+            FLAGS.verbose_logging,
+        )
+        print(
+            "Context is: %s \n\nQuestion is: %s \n\nPredicted Answer is: %s"
+            % (FLAGS.context, FLAGS.question, all_predictions[0])
+        )
 
 
 if __name__ == "__main__":
-  flags.mark_flag_as_required("vocab_file")
-  tf.compat.v1.app.run()
-
+    flags.mark_flag_as_required("vocab_file")
+    tf.compat.v1.app.run()

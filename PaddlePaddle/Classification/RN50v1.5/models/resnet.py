@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import math
+
 import paddle
-from paddle import ParamAttr
 import paddle.nn as nn
-from paddle.nn import Conv2D, BatchNorm, Linear
-from paddle.nn import AdaptiveAvgPool2D, MaxPool2D, AvgPool2D
-from paddle.nn.initializer import Uniform, Constant, KaimingNormal
+from paddle import ParamAttr
+from paddle.nn import (AdaptiveAvgPool2D, AvgPool2D, BatchNorm, Conv2D, Linear,
+                       MaxPool2D)
+from paddle.nn.initializer import Constant, KaimingNormal, Uniform
 
 MODELS = ["ResNet50"]
 
@@ -26,20 +27,21 @@ __all__ = MODELS
 
 
 class ConvBNLayer(nn.Layer):
-    def __init__(self,
-                 num_channels,
-                 num_filters,
-                 filter_size,
-                 stride=1,
-                 groups=1,
-                 act=None,
-                 lr_mult=1.0,
-                 data_format="NCHW",
-                 bn_weight_decay=True):
+    def __init__(
+        self,
+        num_channels,
+        num_filters,
+        filter_size,
+        stride=1,
+        groups=1,
+        act=None,
+        lr_mult=1.0,
+        data_format="NCHW",
+        bn_weight_decay=True,
+    ):
         super().__init__()
         self.act = act
-        self.avg_pool = AvgPool2D(
-            kernel_size=2, stride=2, padding=0, ceil_mode=True)
+        self.avg_pool = AvgPool2D(kernel_size=2, stride=2, padding=0, ceil_mode=True)
         self.conv = Conv2D(
             in_channels=num_channels,
             out_channels=num_filters,
@@ -47,23 +49,28 @@ class ConvBNLayer(nn.Layer):
             stride=stride,
             padding=(filter_size - 1) // 2,
             groups=groups,
-            weight_attr=ParamAttr(
-                learning_rate=lr_mult, initializer=KaimingNormal()),
+            weight_attr=ParamAttr(learning_rate=lr_mult, initializer=KaimingNormal()),
             bias_attr=False,
-            data_format=data_format)
+            data_format=data_format,
+        )
         self.bn = BatchNorm(
             num_filters,
             param_attr=ParamAttr(
                 learning_rate=lr_mult,
                 regularizer=None
-                if bn_weight_decay else paddle.regularizer.L2Decay(0.0),
-                initializer=Constant(1.0)),
+                if bn_weight_decay
+                else paddle.regularizer.L2Decay(0.0),
+                initializer=Constant(1.0),
+            ),
             bias_attr=ParamAttr(
                 learning_rate=lr_mult,
                 regularizer=None
-                if bn_weight_decay else paddle.regularizer.L2Decay(0.0),
-                initializer=Constant(0.0)),
-            data_layout=data_format)
+                if bn_weight_decay
+                else paddle.regularizer.L2Decay(0.0),
+                initializer=Constant(0.0),
+            ),
+            data_layout=data_format,
+        )
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -75,14 +82,16 @@ class ConvBNLayer(nn.Layer):
 
 
 class BottleneckBlock(nn.Layer):
-    def __init__(self,
-                 num_channels,
-                 num_filters,
-                 stride,
-                 shortcut=True,
-                 lr_mult=1.0,
-                 data_format="NCHW",
-                 bn_weight_decay=True):
+    def __init__(
+        self,
+        num_channels,
+        num_filters,
+        stride,
+        shortcut=True,
+        lr_mult=1.0,
+        data_format="NCHW",
+        bn_weight_decay=True,
+    ):
         super().__init__()
 
         self.conv0 = ConvBNLayer(
@@ -92,7 +101,8 @@ class BottleneckBlock(nn.Layer):
             act="relu",
             lr_mult=lr_mult,
             data_format=data_format,
-            bn_weight_decay=bn_weight_decay)
+            bn_weight_decay=bn_weight_decay,
+        )
         self.conv1 = ConvBNLayer(
             num_channels=num_filters,
             num_filters=num_filters,
@@ -101,7 +111,8 @@ class BottleneckBlock(nn.Layer):
             act="relu",
             lr_mult=lr_mult,
             data_format=data_format,
-            bn_weight_decay=bn_weight_decay)
+            bn_weight_decay=bn_weight_decay,
+        )
         self.conv2 = ConvBNLayer(
             num_channels=num_filters,
             num_filters=num_filters * 4,
@@ -109,7 +120,8 @@ class BottleneckBlock(nn.Layer):
             act=None,
             lr_mult=lr_mult,
             data_format=data_format,
-            bn_weight_decay=bn_weight_decay)
+            bn_weight_decay=bn_weight_decay,
+        )
 
         if not shortcut:
             self.short = ConvBNLayer(
@@ -119,7 +131,8 @@ class BottleneckBlock(nn.Layer):
                 stride=stride,
                 lr_mult=lr_mult,
                 data_format=data_format,
-                bn_weight_decay=bn_weight_decay)
+                bn_weight_decay=bn_weight_decay,
+            )
         self.relu = nn.ReLU()
         self.shortcut = shortcut
 
@@ -139,12 +152,14 @@ class BottleneckBlock(nn.Layer):
 
 
 class ResNet(nn.Layer):
-    def __init__(self,
-                 class_num=1000,
-                 data_format="NCHW",
-                 input_image_channel=3,
-                 use_pure_fp16=False,
-                 bn_weight_decay=True):
+    def __init__(
+        self,
+        class_num=1000,
+        data_format="NCHW",
+        input_image_channel=3,
+        use_pure_fp16=False,
+        bn_weight_decay=True,
+    ):
         super().__init__()
 
         self.class_num = class_num
@@ -155,36 +170,43 @@ class ResNet(nn.Layer):
         self.use_pure_fp16 = use_pure_fp16
 
         self.stem_cfg = {
-            #num_channels, num_filters, filter_size, stride
+            # num_channels, num_filters, filter_size, stride
             "vb": [[input_image_channel, 64, 7, 2]],
         }
-        self.stem = nn.Sequential(* [
-            ConvBNLayer(
-                num_channels=in_c,
-                num_filters=out_c,
-                filter_size=k,
-                stride=s,
-                act="relu",
-                data_format=data_format,
-                bn_weight_decay=bn_weight_decay)
-            for in_c, out_c, k, s in self.stem_cfg['vb']
-        ])
+        self.stem = nn.Sequential(
+            *[
+                ConvBNLayer(
+                    num_channels=in_c,
+                    num_filters=out_c,
+                    filter_size=k,
+                    stride=s,
+                    act="relu",
+                    data_format=data_format,
+                    bn_weight_decay=bn_weight_decay,
+                )
+                for in_c, out_c, k, s in self.stem_cfg["vb"]
+            ]
+        )
 
         self.max_pool = MaxPool2D(
-            kernel_size=3, stride=2, padding=1, data_format=data_format)
+            kernel_size=3, stride=2, padding=1, data_format=data_format
+        )
         block_list = []
         for block_idx in range(len(self.block_depth)):
             shortcut = False
             for i in range(self.block_depth[block_idx]):
                 block_list.append(
                     BottleneckBlock(
-                        num_channels=self.num_channels[block_idx] if i == 0
+                        num_channels=self.num_channels[block_idx]
+                        if i == 0
                         else self.num_filters[block_idx] * self.channels_mult,
                         num_filters=self.num_filters[block_idx],
                         stride=2 if i == 0 and block_idx != 0 else 1,
                         shortcut=shortcut,
                         data_format=data_format,
-                        bn_weight_decay=bn_weight_decay))
+                        bn_weight_decay=bn_weight_decay,
+                    )
+                )
                 shortcut = True
         self.blocks = nn.Sequential(*block_list)
 
@@ -195,7 +217,8 @@ class ResNet(nn.Layer):
         self.fc = Linear(
             self.avg_pool_channels,
             self.class_num,
-            weight_attr=ParamAttr(initializer=Uniform(-stdv, stdv)))
+            weight_attr=ParamAttr(initializer=Uniform(-stdv, stdv)),
+        )
 
     def forward(self, x):
         if self.use_pure_fp16:

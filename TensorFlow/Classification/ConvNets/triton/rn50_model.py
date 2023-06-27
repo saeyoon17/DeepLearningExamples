@@ -56,7 +56,9 @@ def get_model(
     )
 
     # removed params not used in inference
-    estimator_params = {"use_final_conv": False}  # TODO: Why not moved to model constructor?
+    estimator_params = {
+        "use_final_conv": False
+    }  # TODO: Why not moved to model constructor?
     estimator = runner._get_estimator(
         mode="inference",
         run_params=estimator_params,

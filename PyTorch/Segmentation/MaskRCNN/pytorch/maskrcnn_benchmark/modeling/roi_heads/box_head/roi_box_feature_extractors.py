@@ -1,14 +1,12 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 import torch
-from torch import nn
-from torch.nn import functional as F
-
 from maskrcnn_benchmark.modeling import registry
 from maskrcnn_benchmark.modeling.backbone import resnet
+from maskrcnn_benchmark.modeling.make_layers import group_norm, make_fc
 from maskrcnn_benchmark.modeling.poolers import Pooler
-from maskrcnn_benchmark.modeling.make_layers import group_norm
-from maskrcnn_benchmark.modeling.make_layers import make_fc
+from torch import nn
+from torch.nn import functional as F
 
 
 @registry.ROI_BOX_FEATURE_EXTRACTORS.register("ResNet50Conv5ROIFeatureExtractor")
@@ -34,7 +32,7 @@ class ResNet50Conv5ROIFeatureExtractor(nn.Module):
             stride_in_1x1=config.MODEL.RESNETS.STRIDE_IN_1X1,
             stride_init=None,
             res2_out_channels=config.MODEL.RESNETS.RES2_OUT_CHANNELS,
-            dilation=config.MODEL.RESNETS.RES5_DILATION
+            dilation=config.MODEL.RESNETS.RES5_DILATION,
         )
 
         self.pooler = pooler
@@ -62,9 +60,9 @@ class FPN2MLPFeatureExtractor(nn.Module):
             output_size=(resolution, resolution),
             scales=scales,
             sampling_ratio=sampling_ratio,
-            is_nhwc=cfg.NHWC
+            is_nhwc=cfg.NHWC,
         )
-        input_size = cfg.MODEL.BACKBONE.OUT_CHANNELS * resolution ** 2
+        input_size = cfg.MODEL.BACKBONE.OUT_CHANNELS * resolution**2
         representation_size = cfg.MODEL.ROI_BOX_HEAD.MLP_HEAD_DIM
         use_gn = cfg.MODEL.ROI_BOX_HEAD.USE_GN
         self.pooler = pooler
@@ -98,7 +96,7 @@ class FPNXconv1fcFeatureExtractor(nn.Module):
             sampling_ratio=sampling_ratio,
         )
         self.pooler = pooler
-        
+
         use_gn = cfg.MODEL.ROI_BOX_HEAD.USE_GN
         in_channels = cfg.MODEL.BACKBONE.OUT_CHANNELS
         conv_head_dim = cfg.MODEL.ROI_BOX_HEAD.CONV_HEAD_DIM
@@ -115,7 +113,7 @@ class FPNXconv1fcFeatureExtractor(nn.Module):
                     stride=1,
                     padding=dilation,
                     dilation=dilation,
-                    bias=False if use_gn else True
+                    bias=False if use_gn else True,
                 )
             )
             in_channels = conv_head_dim
@@ -124,14 +122,16 @@ class FPNXconv1fcFeatureExtractor(nn.Module):
             xconvs.append(nn.ReLU(inplace=True))
 
         self.add_module("xconvs", nn.Sequential(*xconvs))
-        for modules in [self.xconvs,]:
+        for modules in [
+            self.xconvs,
+        ]:
             for l in modules.modules():
                 if isinstance(l, nn.Conv2d):
                     torch.nn.init.normal_(l.weight, std=0.01)
                     if not use_gn:
                         torch.nn.init.constant_(l.bias, 0)
 
-        input_size = conv_head_dim * resolution ** 2
+        input_size = conv_head_dim * resolution**2
         representation_size = cfg.MODEL.ROI_BOX_HEAD.MLP_HEAD_DIM
         self.fc6 = make_fc(input_size, representation_size, use_gn=False)
 
@@ -144,7 +144,5 @@ class FPNXconv1fcFeatureExtractor(nn.Module):
 
 
 def make_roi_box_feature_extractor(cfg):
-    func = registry.ROI_BOX_FEATURE_EXTRACTORS[
-        cfg.MODEL.ROI_BOX_HEAD.FEATURE_EXTRACTOR
-    ]
+    func = registry.ROI_BOX_FEATURE_EXTRACTORS[cfg.MODEL.ROI_BOX_HEAD.FEATURE_EXTRACTOR]
     return func(cfg)

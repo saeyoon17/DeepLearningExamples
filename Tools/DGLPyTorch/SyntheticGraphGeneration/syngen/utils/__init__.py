@@ -14,5 +14,5 @@
 
 # flake8: noqa
 from .gen_utils import *
-from .utils import *
 from .local_cuda_cluster_manager import LocalCudaClusterManager
+from .utils import *

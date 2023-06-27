@@ -28,14 +28,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import os
+
+import torch
 from feature_spec import FeatureSpec
-from neumf_constants import USER_CHANNEL_NAME, ITEM_CHANNEL_NAME, LABEL_CHANNEL_NAME, TEST_SAMPLES_PER_SERIES
+from neumf_constants import (ITEM_CHANNEL_NAME, LABEL_CHANNEL_NAME,
+                             TEST_SAMPLES_PER_SERIES, USER_CHANNEL_NAME)
 
 
 class TorchTensorDataset:
-    """ Warning! This dataset/loader uses torch.load. Torch.load implicitly uses pickle. Pickle is insecure.
+    """Warning! This dataset/loader uses torch.load. Torch.load implicitly uses pickle. Pickle is insecure.
     It is trivial to achieve arbitrary code execution using a prepared pickle payload. Only unpickle data you trust."""
 
     def __init__(self, feature_spec: FeatureSpec, mapping_name: str, args):
@@ -48,14 +50,23 @@ class TorchTensorDataset:
     def _load_features(self):
         chunks = self.feature_spec.source_spec[self.mapping_name]
         for chunk in chunks:
-            assert chunk['type'] == 'torch_tensor', "Only torch_tensor files supported in this loader"
-            files_list = chunk['files']
-            assert len(files_list) == 1, "Only one file per chunk supported in this loader"
+            assert (
+                chunk["type"] == "torch_tensor"
+            ), "Only torch_tensor files supported in this loader"
+            files_list = chunk["files"]
+            assert (
+                len(files_list) == 1
+            ), "Only one file per chunk supported in this loader"
             file_relative_path = files_list[0]
-            path_to_load = os.path.join(self.feature_spec.base_directory, file_relative_path)
-            chunk_data = torch.load(path_to_load, map_location=torch.device('cuda:{}'.format(self.local_rank)))
+            path_to_load = os.path.join(
+                self.feature_spec.base_directory, file_relative_path
+            )
+            chunk_data = torch.load(
+                path_to_load,
+                map_location=torch.device("cuda:{}".format(self.local_rank)),
+            )
             running_pos = 0
-            for feature_name in chunk['features']:
+            for feature_name in chunk["features"]:
                 next_running_pos = running_pos + 1
                 feature_data = chunk_data[:, running_pos:next_running_pos]
                 # This is needed because slicing instead of indexing keeps the data 2-dimensional
@@ -90,7 +101,10 @@ class TestDataLoader:
                 if not self.raw_dataset_length:
                     self.raw_dataset_length = channel_tensors[feature_name].shape[0]
                 else:
-                    assert self.raw_dataset_length == channel_tensors[feature_name].shape[0]
+                    assert (
+                        self.raw_dataset_length
+                        == channel_tensors[feature_name].shape[0]
+                    )
 
             self.data[channel_name] = channel_tensors
 
@@ -114,12 +128,18 @@ class TestDataLoader:
         user_feature_name = self.channel_spec[USER_CHANNEL_NAME][0]
         item_feature_name = self.channel_spec[ITEM_CHANNEL_NAME][0]
         label_feature_name = self.channel_spec[LABEL_CHANNEL_NAME][0]
-        self.ignore_mask_channel_name = 'mask_ch'
-        self.ignore_mask_feature_name = 'mask'
+        self.ignore_mask_channel_name = "mask_ch"
+        self.ignore_mask_feature_name = "mask"
 
-        items = self.data[ITEM_CHANNEL_NAME][item_feature_name].view(-1, self.samples_in_series)
-        users = self.data[USER_CHANNEL_NAME][user_feature_name].view(-1, self.samples_in_series)
-        labels = self.data[LABEL_CHANNEL_NAME][label_feature_name].view(-1, self.samples_in_series)
+        items = self.data[ITEM_CHANNEL_NAME][item_feature_name].view(
+            -1, self.samples_in_series
+        )
+        users = self.data[USER_CHANNEL_NAME][user_feature_name].view(
+            -1, self.samples_in_series
+        )
+        labels = self.data[LABEL_CHANNEL_NAME][label_feature_name].view(
+            -1, self.samples_in_series
+        )
 
         sorting_weights = items.float() - labels.float() * 0.5
         _, indices = torch.sort(sorting_weights)
@@ -128,7 +148,9 @@ class TestDataLoader:
         sorted_labels = torch.gather(labels, 1, indices)
         sorted_users = torch.gather(users, 1, indices)
 
-        dup_mask = sorted_items[:, 0:-1] == sorted_items[:, 1:]  # This says if a given item is equal to the next one
+        dup_mask = (
+            sorted_items[:, 0:-1] == sorted_items[:, 1:]
+        )  # This says if a given item is equal to the next one
         dup_mask = dup_mask.type(torch.bool)
         # The first item for a given user can never be a duplicate:
         dup_mask = torch.cat((torch.zeros_like(dup_mask[:, 0:1]), dup_mask), dim=1)
@@ -138,21 +160,28 @@ class TestDataLoader:
         self.data[USER_CHANNEL_NAME][user_feature_name] = sorted_users.view(-1, 1)
         self.data[LABEL_CHANNEL_NAME][label_feature_name] = sorted_labels.view(-1, 1)
         self.data[self.ignore_mask_channel_name] = dict()
-        self.data[self.ignore_mask_channel_name][self.ignore_mask_feature_name] = dup_mask.view(-1, 1)
+        self.data[self.ignore_mask_channel_name][
+            self.ignore_mask_feature_name
+        ] = dup_mask.view(-1, 1)
 
     def _split_between_devices(self):
         if self.world_size > 1:
             # DO NOT REPLACE WITH torch.chunk (number of returned chunks can silently be lower than requested).
             # It would break compatibility with small datasets.
             num_test_cases = self.raw_dataset_length / self.samples_in_series
-            smaller_batch = (int(num_test_cases // self.world_size)) * self.samples_in_series
+            smaller_batch = (
+                int(num_test_cases // self.world_size)
+            ) * self.samples_in_series
             bigger_batch = smaller_batch + self.samples_in_series
             remainder = int(num_test_cases % self.world_size)
-            samples_per_card = [bigger_batch] * remainder + [smaller_batch] * (self.world_size - remainder)
+            samples_per_card = [bigger_batch] * remainder + [smaller_batch] * (
+                self.world_size - remainder
+            )
             for channel_name, channel_dict in self.data.items():
                 for feature_name, feature_tensor in channel_dict.items():
-                    channel_dict[feature_name] = \
-                        channel_dict[feature_name].split(samples_per_card)[self.local_rank]
+                    channel_dict[feature_name] = channel_dict[feature_name].split(
+                        samples_per_card
+                    )[self.local_rank]
 
     def _split_into_batches(self):
         self.batches = None
@@ -162,7 +191,9 @@ class TestDataLoader:
                 feature_batches = feature_tensor.view(-1).split(self.batch_size)
                 if not self.batches:
                     self.batches = list(
-                        {channel_name: dict() for channel_name in self.data.keys()} for _ in feature_batches)
+                        {channel_name: dict() for channel_name in self.data.keys()}
+                        for _ in feature_batches
+                    )
                 for pos, feature_batch_data in enumerate(feature_batches):
                     self.batches[pos][channel_name][feature_name] = feature_batch_data
 
@@ -189,7 +220,9 @@ class TrainDataloader:
         self.data = dict()
         self.raw_dataset_length = None  # first feature loaded sets this
         self._build_channel_dict()
-        self.length_after_augmentation = self.raw_dataset_length * (self.negative_samples + 1)
+        self.length_after_augmentation = self.raw_dataset_length * (
+            self.negative_samples + 1
+        )
         samples_per_worker = self.length_after_augmentation / args.world_size
         self.samples_begin = int(samples_per_worker * args.local_rank)
         self.samples_end = int(samples_per_worker * (args.local_rank + 1))
@@ -202,7 +235,10 @@ class TrainDataloader:
                 if not self.raw_dataset_length:
                     self.raw_dataset_length = channel_tensors[feature_name].shape[0]
                 else:
-                    assert self.raw_dataset_length == channel_tensors[feature_name].shape[0]
+                    assert (
+                        self.raw_dataset_length
+                        == channel_tensors[feature_name].shape[0]
+                    )
             self.data[channel_name] = channel_tensors
 
     def get_epoch_data(self):
@@ -222,22 +258,32 @@ class TrainDataloader:
 
         # ITEM
         item_tensor = self.data[ITEM_CHANNEL_NAME][item_feature_name]
-        neg_items = torch.empty_like(item_tensor).repeat(self.negative_samples, 1) \
-            .random_(0, self.feature_spec.feature_spec[item_feature_name]['cardinality'])
+        neg_items = (
+            torch.empty_like(item_tensor)
+            .repeat(self.negative_samples, 1)
+            .random_(
+                0, self.feature_spec.feature_spec[item_feature_name]["cardinality"]
+            )
+        )
         augmented_items = torch.cat((item_tensor, neg_items))
         augmented_data[ITEM_CHANNEL_NAME][item_feature_name] = augmented_items
         del neg_items
 
         # LABEL
         label_tensor = self.data[LABEL_CHANNEL_NAME][label_feature_name]
-        neg_label = torch.zeros_like(label_tensor, dtype=torch.float32).repeat(self.negative_samples, 1)
+        neg_label = torch.zeros_like(label_tensor, dtype=torch.float32).repeat(
+            self.negative_samples, 1
+        )
         augmented_labels = torch.cat((label_tensor, neg_label))
         del neg_label
         augmented_data[LABEL_CHANNEL_NAME][label_feature_name] = augmented_labels
 
         # Labels are not shuffled between cards.
         # This replicates previous behaviour.
-        epoch_indices = torch.randperm(self.samples_end - self.samples_begin, device='cuda:{}'.format(self.local_rank))
+        epoch_indices = torch.randperm(
+            self.samples_end - self.samples_begin,
+            device="cuda:{}".format(self.local_rank),
+        )
         epoch_indices += self.samples_begin
 
         batches = None
@@ -245,9 +291,14 @@ class TrainDataloader:
             for feature_name, feature_tensor in channel_dict.items():
                 # the last batch will almost certainly be smaller, drop it
                 # Warning: may not work if there's only one
-                feature_batches = feature_tensor.view(-1)[epoch_indices].split(self.local_batch)[:-1]
+                feature_batches = feature_tensor.view(-1)[epoch_indices].split(
+                    self.local_batch
+                )[:-1]
                 if not batches:
-                    batches = list({channel_name: dict() for channel_name in self.data.keys()} for _ in feature_batches)
+                    batches = list(
+                        {channel_name: dict() for channel_name in self.data.keys()}
+                        for _ in feature_batches
+                    )
                 for pos, feature_batch_data in enumerate(feature_batches):
                     batches[pos][channel_name][feature_name] = feature_batch_data
 

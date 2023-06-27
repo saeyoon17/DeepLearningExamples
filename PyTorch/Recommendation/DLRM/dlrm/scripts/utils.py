@@ -21,7 +21,6 @@ from collections import defaultdict, deque
 import dllogger
 import torch
 import torch.distributed as dist
-
 from dlrm.utils.distributed import is_dist_avail_and_initialized
 
 
@@ -49,7 +48,7 @@ class SmoothedValue(object):
         """
         if not is_dist_avail_and_initialized():
             return
-        t = torch.tensor([self.count, self.total], dtype=torch.float64, device='cuda')
+        t = torch.tensor([self.count, self.total], dtype=torch.float64, device="cuda")
         dist.barrier()
         dist.all_reduce(t)
         t = t.tolist()
@@ -84,7 +83,8 @@ class SmoothedValue(object):
             avg=self.avg,
             global_avg=self.global_avg,
             max=self.max,
-            value=self.value)
+            value=self.value,
+        )
 
 
 class MetricLogger(object):
@@ -104,15 +104,14 @@ class MetricLogger(object):
             return self.meters[attr]
         if attr in self.__dict__:
             return self.__dict__[attr]
-        raise AttributeError("'{}' object has no attribute '{}'".format(
-            type(self).__name__, attr))
+        raise AttributeError(
+            "'{}' object has no attribute '{}'".format(type(self).__name__, attr)
+        )
 
     def __str__(self):
         loss_str = []
         for name, meter in self.meters.items():
-            loss_str.append(
-                "{}: {}".format(name, str(meter))
-            )
+            loss_str.append("{}: {}".format(name, str(meter)))
         return self.delimiter.join(loss_str)
 
     def synchronize_between_processes(self):
@@ -124,7 +123,7 @@ class MetricLogger(object):
 
     def print(self, header=None):
         if not header:
-            header = ''
+            header = ""
         print_str = header
         for name, meter in self.meters.items():
             print_str += f"  {name}: {meter}"
@@ -148,17 +147,25 @@ def accuracy(output, target, topk=(1,)):
         return res
 
 
-def lr_step(optim, num_warmup_iter, current_step, base_lr, warmup_factor, decay_steps=0, decay_start_step=None):
+def lr_step(
+    optim,
+    num_warmup_iter,
+    current_step,
+    base_lr,
+    warmup_factor,
+    decay_steps=0,
+    decay_start_step=None,
+):
     if decay_start_step is None:
         decay_start_step = num_warmup_iter
 
     new_lr = base_lr
 
     if decay_start_step < num_warmup_iter:
-        raise ValueError('Learning rate warmup must finish before decay starts')
+        raise ValueError("Learning rate warmup must finish before decay starts")
 
     if current_step <= num_warmup_iter:
-        warmup_step = base_lr / (num_warmup_iter * (2 ** warmup_factor))
+        warmup_step = base_lr / (num_warmup_iter * (2**warmup_factor))
         new_lr = base_lr - (num_warmup_iter - current_step) * warmup_step
 
     steps_since_decay_start = current_step - decay_start_step
@@ -169,7 +176,7 @@ def lr_step(optim, num_warmup_iter, current_step, base_lr, warmup_factor, decay_
         new_lr = max(min_lr, new_lr)
 
     for param_group in optim.param_groups:
-        param_group['lr'] = new_lr
+        param_group["lr"] = new_lr
 
 
 def mkdir(path):
@@ -181,16 +188,17 @@ def mkdir(path):
 
 
 def init_logging(log_path):
-    json_backend = dllogger.JSONStreamBackend(verbosity=dllogger.Verbosity.VERBOSE,
-                                              filename=log_path)
+    json_backend = dllogger.JSONStreamBackend(
+        verbosity=dllogger.Verbosity.VERBOSE, filename=log_path
+    )
     stdout_backend = dllogger.StdOutBackend(verbosity=dllogger.Verbosity.VERBOSE)
 
-    stdout_backend._metadata['best_auc'].update({'format': '0:.5f'})
-    stdout_backend._metadata['best_epoch'].update({'format': '0:.2f'})
-    stdout_backend._metadata['average_train_throughput'].update({'format': ':.2e'})
-    stdout_backend._metadata['average_test_throughput'].update({'format': ':.2e'})
-    stdout_backend._metadata['training_loss'].update({'format': '0:.5f'})
-    stdout_backend._metadata['best_validation_loss'].update({'format': '0:.5f'})
+    stdout_backend._metadata["best_auc"].update({"format": "0:.5f"})
+    stdout_backend._metadata["best_epoch"].update({"format": "0:.2f"})
+    stdout_backend._metadata["average_train_throughput"].update({"format": ":.2e"})
+    stdout_backend._metadata["average_test_throughput"].update({"format": ":.2e"})
+    stdout_backend._metadata["training_loss"].update({"format": "0:.5f"})
+    stdout_backend._metadata["best_validation_loss"].update({"format": "0:.5f"})
 
     dllogger.init(backends=[json_backend, stdout_backend])
 
@@ -204,7 +212,7 @@ def init_logging(log_path):
     dllogger.metadata("mean_inference_throughput_batch_4096", {"unit": "samples/s"})
 
 
-class StepTimer():
+class StepTimer:
     def __init__(self):
         self._previous = None
         self._new = None
@@ -247,8 +255,17 @@ class LearningRateScheduler:
             # foward, backward, weight update
     """
 
-    def __init__(self, optimizers, base_lrs, warmup_steps, warmup_factor,
-                 decay_steps, decay_start_step, decay_power=2, end_lr_factor=0):
+    def __init__(
+        self,
+        optimizers,
+        base_lrs,
+        warmup_steps,
+        warmup_factor,
+        decay_steps,
+        decay_start_step,
+        decay_power=2,
+        end_lr_factor=0,
+    ):
         self.current_step = 0
         self.optimizers = optimizers
         self.base_lrs = base_lrs
@@ -261,16 +278,18 @@ class LearningRateScheduler:
         self.decay_end_step = self.decay_start_step + self.decay_steps
 
         if self.decay_start_step < self.warmup_steps:
-            raise ValueError('Learning rate warmup must finish before decay starts')
+            raise ValueError("Learning rate warmup must finish before decay starts")
 
     def _compute_lr_factor(self):
         lr_factor = 1
 
         if self.current_step <= self.warmup_steps:
-            warmup_step = 1 / (self.warmup_steps * (2 ** self.warmup_factor))
+            warmup_step = 1 / (self.warmup_steps * (2**self.warmup_factor))
             lr_factor = 1 - (self.warmup_steps - self.current_step) * warmup_step
         elif self.decay_start_step < self.current_step <= self.decay_end_step:
-            lr_factor = ((self.decay_end_step - self.current_step) / self.decay_steps) ** self.decay_power
+            lr_factor = (
+                (self.decay_end_step - self.current_step) / self.decay_steps
+            ) ** self.decay_power
             lr_factor = max(lr_factor, self.end_lr_factor)
         elif self.current_step > self.decay_end_step:
             lr_factor = self.end_lr_factor
@@ -283,7 +302,7 @@ class LearningRateScheduler:
 
         for optim, base_lrs in zip(self.optimizers, self.base_lrs):
             for group_id, base_lr in enumerate(base_lrs):
-                optim.param_groups[group_id]['lr'] = base_lr * lr_factor
+                optim.param_groups[group_id]["lr"] = base_lr * lr_factor
 
 
 def roc_auc_score(y_true, y_score):
@@ -297,14 +316,20 @@ def roc_auc_score(y_true, y_score):
     y_true.squeeze_()
     y_score.squeeze_()
     if y_true.shape != y_score.shape:
-        raise TypeError(f"Shape of y_true and y_score must match. Got {y_true.shape()} and {y_score.shape()}.")
+        raise TypeError(
+            f"Shape of y_true and y_score must match. Got {y_true.shape()} and {y_score.shape()}."
+        )
 
     desc_score_indices = torch.argsort(y_score, descending=True)
     y_score = y_score[desc_score_indices]
     y_true = y_true[desc_score_indices]
 
-    distinct_value_indices = torch.nonzero(y_score[1:] - y_score[:-1], as_tuple=False).squeeze()
-    threshold_idxs = torch.cat([distinct_value_indices, torch.tensor([y_true.numel() - 1], device=device)])
+    distinct_value_indices = torch.nonzero(
+        y_score[1:] - y_score[:-1], as_tuple=False
+    ).squeeze()
+    threshold_idxs = torch.cat(
+        [distinct_value_indices, torch.tensor([y_true.numel() - 1], device=device)]
+    )
 
     tps = torch.cumsum(y_true, dim=0)[threshold_idxs]
     fps = 1 + threshold_idxs - tps

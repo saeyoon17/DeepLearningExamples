@@ -27,15 +27,15 @@ import os
 from itertools import chain
 
 import numpy as np
-import torch
-
 import pycuda.autoinit
 import pycuda.driver as cuda
 import tensorrt as trt
+import torch
 
 ##
 # Common
 ##
+
 
 def GiB(val):
     return val * 1 << 30
@@ -69,7 +69,7 @@ def set_input_shapes(engine, context, inputs):
             context.set_shape_input(idx, tensor)
         elif is_shape_dynamic(engine.get_binding_shape(idx)):
             context.set_binding_shape(idx, tensor.shape)
-    
+
     return context
 
 
@@ -78,6 +78,7 @@ def set_input_shapes(engine, context, inputs):
 ##
 
 # Modified from https://github.com/NVIDIA-AI-IOT/jetbot/blob/cf3e264ae6/jetbot/tensorrt_model.py
+
 
 def torch_dtype_to_trt(dtype):
     if dtype == torch.bool:
@@ -91,7 +92,7 @@ def torch_dtype_to_trt(dtype):
     elif dtype == torch.float32:
         return trt.float32
     else:
-        raise TypeError('%s is not supported by tensorrt' % dtype)
+        raise TypeError("%s is not supported by tensorrt" % dtype)
 
 
 def torch_dtype_from_trt(dtype):
@@ -106,32 +107,36 @@ def torch_dtype_from_trt(dtype):
     elif dtype == trt.float32:
         return torch.float32
     else:
-        raise TypeError('%s is not supported by torch' % dtype)
+        raise TypeError("%s is not supported by torch" % dtype)
 
 
 def torch_device_to_trt(device):
-    if device.type == torch.device('cuda').type:
+    if device.type == torch.device("cuda").type:
         return trt.TensorLocation.DEVICE
-    elif device.type == torch.device('cpu').type:
+    elif device.type == torch.device("cpu").type:
         return trt.TensorLocation.HOST
     else:
-        return TypeError('%s is not supported by tensorrt' % device)
+        return TypeError("%s is not supported by tensorrt" % device)
 
 
 def torch_device_from_trt(device):
     if device == trt.TensorLocation.DEVICE:
-        return torch.device('cuda')
+        return torch.device("cuda")
     elif device == trt.TensorLocation.HOST:
-        return torch.device('cpu')
+        return torch.device("cpu")
     else:
-        return TypeError('%s is not supported by torch' % device)
+        return TypeError("%s is not supported by torch" % device)
 
 
 def create_inputs_from_torch(engine, inputs_torch):
     input_ids = input_binding_indices(engine)
     for i, idx in enumerate(input_ids):
-        inputs_torch[i] = inputs_torch[i].to(torch_device_from_trt(engine.get_location(idx)))
-        inputs_torch[i] = inputs_torch[i].type(torch_dtype_from_trt(engine.get_binding_dtype(idx)))        
+        inputs_torch[i] = inputs_torch[i].to(
+            torch_device_from_trt(engine.get_location(idx))
+        )
+        inputs_torch[i] = inputs_torch[i].type(
+            torch_dtype_from_trt(engine.get_binding_dtype(idx))
+        )
     return inputs_torch
 
 
@@ -140,7 +145,11 @@ def create_outputs_from_torch(engine, outputs_shapes=None):
     outputs = [None] * len(output_ids)
     for i, idx in enumerate(output_ids):
         dtype = torch_dtype_from_trt(engine.get_binding_dtype(idx))
-        shape = outputs_shapes[i] if outputs_shapes and outputs_shapes[i] else tuple(engine.get_binding_shape(idx))
+        shape = (
+            outputs_shapes[i]
+            if outputs_shapes and outputs_shapes[i]
+            else tuple(engine.get_binding_shape(idx))
+        )
         device = torch_device_from_trt(engine.get_location(idx))
         output = torch.empty(size=shape, dtype=dtype, device=device)
         outputs[i] = output

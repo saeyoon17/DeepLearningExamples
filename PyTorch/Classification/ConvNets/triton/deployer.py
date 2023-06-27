@@ -14,15 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-import os
-import torch
 import argparse
+import os
+import sys
+
+import torch
 import triton.deployer_lib as deployer_lib
 
 
 def get_model_args(model_args):
-    """ the arguments initialize_model will receive """
+    """the arguments initialize_model will receive"""
     parser = argparse.ArgumentParser()
     ## Required parameters by the model.
     parser.add_argument(
@@ -51,7 +52,7 @@ def get_model_args(model_args):
 
 
 def initialize_model(args):
-    """ return model, ready to trace """
+    """return model, ready to trace"""
     from image_classification.resnet import build_resnet
 
     model = build_resnet(args.config, "fanin", 1000, fused_se=False)
@@ -66,7 +67,7 @@ def initialize_model(args):
 
 
 def get_dataloader(args):
-    """ return dataloader for inference """
+    """return dataloader for inference"""
     from image_classification.dataloaders import get_synthetic_loader
 
     def data_loader():

@@ -12,19 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import glob
-from os import path
-import torch
-
-from setuptools import setup, find_packages
+import os
 from codecs import open
-from torch.utils.cpp_extension import CUDA_HOME
-from torch.utils.cpp_extension import CppExtension
-from torch.utils.cpp_extension import CUDAExtension
+from os import path
 
+import torch
+from setuptools import find_packages, setup
+from torch.utils.cpp_extension import CUDA_HOME, CppExtension, CUDAExtension
 
 here = path.abspath(path.dirname(__file__))
+
 
 def get_extensions():
     this_dir = os.path.dirname(os.path.abspath(__file__))
@@ -63,24 +61,35 @@ def get_extensions():
             define_macros=define_macros,
             extra_compile_args=extra_compile_args,
         ),
-        CUDAExtension('focal_loss_cuda', [
-            'effdet/csrc/focal_loss/focal_loss_cuda.cpp',
-            'effdet/csrc/focal_loss/focal_loss_cuda_kernel.cu',
-        ],
+        CUDAExtension(
+            "focal_loss_cuda",
+            [
+                "effdet/csrc/focal_loss/focal_loss_cuda.cpp",
+                "effdet/csrc/focal_loss/focal_loss_cuda_kernel.cu",
+            ],
             extra_compile_args={
-            'cxx': ['-O3', ],
-            'nvcc':['-O3', '-lineinfo', '-res-usage', '--use_fast_math', '--ftz=false']
-        })
+                "cxx": [
+                    "-O3",
+                ],
+                "nvcc": [
+                    "-O3",
+                    "-lineinfo",
+                    "-res-usage",
+                    "--use_fast_math",
+                    "--ftz=false",
+                ],
+            },
+        ),
     ]
 
     return ext_modules
 
 
 setup(
-    name='effdet',
+    name="effdet",
     version="0.4.1",
-    description='EfficientDet for PyTorch',
-    packages=find_packages(exclude=['data']),
+    description="EfficientDet for PyTorch",
+    packages=find_packages(exclude=["data"]),
     ext_modules=get_extensions(),
     cmdclass={"build_ext": torch.utils.cpp_extension.BuildExtension},
 )

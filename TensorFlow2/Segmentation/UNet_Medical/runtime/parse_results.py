@@ -11,14 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-import numpy as np
-
 import argparse
+import os
+
+import numpy as np
 
 
 def process_performance_stats(timestamps, batch_size, mode):
-    """ Get confidence intervals
+    """Get confidence intervals
 
     :param timestamps: Collection of timestamps
     :param batch_size: Number of samples per batch
@@ -27,8 +27,10 @@ def process_performance_stats(timestamps, batch_size, mode):
     """
     timestamps_ms = 1000 * timestamps
     throughput_imgps = (1000.0 * batch_size / timestamps_ms).mean()
-    stats = {f"throughput_{mode}": throughput_imgps,
-             f"latency_{mode}_mean": timestamps_ms.mean()}
+    stats = {
+        f"throughput_{mode}": throughput_imgps,
+        f"latency_{mode}_mean": timestamps_ms.mean(),
+    }
     for level in [90, 95, 99]:
         stats.update({f"latency_{mode}_{level}": np.percentile(timestamps_ms, level)})
 
@@ -45,12 +47,24 @@ def parse_convergence_results(path, environment):
         with open(os.path.join(path, logfile), "r") as f:
             content = f.readlines()[-1]
         if "eval_dice_score" not in content:
-            print("Evaluation score not found. The file", logfile, "might be corrupted.")
+            print(
+                "Evaluation score not found. The file", logfile, "might be corrupted."
+            )
             continue
-        dice_scores.append(float([val for val in content.split("  ")
-                                  if "eval_dice_score" in val][0].split()[-1]))
-        ce_scores.append(float([val for val in content.split("  ")
-                                if "eval_ce_loss" in val][0].split()[-1]))
+        dice_scores.append(
+            float(
+                [val for val in content.split("  ") if "eval_dice_score" in val][
+                    0
+                ].split()[-1]
+            )
+        )
+        ce_scores.append(
+            float(
+                [val for val in content.split("  ") if "eval_ce_loss" in val][
+                    0
+                ].split()[-1]
+            )
+        )
     if dice_scores:
         print("Evaluation dice score:", sum(dice_scores) / len(dice_scores))
         print("Evaluation cross-entropy loss:", sum(ce_scores) / len(ce_scores))
@@ -58,26 +72,28 @@ def parse_convergence_results(path, environment):
         print("All logfiles were corrupted, no loss was obtained.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="UNet-medical-utils")
 
-    parser.add_argument('--exec_mode',
-                        choices=['convergence', 'benchmark'],
-                        type=str,
-                        help="""Which execution mode to run the model into""")
+    parser.add_argument(
+        "--exec_mode",
+        choices=["convergence", "benchmark"],
+        type=str,
+        help="""Which execution mode to run the model into""",
+    )
 
-    parser.add_argument('--model_dir',
-                        type=str,
-                        required=True)
+    parser.add_argument("--model_dir", type=str, required=True)
 
-    parser.add_argument('--env',
-                        choices=['FP32_1GPU', 'FP32_8GPU', 'TF-AMP_1GPU', 'TF-AMP_8GPU'],
-                        type=str,
-                        required=True)
+    parser.add_argument(
+        "--env",
+        choices=["FP32_1GPU", "FP32_8GPU", "TF-AMP_1GPU", "TF-AMP_8GPU"],
+        type=str,
+        required=True,
+    )
 
     args = parser.parse_args()
-    if args.exec_mode == 'convergence':
+    if args.exec_mode == "convergence":
         parse_convergence_results(path=args.model_dir, environment=args.env)
-    elif args.exec_mode == 'benchmark':
+    elif args.exec_mode == "benchmark":
         pass
     print()

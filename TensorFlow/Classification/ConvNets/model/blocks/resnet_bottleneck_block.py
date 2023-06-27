@@ -17,12 +17,11 @@
 # ==============================================================================
 
 
+import model.blocks
+import model.layers
 import tensorflow as tf
 
-import model.layers
-import model.blocks 
-
-__all__ = ['bottleneck_block']
+__all__ = ["bottleneck_block"]
 
 
 def bottleneck_block(
@@ -32,16 +31,18 @@ def bottleneck_block(
     stride,
     cardinality=1,
     training=True,
-    data_format='NCHW',
+    data_format="NCHW",
     conv2d_hparams=None,
     batch_norm_hparams=None,
     block_name="bottleneck_block",
     use_se=False,
-    ratio=1
+    ratio=1,
 ):
 
-    if data_format not in ['NHWC', 'NCHW']:
-        raise ValueError("Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format)
+    if data_format not in ["NHWC", "NCHW"]:
+        raise ValueError(
+            "Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format
+        )
 
     if not isinstance(conv2d_hparams, tf.contrib.training.HParams):
         raise ValueError("The paramater `conv2d_hparams` is not of type `HParams`")
@@ -64,71 +65,76 @@ def bottleneck_block(
                         inputs,
                         pool_size=(1, 1),
                         strides=(stride, stride),
-                        padding='valid',
-                        data_format='channels_first' if data_format == 'NCHW' else 'channels_last',
-                        name="average_pooling2d")
+                        padding="valid",
+                        data_format="channels_first"
+                        if data_format == "NCHW"
+                        else "channels_last",
+                        name="average_pooling2d",
+                    )
             else:
                 shortcut = model.blocks.conv2d_block(
                     inputs,
                     n_channels=depth,
                     kernel_size=(1, 1),
                     strides=(stride, stride),
-                    mode='SAME',
+                    mode="SAME",
                     use_batch_norm=True,
                     activation=None,  # Applied at the end after addition with bottleneck
                     is_training=training,
                     data_format=data_format,
                     conv2d_hparams=conv2d_hparams,
-                    batch_norm_hparams=batch_norm_hparams
+                    batch_norm_hparams=batch_norm_hparams,
                 )
 
-        #cardinality_to_bottleneck_width = { 1:64, 2:40, 4:24, 8:14, 32:4, 64:4 }
-        #cardinality_to_grouped_conv_width = { 1:64, 2:80, 4:96, 8:112, 32:128, 64:256 }
-        #per_group_ck = cardinality_to_bottleneck_width[cardinality] * depth_bottleneck / 64
+        # cardinality_to_bottleneck_width = { 1:64, 2:40, 4:24, 8:14, 32:4, 64:4 }
+        # cardinality_to_grouped_conv_width = { 1:64, 2:80, 4:96, 8:112, 32:128, 64:256 }
+        # per_group_ck = cardinality_to_bottleneck_width[cardinality] * depth_bottleneck / 64
 
         bottleneck = model.blocks.conv2d_block(
             inputs,
-            #n_channels=per_group_ck * cardinality if cardinality != 1 else depth_bottleneck,
+            # n_channels=per_group_ck * cardinality if cardinality != 1 else depth_bottleneck,
             n_channels=depth_bottleneck,
             kernel_size=(1, 1),
             strides=(1, 1),
-            mode='SAME',
+            mode="SAME",
             use_batch_norm=True,
-            activation='relu',
+            activation="relu",
             is_training=training,
             data_format=data_format,
             conv2d_hparams=conv2d_hparams,
             batch_norm_hparams=batch_norm_hparams,
-            name='bottleneck_1')
+            name="bottleneck_1",
+        )
 
         bottleneck = model.blocks.conv2d_block(
             bottleneck,
             n_channels=depth_bottleneck,
             kernel_size=(3, 3),
             strides=(stride, stride),
-            mode='SAME',
+            mode="SAME",
             use_batch_norm=True,
-            activation='relu',
+            activation="relu",
             is_training=training,
             data_format=data_format,
             conv2d_hparams=conv2d_hparams,
             batch_norm_hparams=batch_norm_hparams,
-            name='bottleneck_2',
-            cardinality=cardinality)
+            name="bottleneck_2",
+            cardinality=cardinality,
+        )
 
         bottleneck = model.blocks.conv2d_block(
             bottleneck,
             n_channels=depth,
             kernel_size=(1, 1),
             strides=(1, 1),
-            mode='SAME',
+            mode="SAME",
             use_batch_norm=True,
             activation=None,  # Applied at the end after addition with shortcut
             is_training=training,
             data_format=data_format,
             conv2d_hparams=conv2d_hparams,
             batch_norm_hparams=batch_norm_hparams,
-            name='bottleneck_3'
+            name="bottleneck_3",
         )
 
         if use_se:
@@ -137,6 +143,7 @@ def bottleneck_block(
                 ratio=ratio,
                 training=training,
                 data_format=data_format,
-                name='bottleneck_se_layer')
+                name="bottleneck_se_layer",
+            )
 
-        return model.layers.relu(shortcut + bottleneck, name='relu')
+        return model.layers.relu(shortcut + bottleneck, name="relu")

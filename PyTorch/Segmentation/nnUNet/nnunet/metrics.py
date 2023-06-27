@@ -29,7 +29,9 @@ class Dice(Metric):
 
     def update(self, p, y, l):
         self.steps += 1
-        self.dice += self.compute_stats_brats(p, y) if self.brats else self.compute_stats(p, y)
+        self.dice += (
+            self.compute_stats_brats(p, y) if self.brats else self.compute_stats(p, y)
+        )
         self.loss += l
 
     def compute(self):
@@ -49,7 +51,9 @@ class Dice(Metric):
                 continue
             tp, fn, fp = self.get_stats(p_i, y_i, 1)
             denom = (2 * tp + fp + fn).to(torch.float)
-            score_cls = (2 * tp).to(torch.float) / denom if torch.is_nonzero(denom) else 0.0
+            score_cls = (
+                (2 * tp).to(torch.float) / denom if torch.is_nonzero(denom) else 0.0
+            )
             scores[i - 1] += score_cls
         return scores
 
@@ -63,7 +67,9 @@ class Dice(Metric):
                 continue
             tp, fn, fp = self.get_stats(p, y, i)
             denom = (2 * tp + fp + fn).to(torch.float)
-            score_cls = (2 * tp).to(torch.float) / denom if torch.is_nonzero(denom) else 0.0
+            score_cls = (
+                (2 * tp).to(torch.float) / denom if torch.is_nonzero(denom) else 0.0
+            )
             scores[i - 1] += score_cls
         return scores
 

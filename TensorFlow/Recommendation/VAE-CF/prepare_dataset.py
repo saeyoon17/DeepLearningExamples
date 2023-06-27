@@ -14,22 +14,28 @@
 
 
 from argparse import ArgumentParser
-from vae.load.preprocessing import load_and_parse_ML_20M
+
 import numpy as np
+from vae.load.preprocessing import load_and_parse_ML_20M
 
 parser = ArgumentParser(description="Prepare data for VAE training")
-parser.add_argument('--data_dir', default='/data', type=str,
-                    help='Directory for storing the training data')
-parser.add_argument('--seed', default=0, type=int,
-                    help='Random seed')
+parser.add_argument(
+    "--data_dir",
+    default="/data",
+    type=str,
+    help="Directory for storing the training data",
+)
+parser.add_argument("--seed", default=0, type=int, help="Random seed")
 args = parser.parse_args()
 
-print('Preprocessing seed: ', args.seed)
+print("Preprocessing seed: ", args.seed)
 np.random.seed(args.seed)
 
 # load dataset
-(train_data,
- validation_data_input,
- validation_data_true,
- test_data_input,
- test_data_true) = load_and_parse_ML_20M(args.data_dir)
+(
+    train_data,
+    validation_data_input,
+    validation_data_true,
+    test_data_input,
+    test_data_true,
+) = load_and_parse_ML_20M(args.data_dir)

@@ -23,14 +23,15 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# 
-
+#
 
 
 import sys
 
 if len(sys.argv) != 3:
-    print("Must specify path to PyTorch Tacotron2 containing 'text' module o load and text file to write")
+    print(
+        "Must specify path to PyTorch Tacotron2 containing 'text' module o load and text file to write"
+    )
     sys.exit(1)
 
 modulePath = sys.argv[1]
@@ -41,11 +42,11 @@ sys.path.append(modulePath)
 
 from text import symbols
 
-i=0
+i = 0
 with open(outputPath, "w") as fout:
-  print("# sequence-number symbol", file=fout)
-  for s in symbols:
-    print("%d %s" % (i, s), file=fout)
-    i+=1
+    print("# sequence-number symbol", file=fout)
+    for s in symbols:
+        print("%d %s" % (i, s), file=fout)
+        i += 1
 
 print("Successfully wrote %d symbols to '%s'." % (i, outputPath))

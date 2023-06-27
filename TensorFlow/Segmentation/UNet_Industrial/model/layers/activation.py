@@ -20,53 +20,80 @@
 # ==============================================================================
 
 import tensorflow as tf
-
 from model.layers.utils import _log_hparams
 
-__all__ = ['crelu', 'elu', 'leaky_relu', 'prelu', 'relu', 'relu6', 'selu', 'sigmoid', 'softmax', 'tanh']
+__all__ = [
+    "crelu",
+    "elu",
+    "leaky_relu",
+    "prelu",
+    "relu",
+    "relu6",
+    "selu",
+    "sigmoid",
+    "softmax",
+    "tanh",
+]
 
 
-def crelu(features, name='crelu', axis=-1):
+def crelu(features, name="crelu", axis=-1):
 
     net = tf.nn.crelu(features, name=name, axis=axis)
 
-    _log_hparams(classname='CReLU', layername=net.name, axis=axis, out_shape=str(net.get_shape()), out_dtype=net.dtype)
-
-    return net
-
-
-def elu(features, name='elu'):
-
-    net = tf.nn.elu(features, name=name)
-
-    _log_hparams(classname='ELU', layername=net.name, out_shape=str(net.get_shape()), out_dtype=net.dtype)
-
-    return net
-
-
-def leaky_relu(features, alpha=0.2, name='leaky_relu'):
-
-    net = tf.nn.leaky_relu(features, alpha=alpha, name=name)
-
     _log_hparams(
-        classname='LeakyReLU', layername=net.name, alpha=alpha, out_shape=str(net.get_shape()), out_dtype=net.dtype
+        classname="CReLU",
+        layername=net.name,
+        axis=axis,
+        out_shape=str(net.get_shape()),
+        out_dtype=net.dtype,
     )
 
     return net
 
 
-def prelu(inputs, channel_shared=False, trainable=True, name='prelu'):
+def elu(features, name="elu"):
 
+    net = tf.nn.elu(features, name=name)
+
+    _log_hparams(
+        classname="ELU",
+        layername=net.name,
+        out_shape=str(net.get_shape()),
+        out_dtype=net.dtype,
+    )
+
+    return net
+
+
+def leaky_relu(features, alpha=0.2, name="leaky_relu"):
+
+    net = tf.nn.leaky_relu(features, alpha=alpha, name=name)
+
+    _log_hparams(
+        classname="LeakyReLU",
+        layername=net.name,
+        alpha=alpha,
+        out_shape=str(net.get_shape()),
+        out_dtype=net.dtype,
+    )
+
+    return net
+
+
+def prelu(inputs, channel_shared=False, trainable=True, name="prelu"):
     def parametric_relu(_x):
 
         if channel_shared:
-            w_shape = (1, )
+            w_shape = (1,)
 
         else:
             w_shape = int(_x.get_shape()[-1])
 
         alphas = tf.get_variable(
-            'alpha', w_shape, trainable=trainable, initializer=tf.initializers.truncated_normal(mean=-1.0, stddev=0.2)
+            "alpha",
+            w_shape,
+            trainable=trainable,
+            initializer=tf.initializers.truncated_normal(mean=-1.0, stddev=0.2),
         )
 
         alphas = tf.nn.sigmoid(alphas, name="constraining_alpha_var_in_0_1")
@@ -77,49 +104,69 @@ def prelu(inputs, channel_shared=False, trainable=True, name='prelu'):
         net = parametric_relu(inputs)
 
     _log_hparams(
-        classname='PReLU',
+        classname="PReLU",
         layername=net.name,
         channel_shared=channel_shared,
         trainable=trainable,
         out_shape=str(net.get_shape()),
-        out_dtype=net.dtype
+        out_dtype=net.dtype,
     )
 
     return net
 
 
-def relu(inputs, name='relu'):
+def relu(inputs, name="relu"):
 
     net = tf.nn.relu(inputs, name=name)
 
-    _log_hparams(classname='ReLU', layername=net.name, out_shape=str(net.get_shape()), out_dtype=net.dtype)
+    _log_hparams(
+        classname="ReLU",
+        layername=net.name,
+        out_shape=str(net.get_shape()),
+        out_dtype=net.dtype,
+    )
 
     return net
 
 
-def relu6(inputs, name='relu6'):
+def relu6(inputs, name="relu6"):
 
     net = tf.nn.relu6(inputs, name=name)
 
-    _log_hparams(classname='ReLU6', layername=net.name, out_shape=str(net.get_shape()), out_dtype=net.dtype)
+    _log_hparams(
+        classname="ReLU6",
+        layername=net.name,
+        out_shape=str(net.get_shape()),
+        out_dtype=net.dtype,
+    )
 
     return net
 
 
-def selu(features, name='selu'):
+def selu(features, name="selu"):
 
     net = tf.nn.selu(features, name=name)
 
-    _log_hparams(classname='SELU', layername=net.name, out_shape=str(net.get_shape()), out_dtype=net.dtype)
+    _log_hparams(
+        classname="SELU",
+        layername=net.name,
+        out_shape=str(net.get_shape()),
+        out_dtype=net.dtype,
+    )
 
     return net
 
 
-def sigmoid(x, name='sigmoid'):
+def sigmoid(x, name="sigmoid"):
 
     net = tf.math.sigmoid(x, name=name)
 
-    _log_hparams(classname='Sigmoid', layername=net.name, out_shape=str(net.get_shape()), out_dtype=net.dtype)
+    _log_hparams(
+        classname="Sigmoid",
+        layername=net.name,
+        out_shape=str(net.get_shape()),
+        out_dtype=net.dtype,
+    )
 
     return net
 
@@ -133,16 +180,25 @@ def softmax(inputs, axis=None, name="softmax"):
     )
 
     _log_hparams(
-        classname='Softmax', layername=net.name, axis=axis, out_shape=str(net.get_shape()), out_dtype=net.dtype
+        classname="Softmax",
+        layername=net.name,
+        axis=axis,
+        out_shape=str(net.get_shape()),
+        out_dtype=net.dtype,
     )
 
     return net
 
 
-def tanh(inputs, name='tanh'):
+def tanh(inputs, name="tanh"):
 
     net = tf.math.tanh(inputs, name=name)
 
-    _log_hparams(classname='TanH', layername=net.name, out_shape=str(net.get_shape()), out_dtype=net.dtype)
+    _log_hparams(
+        classname="TanH",
+        layername=net.name,
+        out_shape=str(net.get_shape()),
+        out_dtype=net.dtype,
+    )
 
     return net

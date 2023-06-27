@@ -39,7 +39,9 @@ def get_numpy_reader(files, shard_id, num_shards, seed, shuffle):
 
 
 def random_augmentation(probability, augmented, original):
-    condition = fn.cast(fn.random.coin_flip(probability=probability), dtype=types.DALIDataType.BOOL)
+    condition = fn.cast(
+        fn.random.coin_flip(probability=probability), dtype=types.DALIDataType.BOOL
+    )
     neg_condition = condition ^ True
     return condition * augmented + neg_condition * original
 
@@ -86,14 +88,20 @@ class GenericPipeline(Pipeline):
 
 
 class TrainPipeline(GenericPipeline):
-    def __init__(self, imgs, lbls, oversampling, patch_size, batch_size_2d=None, **kwargs):
-        super().__init__(input_x_files=imgs, input_y_files=lbls, shuffle_input=True, **kwargs)
+    def __init__(
+        self, imgs, lbls, oversampling, patch_size, batch_size_2d=None, **kwargs
+    ):
+        super().__init__(
+            input_x_files=imgs, input_y_files=lbls, shuffle_input=True, **kwargs
+        )
         self.oversampling = oversampling
         self.patch_size = patch_size
         if self.dim == 2 and batch_size_2d is not None:
             self.patch_size = [batch_size_2d] + self.patch_size
         self.crop_shape = types.Constant(np.array(self.patch_size), dtype=types.INT64)
-        self.crop_shape_float = types.Constant(np.array(self.patch_size), dtype=types.FLOAT)
+        self.crop_shape_float = types.Constant(
+            np.array(self.patch_size), dtype=types.FLOAT
+        )
 
     def load_data(self):
         img, lbl = self.input_x(name="ReaderX"), self.input_y(name="ReaderY")
@@ -137,13 +145,17 @@ class TrainPipeline(GenericPipeline):
         d, h, w = [scale * x for x in self.patch_size]
         if self.dim == 2:
             d = self.patch_size[0]
-        img, lbl = fn.crop(img, crop_h=h, crop_w=w, crop_d=d), fn.crop(lbl, crop_h=h, crop_w=w, crop_d=d)
+        img, lbl = fn.crop(img, crop_h=h, crop_w=w, crop_d=d), fn.crop(
+            lbl, crop_h=h, crop_w=w, crop_d=d
+        )
         img = fn.resize(
             img,
             interp_type=types.DALIInterpType.INTERP_CUBIC,
             size=self.crop_shape_float,
         )
-        lbl = fn.resize(lbl, interp_type=types.DALIInterpType.INTERP_NN, size=self.crop_shape_float)
+        lbl = fn.resize(
+            lbl, interp_type=types.DALIInterpType.INTERP_NN, size=self.crop_shape_float
+        )
         return img, lbl
 
     def noise_fn(self, img):
@@ -156,7 +168,9 @@ class TrainPipeline(GenericPipeline):
 
     def brightness_contrast_fn(self, img):
         img_transformed = fn.brightness_contrast(
-            img, brightness=fn.random.uniform(range=(0.7, 1.3)), contrast=fn.random.uniform(range=(0.65, 1.5))
+            img,
+            brightness=fn.random.uniform(range=(0.7, 1.3)),
+            contrast=fn.random.uniform(range=(0.65, 1.5)),
         )
         return random_augmentation(0.15, img_transformed, img)
 
@@ -182,28 +196,40 @@ class TrainPipeline(GenericPipeline):
 
 class EvalPipeline(GenericPipeline):
     def __init__(self, imgs, lbls, patch_size, **kwargs):
-        super().__init__(input_x_files=imgs, input_y_files=lbls, shuffle_input=False, **kwargs)
+        super().__init__(
+            input_x_files=imgs, input_y_files=lbls, shuffle_input=False, **kwargs
+        )
         self.patch_size = patch_size
 
     def define_graph(self):
-        img, lbl = self.input_x(name="ReaderX").gpu(), self.input_y(name="ReaderY").gpu()
+        img, lbl = (
+            self.input_x(name="ReaderX").gpu(),
+            self.input_y(name="ReaderY").gpu(),
+        )
         img, lbl = fn.reshape(img, layout="DHWC"), fn.reshape(lbl, layout="DHWC")
         return img, lbl
 
 
 class TestPipeline(GenericPipeline):
     def __init__(self, imgs, meta, **kwargs):
-        super().__init__(input_x_files=imgs, input_y_files=meta, shuffle_input=False, **kwargs)
+        super().__init__(
+            input_x_files=imgs, input_y_files=meta, shuffle_input=False, **kwargs
+        )
 
     def define_graph(self):
-        img, meta = self.input_x(name="ReaderX").gpu(), self.input_y(name="ReaderY").gpu()
+        img, meta = (
+            self.input_x(name="ReaderX").gpu(),
+            self.input_y(name="ReaderY").gpu(),
+        )
         img = fn.reshape(img, layout="DHWC")
         return img, meta
 
 
 class BenchmarkPipeline(GenericPipeline):
     def __init__(self, imgs, lbls, patch_size, batch_size_2d=None, **kwargs):
-        super().__init__(input_x_files=imgs, input_y_files=lbls, shuffle_input=False, **kwargs)
+        super().__init__(
+            input_x_files=imgs, input_y_files=lbls, shuffle_input=False, **kwargs
+        )
         self.patch_size = patch_size
         if self.dim == 2 and batch_size_2d is not None:
             self.patch_size = [batch_size_2d] + self.patch_size
@@ -214,7 +240,10 @@ class BenchmarkPipeline(GenericPipeline):
         return img, lbl
 
     def define_graph(self):
-        img, lbl = self.input_x(name="ReaderX").gpu(), self.input_y(name="ReaderY").gpu()
+        img, lbl = (
+            self.input_x(name="ReaderX").gpu(),
+            self.input_y(name="ReaderY").gpu(),
+        )
         img, lbl = self.crop_fn(img, lbl)
         img, lbl = fn.reshape(img, layout="DHWC"), fn.reshape(lbl, layout="DHWC")
         return img, lbl
@@ -258,12 +287,19 @@ def fetch_dali_loader(imgs, lbls, batch_size, mode, **kwargs):
     if kwargs["benchmark"]:
         pipeline = BenchmarkPipeline(imgs, lbls, kwargs["patch_size"], **pipe_kwargs)
     elif mode == "train":
-        pipeline = TrainPipeline(imgs, lbls, kwargs["oversampling"], kwargs["patch_size"], **pipe_kwargs)
+        pipeline = TrainPipeline(
+            imgs, lbls, kwargs["oversampling"], kwargs["patch_size"], **pipe_kwargs
+        )
     elif mode == "eval":
         pipeline = EvalPipeline(imgs, lbls, kwargs["patch_size"], **pipe_kwargs)
     else:
         pipeline = TestPipeline(imgs, kwargs["meta"], **pipe_kwargs)
         output_dtypes = (tf.float32, tf.int64)
 
-    tf_pipe = dali_tf.DALIDataset(pipeline, batch_size=batch_size, device_id=device_id, output_dtypes=output_dtypes)
+    tf_pipe = dali_tf.DALIDataset(
+        pipeline,
+        batch_size=batch_size,
+        device_id=device_id,
+        output_dtypes=output_dtypes,
+    )
     return tf_pipe

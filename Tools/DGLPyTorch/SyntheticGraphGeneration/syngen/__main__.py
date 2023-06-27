@@ -18,12 +18,10 @@ import os
 import pathlib
 import re
 import sys
+from pathlib import Path
+from typing import Union
 
 import pandas as pd
-
-from typing import Union
-from pathlib import Path
-
 from syngen.benchmark.models import MODELS
 from syngen.benchmark.tasks import train_ec
 from syngen.generator.graph import BaseGenerator as BaseGraphGenerator
@@ -98,7 +96,9 @@ def _run_synthesizer(args):
         node_dim = getattr(args, "node_dim", None)
         is_directed = getattr(args, "g_directed", None)
         bipartite = getattr(args, "g_bipartite", None)
-        synthesizer = synthesizer(is_directed=is_directed, bipartite=bipartite, **dict_args)
+        synthesizer = synthesizer(
+            is_directed=is_directed, bipartite=bipartite, **dict_args
+        )
         synthesizer.fit(edge_dim=edge_dim, node_dim=node_dim)
 
     data = synthesizer.generate(
@@ -235,9 +235,7 @@ def str2bool(v: Union[bool, str]) -> bool:
 
 
 def get_parser():
-    parser = argparse.ArgumentParser(
-        description="Synthetic Graph Generation Tool"
-    )
+    parser = argparse.ArgumentParser(description="Synthetic Graph Generation Tool")
     parser.set_defaults(action=None)
     action = parser.add_subparsers(title="action")
     action.required = True

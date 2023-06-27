@@ -1,10 +1,9 @@
 """
 Tensorflow data generator class.
 """
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
 from omegaconf import DictConfig
-
 from utils.general_utils import get_data_paths
 from utils.images_utils import prepare_image, prepare_mask
 
@@ -33,8 +32,12 @@ class DataGenerator(tf.keras.utils.Sequence):
         np.random.seed(cfg.SEED)
 
         # check mask are available or not
-        self.mask_available = False if cfg.DATASET[mode].MASK_PATH is None or str(
-            cfg.DATASET[mode].MASK_PATH).lower() == "none" else True
+        self.mask_available = (
+            False
+            if cfg.DATASET[mode].MASK_PATH is None
+            or str(cfg.DATASET[mode].MASK_PATH).lower() == "none"
+            else True
+        )
 
         data_paths = get_data_paths(cfg, mode, self.mask_available)
 
@@ -53,11 +56,7 @@ class DataGenerator(tf.keras.utils.Sequence):
         # Tensorflow problem: on_epoch_end is not being called at the end
         # of each epoch, so forcing on_epoch_end call
         self.on_epoch_end()
-        return int(
-            np.floor(
-                len(self.images_paths) / self.batch_size
-            )
-        )
+        return int(np.floor(len(self.images_paths) / self.batch_size))
 
     def on_epoch_end(self):
         """
@@ -72,9 +71,7 @@ class DataGenerator(tf.keras.utils.Sequence):
         Generate one batch of data
         """
         # Generate indexes of the batch
-        indexes = self.indexes[
-                  index * self.batch_size:(index + 1) * self.batch_size
-                  ]
+        indexes = self.indexes[index * self.batch_size : (index + 1) * self.batch_size]
 
         # Generate data
         return self.__data_generation(indexes)
@@ -90,7 +87,7 @@ class DataGenerator(tf.keras.utils.Sequence):
                 self.cfg.HYPER_PARAMETERS.BATCH_SIZE,
                 self.cfg.INPUT.HEIGHT,
                 self.cfg.INPUT.WIDTH,
-                self.cfg.INPUT.CHANNELS
+                self.cfg.INPUT.CHANNELS,
             )
         ).astype(np.float32)
 
@@ -100,7 +97,7 @@ class DataGenerator(tf.keras.utils.Sequence):
                     self.cfg.HYPER_PARAMETERS.BATCH_SIZE,
                     self.cfg.INPUT.HEIGHT,
                     self.cfg.INPUT.WIDTH,
-                    self.cfg.OUTPUT.CLASSES
+                    self.cfg.OUTPUT.CLASSES,
                 )
             ).astype(np.float32)
 
@@ -128,24 +125,22 @@ class DataGenerator(tf.keras.utils.Sequence):
             # numpy to tensorflow conversion
             if self.mask_available:
                 image, mask = tf.numpy_function(
-                    self.tf_func,
-                    [image, mask],
-                    [tf.float32, tf.int32]
+                    self.tf_func, [image, mask], [tf.float32, tf.int32]
                 )
             else:
                 image = tf.numpy_function(
                     self.tf_func,
-                    [image, ],
-                    [tf.float32, ]
+                    [
+                        image,
+                    ],
+                    [
+                        tf.float32,
+                    ],
                 )
 
             # set shape attributes which was lost during Tf conversion
             image.set_shape(
-                [
-                    self.cfg.INPUT.HEIGHT,
-                    self.cfg.INPUT.WIDTH,
-                    self.cfg.INPUT.CHANNELS
-                ]
+                [self.cfg.INPUT.HEIGHT, self.cfg.INPUT.WIDTH, self.cfg.INPUT.CHANNELS]
             )
             batch_images[i] = image
 
@@ -155,16 +150,12 @@ class DataGenerator(tf.keras.utils.Sequence):
                     mask = tf.expand_dims(mask, axis=-1)
                 else:
                     # convert mask into one hot vectors
-                    mask = tf.one_hot(
-                        mask,
-                        self.cfg.OUTPUT.CLASSES,
-                        dtype=tf.int32
-                    )
+                    mask = tf.one_hot(mask, self.cfg.OUTPUT.CLASSES, dtype=tf.int32)
                 mask.set_shape(
                     [
                         self.cfg.INPUT.HEIGHT,
                         self.cfg.INPUT.WIDTH,
-                        self.cfg.OUTPUT.CLASSES
+                        self.cfg.OUTPUT.CLASSES,
                     ]
                 )
                 batch_masks[i] = mask
@@ -172,7 +163,7 @@ class DataGenerator(tf.keras.utils.Sequence):
         if self.mask_available:
             return batch_images, batch_masks
         else:
-            return batch_images,
+            return (batch_images,)
 
     @staticmethod
     def tf_func(*args):

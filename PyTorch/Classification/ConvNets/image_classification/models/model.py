@@ -1,15 +1,14 @@
-from dataclasses import dataclass, asdict, replace
-from .common import (
-    SequentialSqueezeAndExcitationTRT,
-    SequentialSqueezeAndExcitation,
-    SqueezeAndExcitation,
-    SqueezeAndExcitationTRT,
-)
-from typing import Optional, Callable
-import os
-import torch
 import argparse
+import os
+from dataclasses import asdict, dataclass, replace
 from functools import partial
+from typing import Callable, Optional
+
+import torch
+
+from .common import (SequentialSqueezeAndExcitation,
+                     SequentialSqueezeAndExcitationTRT, SqueezeAndExcitation,
+                     SqueezeAndExcitationTRT)
 
 
 @dataclass

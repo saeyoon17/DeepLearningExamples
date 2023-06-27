@@ -13,19 +13,20 @@
 # limitations under the License.
 
 import json
+
 import matplotlib.pyplot as plt
 
 
 def get_training_data(filename):
-    with open(filename, 'r') as opened:
+    with open(filename, "r") as opened:
         line = opened.readlines()[-1]
-    json_content = line[len("DLLL "):]
+    json_content = line[len("DLLL ") :]
     data = json.loads(json_content)["data"]
-    with open(filename, 'r') as opened:
+    with open(filename, "r") as opened:
         for line in opened.readlines():
-            d = json.loads(line[len("DLLL "):])
+            d = json.loads(line[len("DLLL ") :])
             if d.get("step", "") == "PARAMETER":
-                data['batch_size'] = d["data"]["batch_size"]
+                data["batch_size"] = d["data"]["batch_size"]
     return data
 
 
@@ -40,7 +41,10 @@ tf32 = "TF32"
 
 
 def get_accs(arch, numgpu, prec):
-    data = [get_training_data(arch.format(numgpus=numgpu, num_run=num_run, precision=prec)) for num_run in range(1, 21)]
+    data = [
+        get_training_data(arch.format(numgpus=numgpu, num_run=num_run, precision=prec))
+        for num_run in range(1, 21)
+    ]
     accs = [d["best_accuracy"] for d in data]
     return accs
 

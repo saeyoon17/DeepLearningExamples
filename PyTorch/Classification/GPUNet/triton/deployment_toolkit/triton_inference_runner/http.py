@@ -58,11 +58,14 @@ class SyncInferenceRunner(HTTPInferenceRunner):
             raise RuntimeError(f"Could not communicate to Triton Server: {error}")
 
         LOGGER.debug(
-            f"Triton server {self._server_url} and model {self._model_name}:{self._model_version} " f"are up and ready!"
+            f"Triton server {self._server_url} and model {self._model_name}:{self._model_version} "
+            f"are up and ready!"
         )
 
         model_config = client.get_model_config(self._model_name, self._model_version)
-        model_metadata = client.get_model_metadata(self._model_name, self._model_version)
+        model_metadata = client.get_model_metadata(
+            self._model_name, self._model_version
+        )
         LOGGER.info(f"Model config {self._parse_content(model_config)}")
         LOGGER.info(f"Model metadata {self._parse_content(model_metadata)}")
 
@@ -118,7 +121,9 @@ class AsyncInferenceRunner(HTTPInferenceRunner):
             response_wait_time=response_wait_time,
         )
         self._max_unresp_reqs = (
-            self.DEFAULT_MAX_UNRESP_REQS if max_unresponded_requests is None else max_unresponded_requests
+            self.DEFAULT_MAX_UNRESP_REQS
+            if max_unresponded_requests is None
+            else max_unresponded_requests
         )
 
     def __iter__(self):
@@ -135,11 +140,14 @@ class AsyncInferenceRunner(HTTPInferenceRunner):
             return
 
         LOGGER.debug(
-            f"Triton server {self._server_url} and model {self._model_name}:{self._model_version} " f"are up and ready!"
+            f"Triton server {self._server_url} and model {self._model_name}:{self._model_version} "
+            f"are up and ready!"
         )
 
         model_config = client.get_model_config(self._model_name, self._model_version)
-        model_metadata = client.get_model_metadata(self._model_name, self._model_version)
+        model_metadata = client.get_model_metadata(
+            self._model_name, self._model_version
+        )
         LOGGER.info(f"Model config {self._parse_content(model_config)}")
         LOGGER.info(f"Model metadata {self._parse_content(model_metadata)}")
 

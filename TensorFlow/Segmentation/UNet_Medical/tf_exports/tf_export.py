@@ -3,14 +3,13 @@ import inspect
 import os
 import shutil
 import subprocess
-from typing import List, Callable
+from typing import Callable, List
 
 import tensorflow as tf
 from google.protobuf import text_format
 from tensorflow.core.framework import graph_pb2
 from tensorflow.python.compiler.tensorrt import trt_convert as trt
-from tensorflow.python.framework import dtypes
-from tensorflow.python.framework import graph_io
+from tensorflow.python.framework import dtypes, graph_io
 from tensorflow.python.platform import gfile
 from tensorflow.python.tools import optimize_for_inference_lib
 
@@ -24,9 +23,9 @@ def _compress(src_path: str, dst_path: str):
     :param src_path: (str) Source path
     :param dst_path: (str) Destination path
     """
-    print('[*] Compressing...')
-    shutil.make_archive(dst_path, 'zip', src_path)
-    print('[*] Compressed the contents in: {}.zip'.format(dst_path))
+    print("[*] Compressing...")
+    shutil.make_archive(dst_path, "zip", src_path)
+    print("[*] Compressed the contents in: {}.zip".format(dst_path))
 
 
 def _print_input(func: Callable):
@@ -46,9 +45,11 @@ def _print_input(func: Callable):
         """
         tf.logging.set_verbosity(tf.logging.ERROR)
         func_args = inspect.signature(func).bind(*args, **kwargs).arguments
-        func_args_str = ''.join('\t{} = {!r}\n'.format(*item) for item in func_args.items())
+        func_args_str = "".join(
+            "\t{} = {!r}\n".format(*item) for item in func_args.items()
+        )
 
-        print('[*] Running \'{}\' with arguments:'.format(func.__qualname__))
+        print("[*] Running '{}' with arguments:".format(func.__qualname__))
         print(func_args_str[:-1])
 
         return func(*args, **kwargs)
@@ -67,9 +68,9 @@ def _parse_placeholder_types(values: str):
     return values if len(values) > 1 else values[0]
 
 
-def _optimize_checkpoint_for_inference(graph_path: str,
-                                       input_names: List[str],
-                                       output_names: List[str]):
+def _optimize_checkpoint_for_inference(
+    graph_path: str, input_names: List[str], output_names: List[str]
+):
     """
     Removes Horovod and training related information from the graph
 
@@ -78,7 +79,7 @@ def _optimize_checkpoint_for_inference(graph_path: str,
     :param output_names: (str) Output node names
     """
 
-    print('[*] Optimizing graph for inference ...')
+    print("[*] Optimizing graph for inference ...")
 
     input_graph_def = graph_pb2.GraphDef()
     with gfile.Open(graph_path, "rb") as f:
@@ -90,27 +91,30 @@ def _optimize_checkpoint_for_inference(graph_path: str,
         input_names,
         output_names,
         _parse_placeholder_types(str(dtypes.float32.as_datatype_enum)),
-        False)
+        False,
+    )
 
-    print('[*] Saving original graph in: {}'.format(graph_path + '.old'))
-    shutil.move(graph_path, graph_path + '.old')
+    print("[*] Saving original graph in: {}".format(graph_path + ".old"))
+    shutil.move(graph_path, graph_path + ".old")
 
-    print('[*] Writing down optimized graph ...')
-    graph_io.write_graph(output_graph_def,
-                         os.path.dirname(graph_path),
-                         os.path.basename(graph_path))
+    print("[*] Writing down optimized graph ...")
+    graph_io.write_graph(
+        output_graph_def, os.path.dirname(graph_path), os.path.basename(graph_path)
+    )
 
 
 @_print_input
-def to_savedmodel(input_shape: str,
-                  model_fn: Callable,
-                  checkpoint_dir: str,
-                  output_dir: str,
-                  input_names: List[str],
-                  output_names: List[str],
-                  use_amp: bool,
-                  use_xla: bool,
-                  compress: bool):
+def to_savedmodel(
+    input_shape: str,
+    model_fn: Callable,
+    checkpoint_dir: str,
+    output_dir: str,
+    input_names: List[str],
+    output_names: List[str],
+    use_amp: bool,
+    use_xla: bool,
+    compress: bool,
+):
     """
     Export checkpoint to Tensorflow savedModel
 
@@ -124,15 +128,21 @@ def to_savedmodel(input_shape: str,
     :param use_xla: (bool) Enable XLA
     :param compress: (bool) Compress output
     """
-    assert os.path.exists(checkpoint_dir), 'Path not found: {}'.format(checkpoint_dir)
-    assert input_shape is not None, 'Input shape must be provided'
+    assert os.path.exists(checkpoint_dir), "Path not found: {}".format(checkpoint_dir)
+    assert input_shape is not None, "Input shape must be provided"
 
-    _optimize_checkpoint_for_inference(os.path.join(checkpoint_dir, 'graph.pbtxt'), input_names, output_names)
+    _optimize_checkpoint_for_inference(
+        os.path.join(checkpoint_dir, "graph.pbtxt"), input_names, output_names
+    )
 
     try:
-        ckpt_path = os.path.splitext([p for p in glob.iglob(os.path.join(checkpoint_dir, '*.index'))][0])[0]
+        ckpt_path = os.path.splitext(
+            [p for p in glob.iglob(os.path.join(checkpoint_dir, "*.index"))][0]
+        )[0]
     except IndexError:
-        raise ValueError('Could not find checkpoint in directory: {}'.format(checkpoint_dir))
+        raise ValueError(
+            "Could not find checkpoint in directory: {}".format(checkpoint_dir)
+        )
 
     config_proto = tf.compat.v1.ConfigProto()
 
@@ -144,7 +154,9 @@ def to_savedmodel(input_shape: str,
     if use_amp:
         os.environ["TF_ENABLE_AUTO_MIXED_PRECISION_GRAPH_REWRITE"] = "1"
     if use_xla:
-        config_proto.graph_options.optimizer_options.global_jit_level = tf.compat.v1.OptimizerOptions.ON_1
+        config_proto.graph_options.optimizer_options.global_jit_level = (
+            tf.compat.v1.OptimizerOptions.ON_1
+        )
 
     run_config = tf.estimator.RunConfig(
         model_dir=None,
@@ -160,49 +172,54 @@ def to_savedmodel(input_shape: str,
         device_fn=None,
         protocol=None,
         eval_distribute=None,
-        experimental_distribute=None
+        experimental_distribute=None,
     )
 
     estimator = tf.estimator.Estimator(
         model_fn=model_fn,
         model_dir=ckpt_path,
         config=run_config,
-        params={'dtype': tf.float16 if use_amp else tf.float32}
+        params={"dtype": tf.float16 if use_amp else tf.float32},
     )
 
-    print('[*] Exporting the model ...')
+    print("[*] Exporting the model ...")
 
     input_type = tf.float16 if use_amp else tf.float32
 
     def get_serving_input_receiver_fn():
-
         def serving_input_receiver_fn():
-            features = tf.placeholder(dtype=input_type, shape=input_shape, name='input_tensor')
+            features = tf.placeholder(
+                dtype=input_type, shape=input_shape, name="input_tensor"
+            )
 
-            return tf.estimator.export.TensorServingInputReceiver(features=features, receiver_tensors=features)
+            return tf.estimator.export.TensorServingInputReceiver(
+                features=features, receiver_tensors=features
+            )
 
         return serving_input_receiver_fn
 
     export_path = estimator.export_saved_model(
         export_dir_base=output_dir,
         serving_input_receiver_fn=get_serving_input_receiver_fn(),
-        checkpoint_path=ckpt_path
+        checkpoint_path=ckpt_path,
     )
 
-    print('[*] Done! path: `%s`' % export_path.decode())
+    print("[*] Done! path: `%s`" % export_path.decode())
 
     if compress:
-        _compress(export_path.decode(), os.path.join(output_dir, 'saved_model'))
+        _compress(export_path.decode(), os.path.join(output_dir, "saved_model"))
 
 
 @_print_input
-def to_tf_trt(savedmodel_dir: str,
-              output_dir: str,
-              precision: str,
-              feed_dict_fn: Callable,
-              num_runs: int,
-              output_tensor_names: List[str],
-              compress: bool):
+def to_tf_trt(
+    savedmodel_dir: str,
+    output_dir: str,
+    precision: str,
+    feed_dict_fn: Callable,
+    num_runs: int,
+    output_tensor_names: List[str],
+    compress: bool,
+):
     """
     Export Tensorflow savedModel to TF-TRT
 
@@ -215,29 +232,34 @@ def to_tf_trt(savedmodel_dir: str,
     :param compress: (bool) Compress output
     """
     if savedmodel_dir is None or not os.path.exists(savedmodel_dir):
-        raise FileNotFoundError('savedmodel_dir not found: {}'.format(savedmodel_dir))
+        raise FileNotFoundError("savedmodel_dir not found: {}".format(savedmodel_dir))
 
     if os.path.exists(output_dir):
-        print('[*] Output dir \'{}\' is not empty. Cleaning up ...'.format(output_dir))
+        print("[*] Output dir '{}' is not empty. Cleaning up ...".format(output_dir))
         shutil.rmtree(output_dir)
 
-    print('[*] Converting model...')
+    print("[*] Converting model...")
 
-    converter = trt.TrtGraphConverter(input_saved_model_dir=savedmodel_dir,
-                                      precision_mode=precision)
+    converter = trt.TrtGraphConverter(
+        input_saved_model_dir=savedmodel_dir, precision_mode=precision
+    )
     converter.convert()
 
-    if precision == 'INT8':
-        print('[*] Running INT8 calibration ...')
+    if precision == "INT8":
+        print("[*] Running INT8 calibration ...")
 
-        converter.calibrate(fetch_names=output_tensor_names, num_runs=num_runs, feed_dict_fn=feed_dict_fn)
+        converter.calibrate(
+            fetch_names=output_tensor_names,
+            num_runs=num_runs,
+            feed_dict_fn=feed_dict_fn,
+        )
 
     converter.save(output_dir)
 
-    print('[*] Done! TF-TRT saved_model stored in: `%s`' % output_dir)
+    print("[*] Done! TF-TRT saved_model stored in: `%s`" % output_dir)
 
     if compress:
-        _compress('tftrt_saved_model', output_dir)
+        _compress("tftrt_saved_model", output_dir)
 
 
 @_print_input
@@ -252,19 +274,26 @@ def to_onnx(input_dir: str, output_dir: str, compress: bool):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    file_name = os.path.join(output_dir, 'model.onnx')
-    print('[*] Converting model...')
+    file_name = os.path.join(output_dir, "model.onnx")
+    print("[*] Converting model...")
 
-    ret = subprocess.call(['python', '-m', 'tf2onnx.convert',
-                           '--saved-model', input_dir,
-                           '--output', file_name],
-                          stdout=open(os.devnull, 'w'),
-                          stderr=subprocess.STDOUT)
+    ret = subprocess.call(
+        [
+            "python",
+            "-m",
+            "tf2onnx.convert",
+            "--saved-model",
+            input_dir,
+            "--output",
+            file_name,
+        ],
+        stdout=open(os.devnull, "w"),
+        stderr=subprocess.STDOUT,
+    )
     if ret > 0:
-        raise RuntimeError('tf2onnx.convert has failed with error: {}'.format(ret))
+        raise RuntimeError("tf2onnx.convert has failed with error: {}".format(ret))
 
-    print('[*] Done! ONNX file stored in: %s' % file_name)
+    print("[*] Done! ONNX file stored in: %s" % file_name)
 
     if compress:
-        _compress(output_dir, 'onnx_model')
-
+        _compress(output_dir, "onnx_model")

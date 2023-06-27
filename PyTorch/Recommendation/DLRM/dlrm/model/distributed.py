@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Sequence, Optional
+from typing import Optional, Sequence
 
 import torch
-from torch import nn
-
 from dlrm.nn.factories import create_interaction
 from dlrm.nn.parts import DlrmBottom, DlrmTop
 from dlrm.utils import distributed as dist
+from torch import nn
 
 
 class BottomToTop(torch.autograd.Function):
@@ -30,13 +29,13 @@ class BottomToTop(torch.autograd.Function):
 
     @staticmethod
     def forward(
-            ctx,
-            local_bottom_outputs: torch.Tensor,
-            batch_sizes_per_gpu: Sequence[int],
-            vector_dim: int,
-            vectors_per_gpu: Sequence[int],
-            feature_order: Optional[torch.Tensor] = None,
-            device_feature_order: Optional[torch.Tensor] = None
+        ctx,
+        local_bottom_outputs: torch.Tensor,
+        batch_sizes_per_gpu: Sequence[int],
+        vector_dim: int,
+        vectors_per_gpu: Sequence[int],
+        feature_order: Optional[torch.Tensor] = None,
+        device_feature_order: Optional[torch.Tensor] = None,
     ):
         """
         Args:
@@ -61,12 +60,23 @@ class BottomToTop(torch.autograd.Function):
         ctx.device_feature_order = device_feature_order
 
         # Buffer shouldn't need to be zero out. If not zero out buffer affecting accuracy, there must be a bug.
-        bottom_output_buffer = [torch.empty(
-            batch_sizes_per_gpu[rank], n * vector_dim,
-            device=local_bottom_outputs.device, dtype=local_bottom_outputs.dtype) for n in vectors_per_gpu]
+        bottom_output_buffer = [
+            torch.empty(
+                batch_sizes_per_gpu[rank],
+                n * vector_dim,
+                device=local_bottom_outputs.device,
+                dtype=local_bottom_outputs.dtype,
+            )
+            for n in vectors_per_gpu
+        ]
 
-        torch.distributed.all_to_all(bottom_output_buffer, list(local_bottom_outputs.split(batch_sizes_per_gpu, dim=0)))
-        slice_bottom_outputs = torch.cat(bottom_output_buffer, dim=1).view(batch_sizes_per_gpu[rank], -1, vector_dim)
+        torch.distributed.all_to_all(
+            bottom_output_buffer,
+            list(local_bottom_outputs.split(batch_sizes_per_gpu, dim=0)),
+        )
+        slice_bottom_outputs = torch.cat(bottom_output_buffer, dim=1).view(
+            batch_sizes_per_gpu[rank], -1, vector_dim
+        )
 
         # feature reordering is just for consistency across different device mapping configurations
         if feature_order is not None and device_feature_order is not None:
@@ -79,47 +89,66 @@ class BottomToTop(torch.autograd.Function):
         rank = dist.get_rank()
 
         if ctx.feature_order is not None and ctx.device_feature_order is not None:
-            grad_slice_bottom_outputs = grad_slice_bottom_outputs[:, ctx.device_feature_order, :]
+            grad_slice_bottom_outputs = grad_slice_bottom_outputs[
+                :, ctx.device_feature_order, :
+            ]
 
         grad_local_bottom_outputs = torch.empty(
-            sum(ctx.batch_sizes_per_gpu), ctx.vectors_per_gpu[rank] * ctx.vector_dim,
+            sum(ctx.batch_sizes_per_gpu),
+            ctx.vectors_per_gpu[rank] * ctx.vector_dim,
             device=grad_slice_bottom_outputs.device,
-            dtype=grad_slice_bottom_outputs.dtype)
+            dtype=grad_slice_bottom_outputs.dtype,
+        )
         # All to all only takes list while split() returns tuple
 
-        grad_local_bottom_outputs_split = list(grad_local_bottom_outputs.split(ctx.batch_sizes_per_gpu, dim=0))
+        grad_local_bottom_outputs_split = list(
+            grad_local_bottom_outputs.split(ctx.batch_sizes_per_gpu, dim=0)
+        )
 
-        split_grads = [t.contiguous() for t in (grad_slice_bottom_outputs.view(ctx.batch_sizes_per_gpu[rank], -1).split(
-            [ctx.vector_dim * n for n in ctx.vectors_per_gpu], dim=1))]
+        split_grads = [
+            t.contiguous()
+            for t in (
+                grad_slice_bottom_outputs.view(ctx.batch_sizes_per_gpu[rank], -1).split(
+                    [ctx.vector_dim * n for n in ctx.vectors_per_gpu], dim=1
+                )
+            )
+        ]
 
         torch.distributed.all_to_all(grad_local_bottom_outputs_split, split_grads)
 
-        return (grad_local_bottom_outputs.view(grad_local_bottom_outputs.shape[0], -1, ctx.vector_dim), None, None,
-                None, None, None)
+        return (
+            grad_local_bottom_outputs.view(
+                grad_local_bottom_outputs.shape[0], -1, ctx.vector_dim
+            ),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
 
 
 bottom_to_top = BottomToTop.apply
 
 
 class DistributedDlrm(nn.Module):
-
     def __init__(
-            self,
-            num_numerical_features: int,
-            categorical_feature_sizes: Sequence[int],
-            bottom_mlp_sizes: Sequence[int],
-            top_mlp_sizes: Sequence[int],
-            vectors_per_gpu: Sequence[int] = None,
-            embedding_device_mapping: Sequence[Sequence[int]] = None,
-            world_num_categorical_features: int = None,
-            embedding_type: str = "multi_table",
-            embedding_dim: int = 128,
-            interaction_op: str = "dot",
-            hash_indices: bool = False,
-            use_cpp_mlp: bool = False,
-            fp16: bool = False,
-            bottom_features_ordered: bool = False,
-            device: str = "cuda"
+        self,
+        num_numerical_features: int,
+        categorical_feature_sizes: Sequence[int],
+        bottom_mlp_sizes: Sequence[int],
+        top_mlp_sizes: Sequence[int],
+        vectors_per_gpu: Sequence[int] = None,
+        embedding_device_mapping: Sequence[Sequence[int]] = None,
+        world_num_categorical_features: int = None,
+        embedding_type: str = "multi_table",
+        embedding_dim: int = 128,
+        interaction_op: str = "dot",
+        hash_indices: bool = False,
+        use_cpp_mlp: bool = False,
+        fp16: bool = False,
+        bottom_features_ordered: bool = False,
+        device: str = "cuda",
     ):
         super().__init__()
 
@@ -132,24 +161,47 @@ class DistributedDlrm(nn.Module):
 
         if self.distributed:
             # TODO: take bottom_mlp GPU from device mapping, do not assume it's always first
-            self._device_feature_order = torch.tensor(
-                [-1] + [i for bucket in embedding_device_mapping for i in bucket], dtype=torch.long, device=device
-            ) + 1 if bottom_features_ordered else None
-            self._feature_order = self._device_feature_order.argsort() if bottom_features_ordered else None
+            self._device_feature_order = (
+                torch.tensor(
+                    [-1] + [i for bucket in embedding_device_mapping for i in bucket],
+                    dtype=torch.long,
+                    device=device,
+                )
+                + 1
+                if bottom_features_ordered
+                else None
+            )
+            self._feature_order = (
+                self._device_feature_order.argsort()
+                if bottom_features_ordered
+                else None
+            )
         else:
             world_num_categorical_features = len(categorical_feature_sizes)
 
-        interaction = create_interaction(interaction_op, world_num_categorical_features, embedding_dim)
+        interaction = create_interaction(
+            interaction_op, world_num_categorical_features, embedding_dim
+        )
 
         self.bottom_model = DlrmBottom(
-            num_numerical_features, categorical_feature_sizes, bottom_mlp_sizes,
-            embedding_type, embedding_dim, hash_indices=hash_indices, use_cpp_mlp=use_cpp_mlp,
-            fp16=fp16, device=device
+            num_numerical_features,
+            categorical_feature_sizes,
+            bottom_mlp_sizes,
+            embedding_type,
+            embedding_dim,
+            hash_indices=hash_indices,
+            use_cpp_mlp=use_cpp_mlp,
+            fp16=fp16,
+            device=device,
         )
-        self.top_model = DlrmTop(top_mlp_sizes, interaction, use_cpp_mlp=use_cpp_mlp).to(device)
+        self.top_model = DlrmTop(
+            top_mlp_sizes, interaction, use_cpp_mlp=use_cpp_mlp
+        ).to(device)
 
     def extra_repr(self):
-        return f"interaction_op={self._interaction_op}, hash_indices={self._hash_indices}"
+        return (
+            f"interaction_op={self._interaction_op}, hash_indices={self._hash_indices}"
+        )
 
     # pylint:enable=missing-docstring
 
@@ -158,7 +210,12 @@ class DistributedDlrm(nn.Module):
         """Create from json str"""
         return cls(**obj_dict, **kwargs)
 
-    def forward(self, numerical_input, categorical_inputs, batch_sizes_per_gpu: Sequence[int] = None):
+    def forward(
+        self,
+        numerical_input,
+        categorical_inputs,
+        batch_sizes_per_gpu: Sequence[int] = None,
+    ):
         """
         Args:
             numerical_input (Tensor): with shape [batch_size, num_numerical_features]
@@ -166,12 +223,20 @@ class DistributedDlrm(nn.Module):
             batch_sizes_per_gpu (Sequence[int]):
         """
         # bottom mlp output may be not present before all to all communication
-        from_bottom, bottom_mlp_output = self.bottom_model(numerical_input, categorical_inputs)
+        from_bottom, bottom_mlp_output = self.bottom_model(
+            numerical_input, categorical_inputs
+        )
 
         # only perform all_to_all in multiGPU mode
         if self.distributed:
-            from_bottom = bottom_to_top(from_bottom, batch_sizes_per_gpu, self._embedding_dim, self._vectors_per_gpu,
-                                        self._feature_order, self._device_feature_order)
+            from_bottom = bottom_to_top(
+                from_bottom,
+                batch_sizes_per_gpu,
+                self._embedding_dim,
+                self._vectors_per_gpu,
+                self._feature_order,
+                self._device_feature_order,
+            )
 
             # TODO: take bottom_mlp GPU from device mapping, do not assume it's always first
             bottom_mlp_output = from_bottom[:, 0, :]

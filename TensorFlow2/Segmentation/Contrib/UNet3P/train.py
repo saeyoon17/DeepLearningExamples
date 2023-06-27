@@ -1,45 +1,31 @@
 """
 Training script
 """
-import numpy as np
 from datetime import datetime, timedelta
-import hydra
-from omegaconf import DictConfig
-import tensorflow as tf
-from tensorflow.keras import mixed_precision
-from tensorflow.keras.callbacks import (
-    EarlyStopping,
-    ModelCheckpoint,
-    TensorBoard,
-    CSVLogger
-)
 
+import hydra
+import numpy as np
+import tensorflow as tf
+from callbacks.timing_callback import TimingCallback
 from data_generators import data_generator
 from data_preparation.verify_data import verify_data
-from utils.general_utils import create_directory, join_paths, set_gpus, \
-    suppress_warnings
-from models.model import prepare_model
 from losses.loss import DiceCoefficient
 from losses.unet_loss import unet3p_hybrid_loss
-from callbacks.timing_callback import TimingCallback
+from models.model import prepare_model
+from omegaconf import DictConfig
+from tensorflow.keras import mixed_precision
+from tensorflow.keras.callbacks import (CSVLogger, EarlyStopping,
+                                        ModelCheckpoint, TensorBoard)
+from utils.general_utils import (create_directory, join_paths, set_gpus,
+                                 suppress_warnings)
 
 
 def create_training_folders(cfg: DictConfig):
     """
     Create directories to store Model CheckPoint and TensorBoard logs.
     """
-    create_directory(
-        join_paths(
-            cfg.WORK_DIR,
-            cfg.CALLBACKS.MODEL_CHECKPOINT.PATH
-        )
-    )
-    create_directory(
-        join_paths(
-            cfg.WORK_DIR,
-            cfg.CALLBACKS.TENSORBOARD.PATH
-        )
-    )
+    create_directory(join_paths(cfg.WORK_DIR, cfg.CALLBACKS.MODEL_CHECKPOINT.PATH))
+    create_directory(join_paths(cfg.WORK_DIR, cfg.CALLBACKS.TENSORBOARD.PATH))
 
 
 def train(cfg: DictConfig):
@@ -71,7 +57,7 @@ def train(cfg: DictConfig):
 
     if cfg.OPTIMIZATION.AMP:
         print("Enabling Automatic Mixed Precision(AMP) training")
-        policy = mixed_precision.Policy('mixed_float16')
+        policy = mixed_precision.Policy("mixed_float16")
         mixed_precision.set_global_policy(policy)
 
     if cfg.OPTIMIZATION.XLA:
@@ -85,28 +71,24 @@ def train(cfg: DictConfig):
         strategy = tf.distribute.MirroredStrategy(
             cross_device_ops=tf.distribute.HierarchicalCopyAllReduce()
         )
-        print('Number of visible gpu devices: {}'.format(strategy.num_replicas_in_sync))
+        print("Number of visible gpu devices: {}".format(strategy.num_replicas_in_sync))
         with strategy.scope():
             optimizer = tf.keras.optimizers.Adam(
                 learning_rate=cfg.HYPER_PARAMETERS.LEARNING_RATE
             )  # optimizer
             if cfg.OPTIMIZATION.AMP:
-                optimizer = mixed_precision.LossScaleOptimizer(
-                    optimizer,
-                    dynamic=True
-                )
+                optimizer = mixed_precision.LossScaleOptimizer(optimizer, dynamic=True)
             dice_coef = DiceCoefficient(post_processed=True, classes=cfg.OUTPUT.CLASSES)
-            dice_coef = tf.keras.metrics.MeanMetricWrapper(name="dice_coef", fn=dice_coef)
+            dice_coef = tf.keras.metrics.MeanMetricWrapper(
+                name="dice_coef", fn=dice_coef
+            )
             model = prepare_model(cfg, training=True)
     else:
         optimizer = tf.keras.optimizers.Adam(
             learning_rate=cfg.HYPER_PARAMETERS.LEARNING_RATE
         )  # optimizer
         if cfg.OPTIMIZATION.AMP:
-            optimizer = mixed_precision.LossScaleOptimizer(
-                optimizer,
-                dynamic=True
-            )
+            optimizer = mixed_precision.LossScaleOptimizer(optimizer, dynamic=True)
         dice_coef = DiceCoefficient(post_processed=True, classes=cfg.OUTPUT.CLASSES)
         dice_coef = tf.keras.metrics.MeanMetricWrapper(name="dice_coef", fn=dice_coef)
         model = prepare_model(cfg, training=True)
@@ -132,21 +114,21 @@ def train(cfg: DictConfig):
     tb_log_dir = join_paths(
         cfg.WORK_DIR,
         cfg.CALLBACKS.TENSORBOARD.PATH,
-        "{}".format(datetime.now().strftime("%Y.%m.%d.%H.%M.%S"))
+        "{}".format(datetime.now().strftime("%Y.%m.%d.%H.%M.%S")),
     )
     print("TensorBoard directory\n" + tb_log_dir)
 
     checkpoint_path = join_paths(
         cfg.WORK_DIR,
         cfg.CALLBACKS.MODEL_CHECKPOINT.PATH,
-        f"{cfg.MODEL.WEIGHTS_FILE_NAME}.hdf5"
+        f"{cfg.MODEL.WEIGHTS_FILE_NAME}.hdf5",
     )
     print("Weights path\n" + checkpoint_path)
 
     csv_log_path = join_paths(
         cfg.WORK_DIR,
         cfg.CALLBACKS.CSV_LOGGER.PATH,
-        f"training_logs_{cfg.MODEL.TYPE}.csv"
+        f"training_logs_{cfg.MODEL.TYPE}.csv",
     )
     print("Logs path\n" + csv_log_path)
 
@@ -160,8 +142,7 @@ def train(cfg: DictConfig):
     callbacks = [
         TensorBoard(log_dir=tb_log_dir, write_graph=False, profile_batch=0),
         EarlyStopping(
-            patience=cfg.CALLBACKS.EARLY_STOPPING.PATIENCE,
-            verbose=cfg.VERBOSE
+            patience=cfg.CALLBACKS.EARLY_STOPPING.PATIENCE, verbose=cfg.VERBOSE
         ),
         ModelCheckpoint(
             checkpoint_path,
@@ -169,14 +150,10 @@ def train(cfg: DictConfig):
             save_weights_only=cfg.CALLBACKS.MODEL_CHECKPOINT.SAVE_WEIGHTS_ONLY,
             save_best_only=cfg.CALLBACKS.MODEL_CHECKPOINT.SAVE_BEST_ONLY,
             monitor=evaluation_metric,
-            mode="max"
-
+            mode="max",
         ),
-        CSVLogger(
-            csv_log_path,
-            append=cfg.CALLBACKS.CSV_LOGGER.APPEND_LOGS
-        ),
-        timing_callback
+        CSVLogger(csv_log_path, append=cfg.CALLBACKS.CSV_LOGGER.APPEND_LOGS),
+        timing_callback,
     ]
 
     training_steps = data_generator.get_iterations(cfg, mode="TRAIN")

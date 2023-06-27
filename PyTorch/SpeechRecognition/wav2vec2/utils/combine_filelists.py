@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os.path import commonpath, join, relpath
 import sys
+from os.path import commonpath, join, relpath
 
 
 def load_tsv(fpath):
@@ -23,8 +23,10 @@ def load_tsv(fpath):
 
 tsvs = [load_tsv(tsv) for tsv in sys.argv[1:]]
 root = commonpath([t[0][0] for t in tsvs])
-tsvs = [[(relpath(join(lines[0][0], p), root), frames) for p, frames in lines[1:]]
-        for lines in tsvs]
+tsvs = [
+    [(relpath(join(lines[0][0], p), root), frames) for p, frames in lines[1:]]
+    for lines in tsvs
+]
 
 print(root)
 for lines in tsvs:

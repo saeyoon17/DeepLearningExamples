@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import logging
+import os
+
 import paddle
 
 
@@ -61,24 +62,25 @@ def _get_gpu_affinity_table():
                            ]}
 
     """
-    lines = os.popen('nvidia-smi topo -m').readlines()
+    lines = os.popen("nvidia-smi topo -m").readlines()
 
     cpu_affinity_idx = -1
-    titles = lines[0].split('\t')
+    titles = lines[0].split("\t")
     for idx in range(len(titles)):
-        if 'CPU Affinity' in titles[idx]:
+        if "CPU Affinity" in titles[idx]:
             cpu_affinity_idx = idx
-    assert cpu_affinity_idx > 0, \
-        "Can not obtain correct CPU affinity column index via nvidia-smi!"
+    assert (
+        cpu_affinity_idx > 0
+    ), "Can not obtain correct CPU affinity column index via nvidia-smi!"
 
     gpu_cpu_affinity_map = dict()
     cpu_socket_gpus_list = dict()
     # Skip title
     for idx in range(1, len(lines)):
         line = lines[idx]
-        items = line.split('\t')
+        items = line.split("\t")
 
-        if 'GPU' in items[0]:
+        if "GPU" in items[0]:
             gpu_id = int(items[0][3:])
             affinity = items[cpu_affinity_idx]
             gpu_cpu_affinity_map[gpu_id] = affinity
@@ -122,7 +124,7 @@ def _group_cpu_cores(cpu_socket_gpus_list):
     for cpu_socket in cpu_socket_gpus_list:
         cpu_core_groups[cpu_socket] = list()
         gpu_count = len(cpu_socket_gpus_list[cpu_socket])
-        cores = cpu_socket.split(',')
+        cores = cpu_socket.split(",")
         for core in cores:
             core_indices = _get_core_indices(core)
             core_group = list()
@@ -145,7 +147,7 @@ def _get_core_indices(cores_str):
         cores_str = '0-20'
         cpu_core_indices = [0, 1, 2, ..., 18, 19, 20]
     """
-    start, end = cores_str.split('-')
+    start, end = cores_str.split("-")
     return [*range(int(start), int(end) + 1)]
 
 
@@ -157,8 +159,11 @@ def set_cpu_affinity():
     CPU cores to each GPU.
     """
 
-    gpu_cpu_affinity_map, cpu_socket_gpus_list, cpu_core_groups = \
-        _get_gpu_affinity_table()
+    (
+        gpu_cpu_affinity_map,
+        cpu_socket_gpus_list,
+        cpu_core_groups,
+    ) = _get_gpu_affinity_table()
 
     node_num = paddle.distributed.fleet.node_num()
     gpu_per_node = paddle.distributed.get_world_size() // node_num
@@ -210,5 +215,9 @@ def set_cpu_affinity():
 
     pid = os.getpid()
     os.sched_setaffinity(pid, affinity_mask)
-    logging.info("Set CPU affinity of rank-%d (Process %d) "
-                 "to %s.", local_rank, pid, str(os.sched_getaffinity(pid)))
+    logging.info(
+        "Set CPU affinity of rank-%d (Process %d) " "to %s.",
+        local_rank,
+        pid,
+        str(os.sched_getaffinity(pid)),
+    )

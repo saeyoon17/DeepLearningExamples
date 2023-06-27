@@ -21,9 +21,9 @@ class BaseGraphAligner(abc.ABC):
     @classmethod
     def get_aligners(cls, include_parents=True):
         """Recursively find sublcasses of `BaseGraphAligner`
-        
+
         Args:
-            include_parents (bool): whether to include parents to other classes. 
+            include_parents (bool): whether to include parents to other classes.
             (default: `True`)
         """
 
@@ -43,7 +43,7 @@ class BaseGraphAligner(abc.ABC):
         raise NotImplementedError()
 
     def align(self, *args, **kwargs):
-        """align function to align generated graph and generated features, 
+        """align function to align generated graph and generated features,
         required to be implemented by aligners
         """
         raise NotImplementedError()

@@ -14,17 +14,16 @@
 
 import os
 import random
+import warnings
 
 import torch
 import torch.distributed as dist
-
-from numba import cuda
-import warnings
 from dask.distributed import Client
 from dask_cuda import LocalCUDACluster
-
 from hydra.core.hydra_config import HydraConfig
 from joblib.externals.loky.backend.context import get_context
+from numba import cuda
+
 
 def generate_seeds(rng, size):
     """
@@ -33,7 +32,7 @@ def generate_seeds(rng, size):
     :param rng: random number generator
     :param size: length of the returned list
     """
-    seeds = [rng.randint(0, 2 ** 32 - 1) for _ in range(size)]
+    seeds = [rng.randint(0, 2**32 - 1) for _ in range(size)]
     return seeds
 
 
@@ -68,7 +67,7 @@ def setup_seeds(master_seed, epochs, device):
     """
     if master_seed == -1:
         # random master seed, random.SystemRandom() uses /dev/urandom on Unix
-        master_seed = random.SystemRandom().randint(0, 2 ** 32 - 1)
+        master_seed = random.SystemRandom().randint(0, 2**32 - 1)
         if get_rank() == 0:
             # master seed is reported only from rank=0 worker, it's to avoid
             # confusion, seeds from rank=0 are later broadcasted to other
@@ -112,9 +111,9 @@ def reduce_tensor(tensor, num_gpus, average=False):
 
 def init_distributed():
     world_size = int(os.environ.get("WORLD_SIZE", 1))
-    local_rank = int(os.environ.get('LOCAL_RANK', 0))
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
     if world_size > 1:
-        dist.init_process_group(backend='nccl', init_method="env://")
+        dist.init_process_group(backend="nccl", init_method="env://")
         assert dist.is_initialized()
         torch.cuda.set_device(local_rank)
         torch.cuda.synchronize()
@@ -139,13 +138,20 @@ def init_parallel():
     if is_parallel():
         torch.cuda.set_device(HydraConfig.get().job.num % torch.cuda.device_count())
 
+
 def is_parallel():
-    return HydraConfig.get().launcher.get('n_jobs', 0) > 1 or HydraConfig.get().sweeper.get('n_jobs', 0) > 1
+    return (
+        HydraConfig.get().launcher.get("n_jobs", 0) > 1
+        or HydraConfig.get().sweeper.get("n_jobs", 0) > 1
+    )
 
 
 def get_mp_context():
-    if HydraConfig.get().launcher.get('n_jobs', 0) > 1 or HydraConfig.get().sweeper.get('n_jobs', 0) > 1:
-        return get_context('loky')
+    if (
+        HydraConfig.get().launcher.get("n_jobs", 0) > 1
+        or HydraConfig.get().sweeper.get("n_jobs", 0) > 1
+    ):
+        return get_context("loky")
     return None
 
 
@@ -155,9 +161,17 @@ def _pynvml_mem_size(kind="total", index=0):
     pynvml.nvmlInit()
     size = None
     if kind == "free":
-        size = int(pynvml.nvmlDeviceGetMemoryInfo(pynvml.nvmlDeviceGetHandleByIndex(index)).free)
+        size = int(
+            pynvml.nvmlDeviceGetMemoryInfo(
+                pynvml.nvmlDeviceGetHandleByIndex(index)
+            ).free
+        )
     elif kind == "total":
-        size = int(pynvml.nvmlDeviceGetMemoryInfo(pynvml.nvmlDeviceGetHandleByIndex(index)).total)
+        size = int(
+            pynvml.nvmlDeviceGetMemoryInfo(
+                pynvml.nvmlDeviceGetHandleByIndex(index)
+            ).total
+        )
     else:
         raise ValueError("{0} not a supported option for device_mem_size.".format(kind))
     pynvml.nvmlShutdown()
@@ -176,7 +190,9 @@ def device_mem_size(kind="total"):
     except NotImplementedError:
         if kind == "free":
             # Not using NVML "free" memory, because it will not include RMM-managed memory
-            warnings.warn("get_memory_info is not supported. Using total device memory from NVML.")
+            warnings.warn(
+                "get_memory_info is not supported. Using total device memory from NVML."
+            )
         size = _pynvml_mem_size(kind="total", index=0)
     return size
 
@@ -186,7 +202,7 @@ def get_rmm_size(size):
 
 
 def calculate_frac(num_rows, num_feat, world_size):
-    total_memory = world_size * device_mem_size(kind='total')
+    total_memory = world_size * device_mem_size(kind="total")
     mem_to_use = total_memory * 0.4
     num_rows_to_use = mem_to_use / (num_feat * 6)
     print(num_rows_to_use)
@@ -195,7 +211,7 @@ def calculate_frac(num_rows, num_feat, world_size):
 
 
 def create_client(config):
-    device_pool_frac = config.cluster.device_pool_frac 
+    device_pool_frac = config.cluster.device_pool_frac
     device_size = device_mem_size(kind="total")
     device_pool_size = int(device_pool_frac * device_size)
     dask_space = "/tmp/dask_space/"
@@ -209,7 +225,8 @@ def create_client(config):
             local_directory=dask_space,
             device_memory_limit=None,
             enable_tcp_over_ucx=True,
-            enable_nvlink=True)
+            enable_nvlink=True,
+        )
     else:
         cluster = LocalCUDACluster(
             protocol=protocol,
@@ -218,6 +235,6 @@ def create_client(config):
             local_directory=dask_space,
             device_memory_limit=None,
         )
-            
+
     client = Client(cluster)
     return client

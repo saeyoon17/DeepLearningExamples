@@ -17,7 +17,6 @@ from collections import defaultdict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from common.fairseq.modules.multihead_attention import RotaryEmbedding
 
 
@@ -27,14 +26,14 @@ def mha_state_dict_to_fairseq(sd):
     qkv = defaultdict(dict)
 
     for key, val in sd.items():
-        fields = key.split('.')
+        fields = key.split(".")
         if len(fields) < 2:
             continue
-        prefix = '.'.join(fields[:-2] + [""])
+        prefix = ".".join(fields[:-2] + [""])
         module, param = fields[-2:]
 
-        if module in ['q_proj', 'k_proj', 'v_proj']:
-            qkv[prefix][module + '.' + param] = val
+        if module in ["q_proj", "k_proj", "v_proj"]:
+            qkv[prefix][module + "." + param] = val
         else:
             new_sd[key] = val
 
@@ -42,9 +41,11 @@ def mha_state_dict_to_fairseq(sd):
         # Stitch qkv params together
         assert len(param_dict) == 6
         new_sd[f"{prefix}qkv.weight"] = torch.cat(
-            [param_dict[f"{k}_proj.weight"] for k in ["q", "k", "v"]], dim=0)
+            [param_dict[f"{k}_proj.weight"] for k in ["q", "k", "v"]], dim=0
+        )
         new_sd[f"{prefix}qkv.bias"] = torch.cat(
-            [param_dict[f"{k}_proj.bias"] for k in ["q", "k", "v"]], dim=0)
+            [param_dict[f"{k}_proj.bias"] for k in ["q", "k", "v"]], dim=0
+        )
 
     return new_sd
 
@@ -54,6 +55,7 @@ class PytMultiheadAttention(nn.Module):
 
     Calls torch.nn.functional with combined qkv.
     """
+
     def __init__(
         self,
         embed_dim,
@@ -80,11 +82,9 @@ class PytMultiheadAttention(nn.Module):
             self.head_dim * num_heads == self.embed_dim
         ), "embed_dim must be divisible by num_heads"
 
-        self.qkv = nn.Linear(embed_dim, 3 * num_heads * self.head_dim,
-                             bias=bias)
+        self.qkv = nn.Linear(embed_dim, 3 * num_heads * self.head_dim, bias=bias)
         self.dropatt = nn.Dropout(dropout)
-        self.out_proj = nn.Linear(num_heads * self.head_dim, embed_dim,
-                                  bias=bias)
+        self.out_proj = nn.Linear(num_heads * self.head_dim, embed_dim, bias=bias)
         self.reset_parameters()
 
         def hook(state_dict, prefix, *args, **kwargs):
@@ -96,8 +96,9 @@ class PytMultiheadAttention(nn.Module):
 
         self._register_load_state_dict_pre_hook(hook)
 
-    def forward(self, query, key=None, value=None, key_padding_mask=None,
-                attn_mask=None):
+    def forward(
+        self, query, key=None, value=None, key_padding_mask=None, attn_mask=None
+    ):
 
         return F.multi_head_attention_forward(
             query,
@@ -120,7 +121,7 @@ class PytMultiheadAttention(nn.Module):
             average_attn_weights=False,
         )
 
-    def state_dict(self, *args, destination=None, prefix='', keep_vars=False):
+    def state_dict(self, *args, destination=None, prefix="", keep_vars=False):
         """Split q, k, v matrices for bwd compatibility with Fairseq."""
         sd = super().state_dict(*args, destination, prefix, keep_vars)
         for key in list(sd.keys()):
@@ -139,9 +140,9 @@ class PytMultiheadAttention(nn.Module):
     def reset_parameters(self):
         # Init as in Fairseq with qkv_same_dim=True and separate qkv projs
         t = self.qkv.weight.size(0) // 3
-        nn.init.xavier_uniform_(self.qkv.weight[0*t:1*t], gain=1 / (2 ** 0.5))
-        nn.init.xavier_uniform_(self.qkv.weight[1*t:2*t], gain=1 / (2 ** 0.5))
-        nn.init.xavier_uniform_(self.qkv.weight[2*t:3*t], gain=1 / (2 ** 0.5))
+        nn.init.xavier_uniform_(self.qkv.weight[0 * t : 1 * t], gain=1 / (2**0.5))
+        nn.init.xavier_uniform_(self.qkv.weight[1 * t : 2 * t], gain=1 / (2**0.5))
+        nn.init.xavier_uniform_(self.qkv.weight[2 * t : 3 * t], gain=1 / (2**0.5))
 
         nn.init.xavier_uniform_(self.out_proj.weight)
         if self.out_proj.bias is not None:
@@ -155,15 +156,17 @@ class Fp32Softmax(nn.Softmax):
 
 class SlowMultiHeadAttention(nn.Module):
     """Drop-in replacement for Fairseq MHA."""
-    def __init__(self,
-                 embed_dim,
-                 num_heads,
-                 dropout=0.0,
-                 bias=True,
-                 self_attention=True,
-                 rotary_embeddings=None,
-                 fp32_softmax=False,
-        ):
+
+    def __init__(
+        self,
+        embed_dim,
+        num_heads,
+        dropout=0.0,
+        bias=True,
+        self_attention=True,
+        rotary_embeddings=None,
+        fp32_softmax=False,
+    ):
         super().__init__()
 
         n_head = num_heads
@@ -180,7 +183,7 @@ class SlowMultiHeadAttention(nn.Module):
         self.n_head = n_head
         self.d_model = d_model
         self.d_head = d_head
-        self.scale = 1 / (d_head ** 0.5)
+        self.scale = 1 / (d_head**0.5)
         self.pre_lnorm = pre_lnorm
 
         self.qkv = nn.Linear(d_model, 3 * n_head * d_head, bias=bias)
@@ -195,13 +198,13 @@ class SlowMultiHeadAttention(nn.Module):
 
         ret = {}
         for key, val in sd.items():
-            fields = key.split('.')
+            fields = key.split(".")
             if len(fields) < 2:
                 continue
-            prefix = '.'.join(fields[:-2] + [""])
+            prefix = ".".join(fields[:-2] + [""])
             module, param = fields[-2:]
 
-            if module == 'qkv':
+            if module == "qkv":
                 q, k, v = torch.chunk(val, 3, dim=0)
                 ret[f"{prefix}q_proj.{param}"] = q
                 ret[f"{prefix}k_proj.{param}"] = k
@@ -218,14 +221,14 @@ class SlowMultiHeadAttention(nn.Module):
         qkv = defaultdict(dict)
 
         for key, val in sd.items():
-            fields = key.split('.')
+            fields = key.split(".")
             if len(fields) < 2:
                 continue
-            prefix = '.'.join(fields[:-2] + [""])
+            prefix = ".".join(fields[:-2] + [""])
             module, param = fields[-2:]
 
-            if module in ['q_proj', 'k_proj', 'v_proj']:
-                qkv[prefix][module + '.' + param] = val
+            if module in ["q_proj", "k_proj", "v_proj"]:
+                qkv[prefix][module + "." + param] = val
             else:
                 ret[key] = val
 
@@ -233,11 +236,11 @@ class SlowMultiHeadAttention(nn.Module):
             # Stitch qkv params together
             assert len(param_dict) == 6
             ret[f"{prefix}qkv.weight"] = torch.cat(
-                [param_dict[f"{k}_proj.weight"] for k in ["q", "k", "v"]],
-                dim=0)
+                [param_dict[f"{k}_proj.weight"] for k in ["q", "k", "v"]], dim=0
+            )
             ret[f"{prefix}qkv.bias"] = torch.cat(
-                [param_dict[f"{k}_proj.bias"] for k in ["q", "k", "v"]],
-                dim=0)
+                [param_dict[f"{k}_proj.bias"] for k in ["q", "k", "v"]], dim=0
+            )
 
         super().load_state_dict(ret)
 
@@ -265,15 +268,18 @@ class SlowMultiHeadAttention(nn.Module):
         if attn_mask is not None:
             attn_mask = attn_mask.unsqueeze(1).to(attn_score.dtype)
             attn_mask = attn_mask.repeat(n_head, attn_mask.size(2), 1)
-            attn_score.masked_fill_(attn_mask.to(torch.bool), -float('inf'))
+            attn_score.masked_fill_(attn_mask.to(torch.bool), -float("inf"))
 
         attn_prob = self.softmax(attn_score)
         attn_prob = self.dropatt(attn_prob)
         attn_vec = torch.bmm(attn_prob, v)
 
         attn_vec = attn_vec.view(n_head, inp.size(0), inp.size(1), d_head)
-        attn_vec = attn_vec.permute(1, 2, 0, 3).contiguous().view(
-            inp.size(0), inp.size(1), n_head * d_head)
+        attn_vec = (
+            attn_vec.permute(1, 2, 0, 3)
+            .contiguous()
+            .view(inp.size(0), inp.size(1), n_head * d_head)
+        )
 
         output = self.proj(attn_vec)
 

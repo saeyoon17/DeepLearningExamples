@@ -13,16 +13,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import random
+from pathlib import Path
+
+import numpy as np
 import torch
 import torch.distributed as dist
-import random
-import numpy as np
-from pathlib import Path
+
 
 def unwrap_ddp(model):
     if isinstance(model, torch.nn.parallel.distributed.DistributedDataParallel):
         return model.module
     return model
+
 
 def get_rank():
     if not dist.is_available():
@@ -70,6 +73,7 @@ def mkdir_by_main_process(path):
     if is_main_process():
         mkdir(path)
     barrier()
+
 
 def set_seed(seed, n_gpu):
     random.seed(seed + get_rank())

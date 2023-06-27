@@ -17,22 +17,20 @@ import math
 import multiprocessing
 import os
 
-import SimpleITK as sitk
 import horovod.tensorflow as hvd
 import numpy as np
+import SimpleITK as sitk
 import tensorflow as tf
 from scipy import stats
 
 
 def parse_nifti(path, dtype, dst_size, interpolator, normalization=None, modality=None):
     sitk_image = load_image(path)
-    sitk_image = resize_image(sitk_image,
-                              dst_size=dst_size,
-                              interpolator=interpolator)
+    sitk_image = resize_image(sitk_image, dst_size=dst_size, interpolator=interpolator)
 
     image = sitk_to_np(sitk_image)
 
-    if modality and 'CT' not in modality:
+    if modality and "CT" not in modality:
         if normalization:
             image = stats.zscore(image, axis=None)
     elif modality:
@@ -44,13 +42,12 @@ def parse_nifti(path, dtype, dst_size, interpolator, normalization=None, modalit
 def make_ref_image(img_path, dst_size, interpolator):
     ref_image = load_image(img_path)
 
-    ref_image = resize_image(ref_image, dst_size=dst_size,
-                             interpolator=interpolator)
+    ref_image = resize_image(ref_image, dst_size=dst_size, interpolator=interpolator)
     return sitk_to_np(ref_image) / np.max(ref_image) * 255
 
 
 def make_interpolator(interpolator):
-    if interpolator == 'linear':
+    if interpolator == "linear":
         return sitk.sitkLinear
     else:
         raise ValueError("Unknown interpolator type")
@@ -72,16 +69,22 @@ def sitk_to_np(sitk_img):
     return np.transpose(sitk.GetArrayFromImage(sitk_img), [2, 1, 0])
 
 
-def resize_image(sitk_img,
-                 dst_size=(128, 128, 64),
-                 interpolator=sitk.sitkNearestNeighbor):
+def resize_image(
+    sitk_img, dst_size=(128, 128, 64), interpolator=sitk.sitkNearestNeighbor
+):
     reference_image = sitk.Image(dst_size, sitk_img.GetPixelIDValue())
     reference_image.SetOrigin(sitk_img.GetOrigin())
     reference_image.SetDirection(sitk_img.GetDirection())
     reference_image.SetSpacing(
-        [sz * spc / nsz for nsz, sz, spc in zip(dst_size, sitk_img.GetSize(), sitk_img.GetSpacing())])
+        [
+            sz * spc / nsz
+            for nsz, sz, spc in zip(dst_size, sitk_img.GetSize(), sitk_img.GetSpacing())
+        ]
+    )
 
-    return sitk.Resample(sitk_img, reference_image, sitk.Transform(3, sitk.sitkIdentity), interpolator)
+    return sitk.Resample(
+        sitk_img, reference_image, sitk.Transform(3, sitk.sitkIdentity), interpolator
+    )
 
 
 class MSDJsonParser:
@@ -89,11 +92,21 @@ class MSDJsonParser:
         with open(json_path) as f:
             data = json.load(f)
 
-            self._labels = data.get('labels')
-            self._x_train = [os.path.join(os.path.dirname(json_path), p['image']) for p in data.get('training')]
-            self._y_train = [os.path.join(os.path.dirname(json_path), p['label']) for p in data.get('training')]
-            self._x_test = [os.path.join(os.path.dirname(json_path), p) for p in data.get('test')]
-            self._modality = [data.get('modality')[k] for k in data.get('modality').keys()]
+            self._labels = data.get("labels")
+            self._x_train = [
+                os.path.join(os.path.dirname(json_path), p["image"])
+                for p in data.get("training")
+            ]
+            self._y_train = [
+                os.path.join(os.path.dirname(json_path), p["label"])
+                for p in data.get("training")
+            ]
+            self._x_test = [
+                os.path.join(os.path.dirname(json_path), p) for p in data.get("test")
+            ]
+            self._modality = [
+                data.get("modality")[k] for k in data.get("modality").keys()
+            ]
 
     @property
     def labels(self):
@@ -121,30 +134,43 @@ def make_split(json_parser, train_split, split_seed=0):
 
     train_size = int(len(json_parser.x_train) * train_split)
 
-    return np.array(json_parser.x_train)[:train_size], np.array(json_parser.y_train)[:train_size], \
-           np.array(json_parser.x_train)[train_size:], np.array(json_parser.y_train)[train_size:]
+    return (
+        np.array(json_parser.x_train)[:train_size],
+        np.array(json_parser.y_train)[:train_size],
+        np.array(json_parser.x_train)[train_size:],
+        np.array(json_parser.y_train)[train_size:],
+    )
 
 
 class MSDDataset(object):
-    def __init__(self, json_path,
-                 dst_size=[128, 128, 64],
-                 seed=None,
-                 interpolator=None,
-                 data_normalization=None,
-                 batch_size=1,
-                 train_split=1.0,
-                 split_seed=0):
+    def __init__(
+        self,
+        json_path,
+        dst_size=[128, 128, 64],
+        seed=None,
+        interpolator=None,
+        data_normalization=None,
+        batch_size=1,
+        train_split=1.0,
+        split_seed=0,
+    ):
         self._json_parser = MSDJsonParser(json_path)
         self._interpolator = make_interpolator(interpolator)
 
-        self._ref_image = make_ref_image(img_path=self._json_parser.x_test[0],
-                                         dst_size=dst_size,
-                                         interpolator=self._interpolator)
+        self._ref_image = make_ref_image(
+            img_path=self._json_parser.x_test[0],
+            dst_size=dst_size,
+            interpolator=self._interpolator,
+        )
 
         np.random.seed(split_seed)
 
-        self._train_img, self._train_label, \
-        self._eval_img, self._eval_label = make_split(self._json_parser, train_split)
+        (
+            self._train_img,
+            self._train_label,
+            self._eval_img,
+            self._eval_label,
+        ) = make_split(self._json_parser, train_split)
         self._test_img = np.array(self._json_parser.x_test)
 
         self._dst_size = dst_size
@@ -164,8 +190,7 @@ class MSDDataset(object):
     def train_steps(self):
         global_batch_size = hvd.size() * self._batch_size
 
-        return math.ceil(
-            len(self._train_img) / global_batch_size)
+        return math.ceil(len(self._train_img) / global_batch_size)
 
     @property
     def eval_steps(self):
@@ -176,18 +201,22 @@ class MSDDataset(object):
         return math.ceil(len(self._test_img) / self._batch_size)
 
     def _parse_image(self, img):
-        return parse_nifti(path=img,
-                           dst_size=self._dst_size,
-                           dtype=tf.float32,
-                           interpolator=self._interpolator,
-                           normalization=self._data_normalization,
-                           modality=self._json_parser.modality)
+        return parse_nifti(
+            path=img,
+            dst_size=self._dst_size,
+            dtype=tf.float32,
+            interpolator=self._interpolator,
+            normalization=self._data_normalization,
+            modality=self._json_parser.modality,
+        )
 
     def _parse_label(self, label):
-        return parse_nifti(path=label,
-                           dst_size=self._dst_size,
-                           dtype=tf.int32,
-                           interpolator=sitk.sitkNearestNeighbor)
+        return parse_nifti(
+            path=label,
+            dst_size=self._dst_size,
+            dtype=tf.int32,
+            interpolator=sitk.sitkNearestNeighbor,
+        )
 
     def _augment(self, x, y):
         # Horizontal flip
@@ -211,12 +240,16 @@ class MSDDataset(object):
             yield self._parse_label(element)
 
     def train_fn(self, augment):
-        images = tf.data.Dataset.from_generator(generator=lambda: self._img_generator(self._train_img),
-                                                output_types=tf.float32,
-                                                output_shapes=(32, 32, 32))
-        labels = tf.data.Dataset.from_generator(generator=lambda: self._label_generator(self._train_label),
-                                                output_types=tf.int32,
-                                                output_shapes=(32, 32, 32))
+        images = tf.data.Dataset.from_generator(
+            generator=lambda: self._img_generator(self._train_img),
+            output_types=tf.float32,
+            output_shapes=(32, 32, 32),
+        )
+        labels = tf.data.Dataset.from_generator(
+            generator=lambda: self._label_generator(self._train_label),
+            output_types=tf.int32,
+            output_shapes=(32, 32, 32),
+        )
 
         dataset = tf.data.Dataset.zip((images, labels))
 
@@ -224,17 +257,22 @@ class MSDDataset(object):
 
         dataset = dataset.repeat()
 
-        dataset = dataset.shuffle(buffer_size=self._batch_size * 2,
-                                  reshuffle_each_iteration=True,
-                                  seed=self._seed)
+        dataset = dataset.shuffle(
+            buffer_size=self._batch_size * 2,
+            reshuffle_each_iteration=True,
+            seed=self._seed,
+        )
         dataset = dataset.shard(hvd.size(), hvd.rank())
 
         if augment:
             dataset = dataset.apply(
-                tf.data.experimental.map_and_batch(map_func=self._augment,
-                                                   batch_size=self._batch_size,
-                                                   drop_remainder=True,
-                                                   num_parallel_calls=multiprocessing.cpu_count()))
+                tf.data.experimental.map_and_batch(
+                    map_func=self._augment,
+                    batch_size=self._batch_size,
+                    drop_remainder=True,
+                    num_parallel_calls=multiprocessing.cpu_count(),
+                )
+            )
         else:
             dataset = dataset.batch(self._batch_size)
 
@@ -243,12 +281,16 @@ class MSDDataset(object):
         return dataset
 
     def eval_fn(self):
-        images = tf.data.Dataset.from_generator(generator=lambda: self._img_generator(self._eval_img),
-                                                output_types=tf.float32,
-                                                output_shapes=(32, 32, 32))
-        labels = tf.data.Dataset.from_generator(generator=lambda: self._label_generator(self._eval_label),
-                                                output_types=tf.int32,
-                                                output_shapes=(32, 32, 32))
+        images = tf.data.Dataset.from_generator(
+            generator=lambda: self._img_generator(self._eval_img),
+            output_types=tf.float32,
+            output_shapes=(32, 32, 32),
+        )
+        labels = tf.data.Dataset.from_generator(
+            generator=lambda: self._label_generator(self._eval_label),
+            output_types=tf.int32,
+            output_shapes=(32, 32, 32),
+        )
         dataset = tf.data.Dataset.zip((images, labels))
 
         dataset = dataset.cache()
@@ -260,9 +302,11 @@ class MSDDataset(object):
         return dataset
 
     def test_fn(self, count=1):
-        dataset = tf.data.Dataset.from_generator(generator=lambda: self._img_generator(self._test_img),
-                                                 output_types=tf.float32,
-                                                 output_shapes=(32, 32, 32))
+        dataset = tf.data.Dataset.from_generator(
+            generator=lambda: self._img_generator(self._test_img),
+            output_types=tf.float32,
+            output_shapes=(32, 32, 32),
+        )
 
         dataset = dataset.cache()
 

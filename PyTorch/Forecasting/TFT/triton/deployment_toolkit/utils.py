@@ -43,5 +43,7 @@ def parse_server_url(server_url: str) -> Tuple[str, str, int]:
                 f"Current server URL is {server_url} while default {requested_protocol} port is {default_port}"
             )
     else:
-        raise ValueError(f"Could not parse {server_url}. Example of correct server URL: grpc://127.0.0.1:8001")
+        raise ValueError(
+            f"Could not parse {server_url}. Example of correct server URL: grpc://127.0.0.1:8001"
+        )
     return requested_protocol, host, port

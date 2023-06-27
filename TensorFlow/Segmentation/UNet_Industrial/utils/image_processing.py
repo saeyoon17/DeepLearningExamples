@@ -32,7 +32,7 @@ def binarize_output(image, threshold=None):
     else:
         image = tf.cast(image * 255, dtype=tf.uint8)
 
-    encoded_image = tf.image.encode_jpeg(image, format='grayscale', quality=100)
+    encoded_image = tf.image.encode_jpeg(image, format="grayscale", quality=100)
 
     if image.get_shape().rank == 3:
         image = tf.expand_dims(image, axis=0)

@@ -12,18 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import json
+import os
 import shutil
 
 import dllogger
 import torch
-from torch.nn.parallel import DistributedDataParallel as DDP
-
 from hydra.utils import get_original_cwd
-from omegaconf import OmegaConf
-
 from loggers.log_helper import restart_logger
+from omegaconf import OmegaConf
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 def save_checkpoint(trainer, filename="checkpoint.zip", checkpoint_dir="."):
@@ -40,16 +38,20 @@ def save_checkpoint(trainer, filename="checkpoint.zip", checkpoint_dir="."):
         "optimizer_state_dict": trainer.optimizer.state_dict(),
     }
     checkpoint_path = os.path.join(checkpoint_dir, filename)
-    trainer.logger.log(step='event', data={"String": f"Saving checkpoint to {filename}"}, verbosity=dllogger.Verbosity.DEFAULT)
+    trainer.logger.log(
+        step="event",
+        data={"String": f"Saving checkpoint to {filename}"},
+        verbosity=dllogger.Verbosity.DEFAULT,
+    )
     torch.save(state, checkpoint_path)
 
 
 def maybe_restore_checkpoint(trainer, checkpoint_path):
     if checkpoint_path and os.path.isfile(checkpoint_path):
         trainer.logger.log(
-            step='event',
+            step="event",
             data={"String": f"Restoring checkpoint from {checkpoint_path}"},
-            verbosity=dllogger.Verbosity.DEFAULT
+            verbosity=dllogger.Verbosity.DEFAULT,
         )
         checkpoint = torch.load(checkpoint_path, map_location=trainer.device)
         trainer.model.load_state_dict(checkpoint["model_state_dict"])
@@ -64,7 +66,7 @@ def trim_json_log(log_path):
     Does not modify the logfile
     """
     if os.path.isfile(log_path):
-        with open(log_path, 'r') as f:
+        with open(log_path, "r") as f:
             lines = f.readlines()
             # In case log file is newly created
             if not lines:
@@ -72,11 +74,15 @@ def trim_json_log(log_path):
 
             for i, l in enumerate(reversed(lines)):
                 d = json.loads(l[4:])
-                if d.get('step') == []:
+                if d.get("step") == []:
                     return lines
-                if 'data' in d and 'String' in d['data'] and 'Epoch' in d['data']['String']:
+                if (
+                    "data" in d
+                    and "String" in d["data"]
+                    and "Epoch" in d["data"]["String"]
+                ):
                     break
-            lines = lines[:-i-1]
+            lines = lines[: -i - 1]
 
         return lines
 
@@ -88,27 +94,29 @@ def detect_duplicated_run():
     Returns list of paths of the runs with the same config as provided
     """
     # This is meant to be called in a trainer class, which means that this doesn't have access to the top level config
-    current_config = OmegaConf.load('.hydra/config.yaml')
+    current_config = OmegaConf.load(".hydra/config.yaml")
     rel = os.path.relpath(os.getcwd(), get_original_cwd())
     rel = next(x for x in rel.split(os.path.sep))
     result_dir = os.path.join(get_original_cwd(), rel)
 
     duplicated = []
     for p, s, f in os.walk(result_dir):
-        if '.hydra' in s:
-            c = OmegaConf.load(os.path.join(p, '.hydra/config.yaml'))
+        if ".hydra" in s:
+            c = OmegaConf.load(os.path.join(p, ".hydra/config.yaml"))
             if hash(c) == hash(current_config):
                 duplicated.append(p)
     # Don't take into account runs that ended before any checkpoint had been saved
     # or current run (at this point hydra's config has already been saved)
-    duplicated = [p for p in duplicated if os.path.exists(os.path.join(p,'last_checkpoint.zip'))]
+    duplicated = [
+        p for p in duplicated if os.path.exists(os.path.join(p, "last_checkpoint.zip"))
+    ]
 
     return duplicated
 
 
 def get_most_advanced_run(paths, logfile_name):
     adv = 0
-    path = ''
+    path = ""
     for p in paths:
         log_path = os.path.join(p, logfile_name)
         log_lines = trim_json_log(log_path)
@@ -123,22 +131,22 @@ def maybe_continue_run(trainer):
     if not duplicates:
         return
 
-    logfile_name = trainer.config.get('logfile_name', 'log.json')
+    logfile_name = trainer.config.get("logfile_name", "log.json")
     unfinished_run_path = get_most_advanced_run(duplicates, logfile_name)
-    checkpoint_path = os.path.join(unfinished_run_path, 'last_checkpoint.zip')
-    best_checkpoint_path = os.path.join(unfinished_run_path, 'best_checkpoint.zip')
+    checkpoint_path = os.path.join(unfinished_run_path, "last_checkpoint.zip")
+    best_checkpoint_path = os.path.join(unfinished_run_path, "best_checkpoint.zip")
     maybe_restore_checkpoint(trainer, checkpoint_path)
     log_lines = trim_json_log(os.path.join(unfinished_run_path, logfile_name))
 
     # Reinitialize the logger. This will cause it to append to the copied log file.
-    with open(logfile_name, 'w') as f:
+    with open(logfile_name, "w") as f:
         f.writelines(log_lines)
     trainer.logger = restart_logger(trainer.config, trainer.logger)
     trainer.logger.log(
-        step='event',
+        step="event",
         data={"String": f"Resuming run: {unfinished_run_path}"},
-        verbosity=dllogger.Verbosity.DEFAULT
+        verbosity=dllogger.Verbosity.DEFAULT,
     )
 
-    shutil.copyfile(checkpoint_path, 'last_checkpoint.zip')
-    shutil.copyfile(best_checkpoint_path, 'best_checkpoint.zip')
+    shutil.copyfile(checkpoint_path, "last_checkpoint.zip")
+    shutil.copyfile(best_checkpoint_path, "best_checkpoint.zip")

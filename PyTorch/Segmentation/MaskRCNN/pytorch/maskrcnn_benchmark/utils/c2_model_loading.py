@@ -5,7 +5,6 @@ import pickle
 from collections import OrderedDict
 
 import torch
-
 from maskrcnn_benchmark.utils.model_serialization import load_state_dict
 from maskrcnn_benchmark.utils.registry import Registry
 
@@ -55,12 +54,15 @@ def _rename_basic_resnet_weights(layer_keys):
     layer_keys = [k.replace("conv2.gn.bias", "bn2.bias") for k in layer_keys]
     layer_keys = [k.replace("conv3.gn.s", "bn3.weight") for k in layer_keys]
     layer_keys = [k.replace("conv3.gn.bias", "bn3.bias") for k in layer_keys]
-    layer_keys = [k.replace("downsample.0.gn.s", "downsample.1.weight") \
-        for k in layer_keys]
-    layer_keys = [k.replace("downsample.0.gn.bias", "downsample.1.bias") \
-        for k in layer_keys]
+    layer_keys = [
+        k.replace("downsample.0.gn.s", "downsample.1.weight") for k in layer_keys
+    ]
+    layer_keys = [
+        k.replace("downsample.0.gn.bias", "downsample.1.bias") for k in layer_keys
+    ]
 
     return layer_keys
+
 
 def _rename_fpn_weights(layer_keys, stage_names):
     for mapped_idx, stage_name in enumerate(stage_names, 1):
@@ -68,10 +70,18 @@ def _rename_fpn_weights(layer_keys, stage_names):
         if mapped_idx < 4:
             suffix = ".lateral"
         layer_keys = [
-            k.replace("fpn.inner.layer{}.sum{}".format(stage_name, suffix), "fpn_inner{}".format(mapped_idx)) for k in layer_keys
+            k.replace(
+                "fpn.inner.layer{}.sum{}".format(stage_name, suffix),
+                "fpn_inner{}".format(mapped_idx),
+            )
+            for k in layer_keys
         ]
-        layer_keys = [k.replace("fpn.layer{}.sum".format(stage_name), "fpn_layer{}".format(mapped_idx)) for k in layer_keys]
-
+        layer_keys = [
+            k.replace(
+                "fpn.layer{}.sum".format(stage_name), "fpn_layer{}".format(mapped_idx)
+            )
+            for k in layer_keys
+        ]
 
     layer_keys = [k.replace("rpn.conv.fpn2", "rpn.conv") for k in layer_keys]
     layer_keys = [k.replace("rpn.bbox_pred.fpn2", "rpn.bbox_pred") for k in layer_keys]
@@ -125,7 +135,9 @@ def _rename_weights_for_resnet(weights, stage_names):
         w = torch.from_numpy(v)
         # if "bn" in k:
         #     w = w.view(1, -1, 1, 1)
-        logger.info("C2 name: {: <{}} mapped name: {}".format(k, max_c2_key_size, key_map[k]))
+        logger.info(
+            "C2 name: {: <{}} mapped name: {}".format(k, max_c2_key_size, key_map[k])
+        )
         new_weights[key_map[k]] = w
 
     return new_weights

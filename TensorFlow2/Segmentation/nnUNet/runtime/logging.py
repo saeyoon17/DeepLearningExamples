@@ -18,7 +18,6 @@ from typing import Callable
 
 import dllogger
 from dllogger import Verbosity
-
 from runtime.utils import rank_zero_only
 
 
@@ -98,10 +97,16 @@ class DLLogger(Logger):
     def _initialize_dllogger(self, save_dir, filename, append, quiet):
         save_dir.mkdir(parents=True, exist_ok=True)
         backends = [
-            dllogger.JSONStreamBackend(Verbosity.DEFAULT, str(save_dir / filename), append=append),
+            dllogger.JSONStreamBackend(
+                Verbosity.DEFAULT, str(save_dir / filename), append=append
+            ),
         ]
         if not quiet:
-            backends.append(dllogger.StdOutBackend(Verbosity.VERBOSE, step_format=lambda step: f"Step: {step} "))
+            backends.append(
+                dllogger.StdOutBackend(
+                    Verbosity.VERBOSE, step_format=lambda step: f"Step: {step} "
+                )
+            )
         dllogger.init(backends=backends)
 
     @rank_zero_only
@@ -128,6 +133,11 @@ def get_logger(args):
     loggers = []
     if args.use_dllogger:
         loggers.append(
-            DLLogger(save_dir=args.results, filename=args.logname, append=args.resume_training, quiet=args.quiet)
+            DLLogger(
+                save_dir=args.results,
+                filename=args.logname,
+                append=args.resume_training,
+                quiet=args.quiet,
+            )
         )
     return LoggerCollection(loggers)

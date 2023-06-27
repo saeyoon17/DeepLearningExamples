@@ -13,9 +13,10 @@
 
 import bz2
 import os
-import urllib.request
-import sys
 import subprocess
+import sys
+import urllib.request
+
 
 class WikiDownloader:
     def __init__(self, language, save_path):

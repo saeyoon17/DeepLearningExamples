@@ -56,10 +56,20 @@ TOTAL_COLUMN_NAME = "_total_"
 def main():
     logging.basicConfig(level=logging.INFO)
 
-    parser = argparse.ArgumentParser(description="Run models with given dataloader", allow_abbrev=False)
-    parser.add_argument("--metrics", help="Path to python module containing metrics calculator", required=True)
+    parser = argparse.ArgumentParser(
+        description="Run models with given dataloader", allow_abbrev=False
+    )
+    parser.add_argument(
+        "--metrics",
+        help="Path to python module containing metrics calculator",
+        required=True,
+    )
     parser.add_argument("--csv", help="Path to csv file", required=True)
-    parser.add_argument("--dump-dir", help="Path to directory with dumped outputs (and labels)", required=True)
+    parser.add_argument(
+        "--dump-dir",
+        help="Path to directory with dumped outputs (and labels)",
+        required=True,
+    )
 
     args, *_ = parser.parse_known_args()
 
@@ -73,17 +83,25 @@ def main():
         LOGGER.info(f"    {key} = {value}")
 
     MetricsCalculator = load_from_file(args.metrics, "metrics", "MetricsCalculator")
-    metrics_calculator: BaseMetricsCalculator = ArgParserGenerator(MetricsCalculator).from_args(args)
+    metrics_calculator: BaseMetricsCalculator = ArgParserGenerator(
+        MetricsCalculator
+    ).from_args(args)
 
     reader = JsonDumpReader(args.dump_dir)
-    for ids, x, y_true, y_pred in reader.iterate_over(["ids", "inputs", "labels", "outputs"]):
+    for ids, x, y_true, y_pred in reader.iterate_over(
+        ["ids", "inputs", "labels", "outputs"]
+    ):
         ids = list(ids["ids"]) if ids is not None else None
         metrics_calculator.update(ids=ids, x=x, y_pred=y_pred, y_real=y_true)
     metrics = metrics_calculator.metrics
 
-    metric_names_with_space = [name for name in metrics if any([c in string.whitespace for c in name])]
+    metric_names_with_space = [
+        name for name in metrics if any([c in string.whitespace for c in name])
+    ]
     if metric_names_with_space:
-        raise ValueError(f"Metric names shall have no spaces; Incorrect names: {', '.join(metric_names_with_space)}")
+        raise ValueError(
+            f"Metric names shall have no spaces; Incorrect names: {', '.join(metric_names_with_space)}"
+        )
 
     csv_path = Path(args.csv)
     csv_path.parent.mkdir(parents=True, exist_ok=True)

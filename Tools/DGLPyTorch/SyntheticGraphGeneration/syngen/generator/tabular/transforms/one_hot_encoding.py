@@ -14,7 +14,6 @@
 
 import numpy as np
 import pandas as pd
-
 from syngen.generator.tabular.transforms.base_transform import BaseTransform
 
 

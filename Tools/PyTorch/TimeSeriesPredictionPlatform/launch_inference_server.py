@@ -22,7 +22,7 @@ warnings.filterwarnings("ignore")
 @hydra.main(config_path="conf/", config_name="deployment_config")
 def main(cfg):
     print(cfg)
-    cfg.deployment.config.checkpoint=cfg.checkpoint
+    cfg.deployment.config.checkpoint = cfg.checkpoint
     hydra.utils.call(cfg, _recursive_=False)
 
 

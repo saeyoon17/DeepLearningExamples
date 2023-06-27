@@ -1,8 +1,7 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
-import torch
-
 import pycocotools.mask as mask_utils
+import torch
 
 # transpose
 FLIP_LEFT_RIGHT = 0
@@ -161,7 +160,9 @@ class SegmentationMask(object):
         """
         assert isinstance(polygons, list)
 
-        self.polygons = [Polygons(p, size, mode, pin_memory=pin_memory) for p in polygons]
+        self.polygons = [
+            Polygons(p, size, mode, pin_memory=pin_memory) for p in polygons
+        ]
         self.size = size
         self.mode = mode
 
@@ -198,8 +199,9 @@ class SegmentationMask(object):
         else:
             # advanced indexing on a single dimension
             selected_polygons = []
-            if isinstance(item, torch.Tensor) and \
-                    (item.dtype == torch.uint8 or item.dtype == torch.bool):
+            if isinstance(item, torch.Tensor) and (
+                item.dtype == torch.uint8 or item.dtype == torch.bool
+            ):
                 item = item.nonzero()
                 item = item.squeeze(1) if item.numel() > 0 else item
                 item = item.tolist()

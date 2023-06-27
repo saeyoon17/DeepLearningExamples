@@ -1,3 +1,1 @@
-from . import configuration
-from . import tokenization
-from . import modeling
+from . import configuration, modeling, tokenization

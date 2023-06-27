@@ -94,7 +94,11 @@ class DataObject:
             Dict
         """
         data = {}
-        filtered_data = {key: value for key, value in self.__dict__.items() if key not in self.READ_ONLY}
+        filtered_data = {
+            key: value
+            for key, value in self.__dict__.items()
+            if key not in self.READ_ONLY
+        }
         for key, value in filtered_data.items():
             data[key] = self._convert_value(value)
 

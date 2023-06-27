@@ -13,9 +13,10 @@
 # limitations under the License.
 
 import tensorflow as tf
-
-from sim.layers.item_item_interaction import DINActivationUnit, DotItemItemInteraction
-from sim.layers.item_sequence_interaction import DINItemSequenceInteractionBlock
+from sim.layers.item_item_interaction import (DINActivationUnit,
+                                              DotItemItemInteraction)
+from sim.layers.item_sequence_interaction import \
+    DINItemSequenceInteractionBlock
 from sim.models.sequential_recommender_model import SequentialRecommenderModel
 
 
@@ -27,9 +28,7 @@ class DINModel(SequentialRecommenderModel):
         embedding_dim=4,
         item_item_interaction="dot",
     ):
-        super(DINModel, self).__init__(
-            feature_spec, embedding_dim, mlp_hidden_dims
-        )
+        super(DINModel, self).__init__(feature_spec, embedding_dim, mlp_hidden_dims)
         if item_item_interaction == "dot":
             item_item_interaction_block = DotItemItemInteraction()
         elif item_item_interaction == "activation_unit":
@@ -40,11 +39,7 @@ class DINModel(SequentialRecommenderModel):
         )
 
     @tf.function
-    def call(
-        self,
-        inputs,
-        training=False
-    ):
+    def call(self, inputs, training=False):
         user_features = inputs["user_features"]
         target_item_features = inputs["target_item_features"]
         long_sequence_features = inputs["long_sequence_features"]
@@ -58,20 +53,25 @@ class DINModel(SequentialRecommenderModel):
         short_sequence_embeddings = self.embed(short_sequence_features)
 
         # Concat over time axis
-        sequence_embeddings = tf.concat([long_sequence_embeddings, short_sequence_embeddings], axis=1)
+        sequence_embeddings = tf.concat(
+            [long_sequence_embeddings, short_sequence_embeddings], axis=1
+        )
         mask = tf.concat([long_sequence_mask, short_sequence_mask], axis=1)
 
-        sequence_embeddings = sequence_embeddings * tf.expand_dims(
-            mask, axis=-1
-        )
+        sequence_embeddings = sequence_embeddings * tf.expand_dims(mask, axis=-1)
 
         item_sequence_interaction_embedding, _ = self.item_seq_interaction(
             (target_item_embedding, sequence_embeddings, mask)
         )
 
-        combined_embeddings = tf.concat([
-            target_item_embedding, item_sequence_interaction_embedding, user_embedding
-        ], -1)
+        combined_embeddings = tf.concat(
+            [
+                target_item_embedding,
+                item_sequence_interaction_embedding,
+                user_embedding,
+            ],
+            -1,
+        )
 
         logits = self.classificationMLP(combined_embeddings, training=training)
 

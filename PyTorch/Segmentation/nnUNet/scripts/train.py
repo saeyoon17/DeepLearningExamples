@@ -19,15 +19,27 @@ from subprocess import run
 parser = ArgumentParser(ArgumentDefaultsHelpFormatter)
 parser.add_argument("--task", type=str, default="01", help="Path to data")
 parser.add_argument("--gpus", type=int, required=True, help="Number of GPUs")
-parser.add_argument("--fold", type=int, required=True, choices=[0, 1, 2, 3, 4], help="Fold number")
-parser.add_argument("--dim", type=int, required=True, choices=[2, 3], help="Dimension of UNet")
+parser.add_argument(
+    "--fold", type=int, required=True, choices=[0, 1, 2, 3, 4], help="Fold number"
+)
+parser.add_argument(
+    "--dim", type=int, required=True, choices=[2, 3], help="Dimension of UNet"
+)
 parser.add_argument("--seed", type=int, default=1, help="Random seed")
-parser.add_argument("--amp", action="store_true", help="Enable automatic mixed precision")
+parser.add_argument(
+    "--amp", action="store_true", help="Enable automatic mixed precision"
+)
 parser.add_argument("--tta", action="store_true", help="Enable test time augmentation")
 parser.add_argument("--bind", action="store_true", help="Enable test time augmentation")
-parser.add_argument("--resume_training", action="store_true", help="Resume training from checkpoint")
-parser.add_argument("--results", type=str, default="/results", help="Path to results directory")
-parser.add_argument("--logname", type=str, default="train_logs.json", help="Name of dlloger output")
+parser.add_argument(
+    "--resume_training", action="store_true", help="Resume training from checkpoint"
+)
+parser.add_argument(
+    "--results", type=str, default="/results", help="Path to results directory"
+)
+parser.add_argument(
+    "--logname", type=str, default="train_logs.json", help="Name of dlloger output"
+)
 parser.add_argument("--learning_rate", type=float, default=8e-4, help="Learning rate")
 
 if __name__ == "__main__":

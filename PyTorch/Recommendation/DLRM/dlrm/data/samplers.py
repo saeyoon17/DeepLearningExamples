@@ -14,10 +14,8 @@
 
 import numpy as np
 import torch
-
-from torch.utils.data import RandomSampler
-
 from dlrm.utils.distributed import get_local_rank
+from torch.utils.data import RandomSampler
 
 
 class RandomDistributedSampler(RandomSampler):

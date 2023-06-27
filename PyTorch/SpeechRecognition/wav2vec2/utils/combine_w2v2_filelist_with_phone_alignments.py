@@ -15,22 +15,24 @@
 import argparse
 from pathlib import Path
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--manifest', type=Path, nargs='+',
-        help='w2v2 manifest files with <ID> <duration> on every line')
+        "--manifest",
+        type=Path,
+        nargs="+",
+        help="w2v2 manifest files with <ID> <duration> on every line",
+    )
     parser.add_argument(
-        '--alignments', type=Path,
-        help='CPC_audio alignments with <ID> <PHONE_ID_LIST> on every line')
+        "--alignments",
+        type=Path,
+        help="CPC_audio alignments with <ID> <PHONE_ID_LIST> on every line",
+    )
     parser.add_argument(
-        '--ids', type=Path,
-        help='List of IDs for this split (train/test, one per line)')
-    parser.add_argument(
-        '--out', type=Path,
-        help='Output manifest fpath')
+        "--ids", type=Path, help="List of IDs for this split (train/test, one per line)"
+    )
+    parser.add_argument("--out", type=Path, help="Output manifest fpath")
 
     args = parser.parse_args()
 
@@ -42,7 +44,7 @@ if __name__ == '__main__':
     out = []
 
     for fpath in args.manifest:
-        print(f'Loading {fpath}')
+        print(f"Loading {fpath}")
         with open(fpath) as f:
             for i, line in enumerate(f):
                 if i == 0:
@@ -55,7 +57,7 @@ if __name__ == '__main__':
 
     with open(args.alignments) as f:
         for line in f:
-            id, ph = line.strip().split(' ', 1)
+            id, ph = line.strip().split(" ", 1)
             alis[id] = ph
 
     ids = [line.strip() for line in open(args.ids)]
@@ -66,11 +68,11 @@ if __name__ == '__main__':
         a = alis[id]
         out.append([fp, d, a])
 
-    with open(args.out.with_suffix('.tsv'), 'w') as f:
-        f.write(header + '\n')
+    with open(args.out.with_suffix(".tsv"), "w") as f:
+        f.write(header + "\n")
         for o in out:
-            f.write('\t'.join(o[:2]) + '\n')
+            f.write("\t".join(o[:2]) + "\n")
 
-    with open(args.out.with_suffix('.ph'), 'w') as f:
+    with open(args.out.with_suffix(".ph"), "w") as f:
         for o in out:
-            f.write(o[2] + '\n')
+            f.write(o[2] + "\n")

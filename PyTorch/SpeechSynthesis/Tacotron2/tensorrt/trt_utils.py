@@ -38,8 +38,8 @@ def is_shape_dynamic(shape):
 
 def run_trt_engine(context, engine, tensors):
 
-    bindings = [None]*engine.num_bindings
-    for name,tensor in tensors['inputs'].items():
+    bindings = [None] * engine.num_bindings
+    for name, tensor in tensors["inputs"].items():
         idx = engine.get_binding_index(name)
         bindings[idx] = tensor.data_ptr()
         if engine.is_shape_binding(idx) and is_shape_dynamic(context.get_shape(idx)):
@@ -47,7 +47,7 @@ def run_trt_engine(context, engine, tensors):
         elif is_shape_dynamic(engine.get_binding_shape(idx)):
             context.set_binding_shape(idx, tensor.shape)
 
-    for name,tensor in tensors['outputs'].items():
+    for name, tensor in tensors["outputs"].items():
         idx = engine.get_binding_index(name)
         bindings[idx] = tensor.data_ptr()
 
@@ -71,10 +71,12 @@ def engine_info(engine_filepath):
   data_type: {dtype}
   dims: {dims}
 }}"""
-    type_mapping = {"DataType.HALF": "TYPE_FP16",
-                    "DataType.FLOAT": "TYPE_FP32",
-                    "DataType.INT32": "TYPE_INT32",
-                    "DataType.BOOL" : "TYPE_BOOL"}
+    type_mapping = {
+        "DataType.HALF": "TYPE_FP16",
+        "DataType.FLOAT": "TYPE_FP32",
+        "DataType.INT32": "TYPE_INT32",
+        "DataType.BOOL": "TYPE_BOOL",
+    }
 
     print("engine name", engine.name)
     print("has_implicit_batch_dimension", engine.has_implicit_batch_dimension)
@@ -94,13 +96,13 @@ def engine_info(engine_filepath):
             "btype": btype,
             "bname": bname,
             "dtype": type_mapping[str(dtype)],
-            "dims": list(bdims[start_dim:])
+            "dims": list(bdims[start_dim:]),
         }
         final_binding_str = binding_template.format_map(config_values)
         print(final_binding_str)
 
 
-def build_engine(model_file, shapes, max_ws=512*1024*1024, fp16=False):
+def build_engine(model_file, shapes, max_ws=512 * 1024 * 1024, fp16=False):
     TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
     builder = trt.Builder(TRT_LOGGER)
     builder.fp16_mode = fp16
@@ -111,13 +113,13 @@ def build_engine(model_file, shapes, max_ws=512*1024*1024, fp16=False):
         config.flags |= 1 << int(trt.BuilderFlag.FP16)
     profile = builder.create_optimization_profile()
     for s in shapes:
-        profile.set_shape(s['name'], min=s['min'], opt=s['opt'], max=s['max'])
+        profile.set_shape(s["name"], min=s["min"], opt=s["opt"], max=s["max"])
     config.add_optimization_profile(profile)
     explicit_batch = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
     network = builder.create_network(explicit_batch)
 
     with trt.OnnxParser(network, TRT_LOGGER) as parser:
-        with open(model_file, 'rb') as model:
+        with open(model_file, "rb") as model:
             parsed = parser.parse(model.read())
             for i in range(parser.num_errors):
                 print("TensorRT ONNX parser error:", parser.get_error(i))

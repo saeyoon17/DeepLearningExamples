@@ -39,10 +39,9 @@ from urllib.parse import urlparse
 from zipfile import ZipFile, is_zipfile
 
 import numpy as np
-from tqdm.auto import tqdm
-
 import requests
 from filelock import FileLock
+from tqdm.auto import tqdm
 
 __version__ = "3.0.2"
 
@@ -93,7 +92,9 @@ try:
     torch_cache_home = _get_torch_home()
 except ImportError:
     torch_cache_home = os.path.expanduser(
-        os.getenv("TORCH_HOME", os.path.join(os.getenv("XDG_CACHE_HOME", "~/.cache"), "torch"))
+        os.getenv(
+            "TORCH_HOME", os.path.join(os.getenv("XDG_CACHE_HOME", "~/.cache"), "torch")
+        )
     )
 
 
@@ -136,8 +137,12 @@ except ImportError:
 default_cache_path = os.path.join(torch_cache_home, "transformers")
 
 
-PYTORCH_PRETRAINED_BERT_CACHE = os.getenv("PYTORCH_PRETRAINED_BERT_CACHE", default_cache_path)
-PYTORCH_TRANSFORMERS_CACHE = os.getenv("PYTORCH_TRANSFORMERS_CACHE", PYTORCH_PRETRAINED_BERT_CACHE)
+PYTORCH_PRETRAINED_BERT_CACHE = os.getenv(
+    "PYTORCH_PRETRAINED_BERT_CACHE", default_cache_path
+)
+PYTORCH_TRANSFORMERS_CACHE = os.getenv(
+    "PYTORCH_TRANSFORMERS_CACHE", PYTORCH_PRETRAINED_BERT_CACHE
+)
 TRANSFORMERS_CACHE = os.getenv("TRANSFORMERS_CACHE", PYTORCH_TRANSFORMERS_CACHE)
 
 WEIGHTS_NAME = "pytorch_model.bin"
@@ -194,14 +199,21 @@ def add_start_docstrings(*docstr):
 def add_start_docstrings_to_model_forward(*docstr):
     def docstring_decorator(fn):
         class_name = ":class:`~transformers.{}`".format(fn.__qualname__.split(".")[0])
-        intro = "   The {} forward method, overrides the :func:`__call__` special method.".format(class_name)
+        intro = "   The {} forward method, overrides the :func:`__call__` special method.".format(
+            class_name
+        )
         note = r"""
     .. note::
         Although the recipe for forward pass needs to be defined within this function, one should call the
         :class:`Module` instance afterwards instead of this since the former takes care of running the pre and post
         processing steps while the latter silently ignores them.
         """
-        fn.__doc__ = intro + note + "".join(docstr) + (fn.__doc__ if fn.__doc__ is not None else "")
+        fn.__doc__ = (
+            intro
+            + note
+            + "".join(docstr)
+            + (fn.__doc__ if fn.__doc__ is not None else "")
+        )
         return fn
 
     return docstring_decorator
@@ -284,7 +296,11 @@ def _prepare_output_docstrings(output_type, config_class):
 
     # Add the return introduction
     full_output_type = f"{output_type.__module__}.{output_type.__name__}"
-    intro = TF_RETURN_INTRODUCTION if output_type.__name__.startswith("TF") else PT_RETURN_INTRODUCTION
+    intro = (
+        TF_RETURN_INTRODUCTION
+        if output_type.__name__.startswith("TF")
+        else PT_RETURN_INTRODUCTION
+    )
     intro = intro.format(full_output_type=full_output_type, config_class=config_class)
     return intro + docstrings
 
@@ -524,19 +540,35 @@ TF_CAUSAL_LM_SAMPLE = r"""
 """
 
 
-def add_code_sample_docstrings(*docstr, tokenizer_class=None, checkpoint=None, output_type=None, config_class=None):
+def add_code_sample_docstrings(
+    *docstr, tokenizer_class=None, checkpoint=None, output_type=None, config_class=None
+):
     def docstring_decorator(fn):
         model_class = fn.__qualname__.split(".")[0]
         is_tf_class = model_class[:2] == "TF"
 
         if "SequenceClassification" in model_class:
-            code_sample = TF_SEQUENCE_CLASSIFICATION_SAMPLE if is_tf_class else PT_SEQUENCE_CLASSIFICATION_SAMPLE
+            code_sample = (
+                TF_SEQUENCE_CLASSIFICATION_SAMPLE
+                if is_tf_class
+                else PT_SEQUENCE_CLASSIFICATION_SAMPLE
+            )
         elif "QuestionAnswering" in model_class:
-            code_sample = TF_QUESTION_ANSWERING_SAMPLE if is_tf_class else PT_QUESTION_ANSWERING_SAMPLE
+            code_sample = (
+                TF_QUESTION_ANSWERING_SAMPLE
+                if is_tf_class
+                else PT_QUESTION_ANSWERING_SAMPLE
+            )
         elif "TokenClassification" in model_class:
-            code_sample = TF_TOKEN_CLASSIFICATION_SAMPLE if is_tf_class else PT_TOKEN_CLASSIFICATION_SAMPLE
+            code_sample = (
+                TF_TOKEN_CLASSIFICATION_SAMPLE
+                if is_tf_class
+                else PT_TOKEN_CLASSIFICATION_SAMPLE
+            )
         elif "MultipleChoice" in model_class:
-            code_sample = TF_MULTIPLE_CHOICE_SAMPLE if is_tf_class else PT_MULTIPLE_CHOICE_SAMPLE
+            code_sample = (
+                TF_MULTIPLE_CHOICE_SAMPLE if is_tf_class else PT_MULTIPLE_CHOICE_SAMPLE
+            )
         elif "MaskedLM" in model_class:
             code_sample = TF_MASKED_LM_SAMPLE if is_tf_class else PT_MASKED_LM_SAMPLE
         elif "LMHead" in model_class:
@@ -546,8 +578,16 @@ def add_code_sample_docstrings(*docstr, tokenizer_class=None, checkpoint=None, o
         else:
             raise ValueError(f"Docstring can't be built for model {model_class}")
 
-        output_doc = _prepare_output_docstrings(output_type, config_class) if output_type is not None else ""
-        built_doc = code_sample.format(model_class=model_class, tokenizer_class=tokenizer_class, checkpoint=checkpoint)
+        output_doc = (
+            _prepare_output_docstrings(output_type, config_class)
+            if output_type is not None
+            else ""
+        )
+        built_doc = code_sample.format(
+            model_class=model_class,
+            tokenizer_class=tokenizer_class,
+            checkpoint=checkpoint,
+        )
         fn.__doc__ = (fn.__doc__ or "") + "".join(docstr) + output_doc + built_doc
         return fn
 
@@ -709,7 +749,9 @@ def cached_path(
         raise EnvironmentError("file {} not found".format(url_or_filename))
     else:
         # Something unknown
-        raise ValueError("unable to parse {} as a URL or as a local path".format(url_or_filename))
+        raise ValueError(
+            "unable to parse {} as a URL or as a local path".format(url_or_filename)
+        )
 
     if extract_compressed_file:
         if not is_zipfile(output_path) and not tarfile.is_tarfile(output_path):
@@ -721,7 +763,11 @@ def cached_path(
         output_extract_dir_name = output_file.replace(".", "-") + "-extracted"
         output_path_extracted = os.path.join(output_dir, output_extract_dir_name)
 
-        if os.path.isdir(output_path_extracted) and os.listdir(output_path_extracted) and not force_extract:
+        if (
+            os.path.isdir(output_path_extracted)
+            and os.listdir(output_path_extracted)
+            and not force_extract
+        ):
             return output_path_extracted
 
         # Prevent parallel extractions
@@ -738,14 +784,22 @@ def cached_path(
                 tar_file.extractall(output_path_extracted)
                 tar_file.close()
             else:
-                raise EnvironmentError("Archive format of {} could not be identified".format(output_path))
+                raise EnvironmentError(
+                    "Archive format of {} could not be identified".format(output_path)
+                )
 
         return output_path_extracted
 
     return output_path
 
 
-def http_get(url, temp_file, proxies=None, resume_size=0, user_agent: Union[Dict, str, None] = None):
+def http_get(
+    url,
+    temp_file,
+    proxies=None,
+    resume_size=0,
+    user_agent: Union[Dict, str, None] = None,
+):
     ua = "transformers/{}; python/{}".format(__version__, sys.version.split()[0])
     if is_torch_available():
         ua += "; torch/{}".format(torch.__version__)
@@ -806,7 +860,9 @@ def get_from_cache(
     etag = None
     if not local_files_only:
         try:
-            response = requests.head(url, allow_redirects=True, proxies=proxies, timeout=etag_timeout)
+            response = requests.head(
+                url, allow_redirects=True, proxies=proxies, timeout=etag_timeout
+            )
             if response.status_code == 200:
                 etag = response.headers.get("ETag")
         except (EnvironmentError, requests.exceptions.Timeout):
@@ -870,15 +926,27 @@ def get_from_cache(
             else:
                 resume_size = 0
         else:
-            temp_file_manager = partial(tempfile.NamedTemporaryFile, dir=cache_dir, delete=False)
+            temp_file_manager = partial(
+                tempfile.NamedTemporaryFile, dir=cache_dir, delete=False
+            )
             resume_size = 0
 
         # Download to temporary file, then copy to cache dir once finished.
         # Otherwise you get corrupt cache entries if the download gets interrupted.
         with temp_file_manager() as temp_file:
-            logger.info("%s not found in cache or force_download set to True, downloading to %s", url, temp_file.name)
+            logger.info(
+                "%s not found in cache or force_download set to True, downloading to %s",
+                url,
+                temp_file.name,
+            )
 
-            http_get(url, temp_file, proxies=proxies, resume_size=resume_size, user_agent=user_agent)
+            http_get(
+                url,
+                temp_file,
+                proxies=proxies,
+                resume_size=resume_size,
+                user_agent=user_agent,
+            )
 
         logger.info("storing %s in cache at %s", url, cache_path)
         os.replace(temp_file.name, cache_path)
@@ -940,7 +1008,7 @@ def tf_required(func):
 
 
 def is_tensor(x):
-    """ Tests if ``x`` is a :obj:`torch.Tensor`, :obj:`tf.Tensor` or :obj:`np.ndarray`. """
+    """Tests if ``x`` is a :obj:`torch.Tensor`, :obj:`tf.Tensor` or :obj:`np.ndarray`."""
     if is_torch_available():
         import torch
 
@@ -975,7 +1043,9 @@ class ModelOutput(OrderedDict):
         ), f"{self.__class__.__name__} should not have more than one required field."
 
         first_field = getattr(self, class_fields[0].name)
-        other_fields_are_none = all(getattr(self, field.name) is None for field in class_fields[1:])
+        other_fields_are_none = all(
+            getattr(self, field.name) is None for field in class_fields[1:]
+        )
 
         if other_fields_are_none and not is_tensor(first_field):
             try:
@@ -1004,16 +1074,24 @@ class ModelOutput(OrderedDict):
                     self[field.name] = v
 
     def __delitem__(self, *args, **kwargs):
-        raise Exception(f"You cannot use ``__delitem__`` on a {self.__class__.__name__} instance.")
+        raise Exception(
+            f"You cannot use ``__delitem__`` on a {self.__class__.__name__} instance."
+        )
 
     def setdefault(self, *args, **kwargs):
-        raise Exception(f"You cannot use ``setdefault`` on a {self.__class__.__name__} instance.")
+        raise Exception(
+            f"You cannot use ``setdefault`` on a {self.__class__.__name__} instance."
+        )
 
     def pop(self, *args, **kwargs):
-        raise Exception(f"You cannot use ``pop`` on a {self.__class__.__name__} instance.")
+        raise Exception(
+            f"You cannot use ``pop`` on a {self.__class__.__name__} instance."
+        )
 
     def update(self, *args, **kwargs):
-        raise Exception(f"You cannot use ``update`` on a {self.__class__.__name__} instance.")
+        raise Exception(
+            f"You cannot use ``update`` on a {self.__class__.__name__} instance."
+        )
 
     def __getitem__(self, k):
         if isinstance(k, str):

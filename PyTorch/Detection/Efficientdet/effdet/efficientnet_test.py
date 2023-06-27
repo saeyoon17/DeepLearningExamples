@@ -13,27 +13,49 @@
 # limitations under the License.
 
 import torch
-
 from efficientnet import EfficientNet, efficientnet_configs
+
 
 def test_feature_type(net, images):
     output, features = net(images, features_only=True)
-    print("[ ... Test Type ... ] Type of output {} features {}".format(type(output), type(features)))
+    print(
+        "[ ... Test Type ... ] Type of output {} features {}".format(
+            type(output), type(features)
+        )
+    )
+
 
 def test_feature_dimensions(net, images):
     output, features = net(images, features_only=True)
-    print("[ ... Test dimension ... ] Dim of output {} features {}".format(output.size(), len(features)))
+    print(
+        "[ ... Test dimension ... ] Dim of output {} features {}".format(
+            output.size(), len(features)
+        )
+    )
     for i, x in enumerate(features):
-        print("[ ... Test dimension ... ] Index {} features size {}".format(i, features[i].size()))
+        print(
+            "[ ... Test dimension ... ] Index {} features size {}".format(
+                i, features[i].size()
+            )
+        )
+
 
 def test_feature_info(net, images):
     feature_info = net.feature_info
     for i, f in enumerate(feature_info):
         print("[ ... Test Feature Info ... ] Index {} features info {}".format(i, f))
 
+
 def main():
-    global_config = efficientnet_configs['fanout']
-    net = EfficientNet(width_coeff=1, depth_coeff=1, dropout=0.2, num_classes=1000, global_config=global_config, out_indices=[2,3,4])
+    global_config = efficientnet_configs["fanout"]
+    net = EfficientNet(
+        width_coeff=1,
+        depth_coeff=1,
+        dropout=0.2,
+        num_classes=1000,
+        global_config=global_config,
+        out_indices=[2, 3, 4],
+    )
     images = torch.rand((2, 3, 512, 512))
     test_feature_type(net, images)
     test_feature_dimensions(net, images)
@@ -42,5 +64,6 @@ def main():
     for n, m in net.named_modules():
         print(n)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

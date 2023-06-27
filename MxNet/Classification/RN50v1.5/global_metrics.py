@@ -10,7 +10,7 @@ class CompositeMeter:
 
     def _validate(self, metric_name):
         if metric_name not in self.register:
-            raise ValueError('{} is not registered metric'.format(metric_name))
+            raise ValueError("{} is not registered metric".format(metric_name))
 
     def update_metric(self, metric_name, value):
         self._validate(metric_name)

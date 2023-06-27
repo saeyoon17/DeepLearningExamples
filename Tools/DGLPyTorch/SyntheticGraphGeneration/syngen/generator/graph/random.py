@@ -19,7 +19,7 @@ from syngen.generator.graph.rmat import RMATGenerator
 
 
 class RandomGraph(RMATGenerator):
-    """ Graph generator based on erdos-renyi model that generate random non-partite graphs
+    """Graph generator based on erdos-renyi model that generate random non-partite graphs
     Args:
         seed (int):
             Seed to reproduce the results. If None then random seed will be used.
@@ -28,6 +28,7 @@ class RandomGraph(RMATGenerator):
         fitter (BaseFitter):
             Fitter to be used.
     """
+
     def __init__(self, seed: Optional[int] = None, logdir: str = "./logs", **kwargs):
         fitter = RandomFitter()
         super().__init__(seed, logdir, fitter)
@@ -38,5 +39,5 @@ class RandomGraph(RMATGenerator):
         graph: Optional[List[Tuple[int, int]]] = None,
         is_directed: bool = None,
     ):
-        """ Fits generator on the graph. For random graph it's graph independent."""
+        """Fits generator on the graph. For random graph it's graph independent."""
         self._fit_results = self.fitter.fit(graph)

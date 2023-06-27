@@ -41,8 +41,8 @@ def get_fused_adam_class():
     except ImportError:
         try:
             # fallback to the newer interface
-            from apex.optimizers import FusedAdam as _FusedAdam  # noqa
             from apex.multi_tensor_apply import multi_tensor_applier
+            from apex.optimizers import FusedAdam as _FusedAdam  # noqa
 
             if multi_tensor_applier.available:
                 return FusedAdamV2
@@ -231,8 +231,8 @@ class FusedAdamV1(torch.optim.Optimizer):
 
 
 try:
-    from apex.optimizers import FusedAdam
     from apex.multi_tensor_apply import multi_tensor_applier
+    from apex.optimizers import FusedAdam
 
     class FusedAdamV2(FusedAdam):
         """
@@ -356,7 +356,6 @@ try:
                         )
 
             return loss
-
 
 except ImportError:
     pass

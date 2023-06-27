@@ -28,13 +28,13 @@ import collections
 import json
 import logging
 import math
+import os
 import re
 import string
 import time
-import tqdm
-import os
-import torch
 
+import torch
+import tqdm
 from tokenization import BasicTokenizer
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 
@@ -96,7 +96,11 @@ def get_raw_scores(examples, preds):
 
     for example in examples:
         qas_id = example.qas_id
-        gold_answers = [answer["text"] for answer in example.answers if normalize_answer(answer["text"])]
+        gold_answers = [
+            answer["text"]
+            for answer in example.answers
+            if normalize_answer(answer["text"])
+        ]
 
         if not gold_answers:
             # For unanswerable questions, only correct answer is empty string
@@ -181,12 +185,22 @@ def find_best_thresh_v2(preds, scores, na_probs, qid_to_has_ans):
             continue
         has_ans_score += scores[qid]
 
-    return 100.0 * best_score / len(scores), best_thresh, 1.0 * has_ans_score / has_ans_cnt
+    return (
+        100.0 * best_score / len(scores),
+        best_thresh,
+        1.0 * has_ans_score / has_ans_cnt,
+    )
 
 
-def find_all_best_thresh_v2(main_eval, preds, exact_raw, f1_raw, na_probs, qid_to_has_ans):
-    best_exact, exact_thresh, has_ans_exact = find_best_thresh_v2(preds, exact_raw, na_probs, qid_to_has_ans)
-    best_f1, f1_thresh, has_ans_f1 = find_best_thresh_v2(preds, f1_raw, na_probs, qid_to_has_ans)
+def find_all_best_thresh_v2(
+    main_eval, preds, exact_raw, f1_raw, na_probs, qid_to_has_ans
+):
+    best_exact, exact_thresh, has_ans_exact = find_best_thresh_v2(
+        preds, exact_raw, na_probs, qid_to_has_ans
+    )
+    best_f1, f1_thresh, has_ans_f1 = find_best_thresh_v2(
+        preds, f1_raw, na_probs, qid_to_has_ans
+    )
     main_eval["best_exact"] = best_exact
     main_eval["best_exact_thresh"] = exact_thresh
     main_eval["best_f1"] = best_f1
@@ -219,7 +233,9 @@ def find_best_thresh(preds, scores, na_probs, qid_to_has_ans):
 
 
 def find_all_best_thresh(main_eval, preds, exact_raw, f1_raw, na_probs, qid_to_has_ans):
-    best_exact, exact_thresh = find_best_thresh(preds, exact_raw, na_probs, qid_to_has_ans)
+    best_exact, exact_thresh = find_best_thresh(
+        preds, exact_raw, na_probs, qid_to_has_ans
+    )
     best_f1, f1_thresh = find_best_thresh(preds, f1_raw, na_probs, qid_to_has_ans)
 
     main_eval["best_exact"] = best_exact
@@ -228,10 +244,18 @@ def find_all_best_thresh(main_eval, preds, exact_raw, f1_raw, na_probs, qid_to_h
     main_eval["best_f1_thresh"] = f1_thresh
 
 
-def squad_evaluate(examples, preds, no_answer_probs=None, no_answer_probability_threshold=1.0):
-    qas_id_to_has_answer = {example.qas_id: bool(example.answers) for example in examples}
-    has_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer]
-    no_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if not has_answer]
+def squad_evaluate(
+    examples, preds, no_answer_probs=None, no_answer_probability_threshold=1.0
+):
+    qas_id_to_has_answer = {
+        example.qas_id: bool(example.answers) for example in examples
+    }
+    has_answer_qids = [
+        qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer
+    ]
+    no_answer_qids = [
+        qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if not has_answer
+    ]
 
     if no_answer_probs is None:
         no_answer_probs = {k: 0.0 for k in preds}
@@ -241,32 +265,40 @@ def squad_evaluate(examples, preds, no_answer_probs=None, no_answer_probability_
     exact_threshold = apply_no_ans_threshold(
         exact, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold
     )
-    f1_threshold = apply_no_ans_threshold(f1, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold)
+    f1_threshold = apply_no_ans_threshold(
+        f1, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold
+    )
 
     evaluation = make_eval_dict(exact_threshold, f1_threshold)
 
     if has_answer_qids:
-        has_ans_eval = make_eval_dict(exact_threshold, f1_threshold, qid_list=has_answer_qids)
+        has_ans_eval = make_eval_dict(
+            exact_threshold, f1_threshold, qid_list=has_answer_qids
+        )
         merge_eval(evaluation, has_ans_eval, "HasAns")
 
     if no_answer_qids:
-        no_ans_eval = make_eval_dict(exact_threshold, f1_threshold, qid_list=no_answer_qids)
+        no_ans_eval = make_eval_dict(
+            exact_threshold, f1_threshold, qid_list=no_answer_qids
+        )
         merge_eval(evaluation, no_ans_eval, "NoAns")
 
     if no_answer_probs:
-        find_all_best_thresh(evaluation, preds, exact, f1, no_answer_probs, qas_id_to_has_answer)
+        find_all_best_thresh(
+            evaluation, preds, exact, f1, no_answer_probs, qas_id_to_has_answer
+        )
 
     return evaluation
 
 
 def compute_predictions(
-        all_examples,
-        all_features,
-        all_results,
-        args,
-        output_prediction_file,
-        output_nbest_file,
-        output_null_log_odds_file,
+    all_examples,
+    all_features,
+    all_results,
+    args,
+    output_prediction_file,
+    output_nbest_file,
+    output_null_log_odds_file,
 ):
 
     answers, nbest_answers = get_answers(all_examples, all_features, all_results, args)
@@ -282,13 +314,18 @@ def compute_predictions(
     return answers
 
 
-RawResult = collections.namedtuple("RawResult",
-                                   ["unique_id", "start_logits", "end_logits"])
+RawResult = collections.namedtuple(
+    "RawResult", ["unique_id", "start_logits", "end_logits"]
+)
 
 
 def get_answers(examples, features, results, args):
-    predictions = collections.defaultdict(list)  # it is possible that one example corresponds to multiple features
-    _Prediction = collections.namedtuple('_Prediction', ['text', 'start_logit', 'end_logit'])
+    predictions = collections.defaultdict(
+        list
+    )  # it is possible that one example corresponds to multiple features
+    _Prediction = collections.namedtuple(
+        "_Prediction", ["text", "start_logit", "end_logit"]
+    )
 
     if args.version_2_with_negative:
         null_vals = collections.defaultdict(lambda: (float("inf"), 0, 0))
@@ -297,11 +334,14 @@ def get_answers(examples, features, results, args):
         if not args.joint_prediction:
             start_indices = _get_best_indices(result.start_logits, args.n_best_size)
             end_indices = _get_best_indices(result.end_logits, args.n_best_size)
-            prelim_predictions = get_valid_prelim_predictions(start_indices, end_indices, feat, result, args)
+            prelim_predictions = get_valid_prelim_predictions(
+                start_indices, end_indices, feat, result, args
+            )
             feature_null_score = result.start_logits[0] + result.end_logits[0]
         else:
-            prelim_predictions = get_valid_prelim_predictions_joint_head(result.start_top_index, result.end_top_index,
-                                                                         feat, result, args)
+            prelim_predictions = get_valid_prelim_predictions_joint_head(
+                result.start_top_index, result.end_top_index, feat, result, args
+            )
             # start_indices = result.start_top_index
             # end_indices = result.end_top_index
             feature_null_score = result.cls_logits
@@ -309,9 +349,17 @@ def get_answers(examples, features, results, args):
         prelim_predictions = sorted(
             prelim_predictions,
             key=lambda x: (x.start_logit + x.end_logit),
-            reverse=True)
-        if args.version_2_with_negative and feature_null_score < null_vals[ex.qas_id][0]:
-            null_vals[ex.qas_id] = (feature_null_score, result.start_logits[0], result.end_logits[0])
+            reverse=True,
+        )
+        if (
+            args.version_2_with_negative
+            and feature_null_score < null_vals[ex.qas_id][0]
+        ):
+            null_vals[ex.qas_id] = (
+                feature_null_score,
+                result.start_logits[0],
+                result.end_logits[0],
+            )
 
         curr_predictions = []
         seen_predictions = set()
@@ -321,27 +369,33 @@ def get_answers(examples, features, results, args):
             if pred.start_index > 0:
                 final_text = get_answer_text(ex, feat, pred, args)
             else:
-                final_text = ''
+                final_text = ""
                 if final_text in seen_predictions:
                     continue
 
             seen_predictions.add(final_text)
-            curr_predictions.append(_Prediction(final_text, pred.start_logit, pred.end_logit))
+            curr_predictions.append(
+                _Prediction(final_text, pred.start_logit, pred.end_logit)
+            )
         predictions[ex.qas_id] += curr_predictions
 
     # Add empty prediction
     if args.version_2_with_negative:
         for qas_id in predictions.keys():
-            predictions[qas_id].append(_Prediction('',
-                                                   null_vals[qas_id][1],
-                                                   null_vals[qas_id][2]))
+            predictions[qas_id].append(
+                _Prediction("", null_vals[qas_id][1], null_vals[qas_id][2])
+            )
 
     nbest_answers = collections.defaultdict(list)
     answers = {}
     for qas_id, preds in predictions.items():
         seen_predictions = set()
         nbest = []
-        for pred in sorted(predictions[qas_id], key=lambda x: (x.start_logit + x.end_logit), reverse=True):
+        for pred in sorted(
+            predictions[qas_id],
+            key=lambda x: (x.start_logit + x.end_logit),
+            reverse=True,
+        ):
             if len(nbest) >= args.n_best_size:
                 break
             if pred.text in seen_predictions:
@@ -370,7 +424,11 @@ def get_answers(examples, features, results, args):
             nbest_answers[qas_id].append(output)
         if args.version_2_with_negative:
             if not args.joint_prediction:
-                score_diff = null_vals[qas_id][0] - best_non_null_entry.start_logit - best_non_null_entry.end_logit
+                score_diff = (
+                    null_vals[qas_id][0]
+                    - best_non_null_entry.start_logit
+                    - best_non_null_entry.end_logit
+                )
             else:
                 score_diff = null_vals[qas_id][0]
             if score_diff > args.null_score_diff_threshold:
@@ -378,16 +436,16 @@ def get_answers(examples, features, results, args):
             else:
                 answers[qas_id] = best_non_null_entry.text
         else:
-            answers[qas_id] = nbest_answers[qas_id][0]['text']
+            answers[qas_id] = nbest_answers[qas_id][0]["text"]
 
     return answers, nbest_answers
 
 
 def get_answer_text(example, feature, pred, args):
-    tok_tokens = feature.tokens[pred.start_index:(pred.end_index + 1)]
+    tok_tokens = feature.tokens[pred.start_index : (pred.end_index + 1)]
     orig_doc_start = feature.token_to_orig_map[pred.start_index]
     orig_doc_end = feature.token_to_orig_map[pred.end_index]
-    orig_tokens = example.doc_tokens[orig_doc_start:(orig_doc_end + 1)]
+    orig_tokens = example.doc_tokens[orig_doc_start : (orig_doc_end + 1)]
     tok_text = " ".join(tok_tokens)
 
     # De-tokenize WordPieces that have been split off.
@@ -399,14 +457,18 @@ def get_answer_text(example, feature, pred, args):
     tok_text = " ".join(tok_text.split())
     orig_text = " ".join(orig_tokens)
 
-    final_text = get_final_text(tok_text, orig_text, args.do_lower_case, args.verbose_logging)
+    final_text = get_final_text(
+        tok_text, orig_text, args.do_lower_case, args.verbose_logging
+    )
     return final_text
 
 
-def get_valid_prelim_predictions_joint_head(start_indices, end_indices, feature, result, args):
+def get_valid_prelim_predictions_joint_head(
+    start_indices, end_indices, feature, result, args
+):
     _PrelimPrediction = collections.namedtuple(
-        "PrelimPrediction",
-        ["start_index", "end_index", "start_logit", "end_logit"])
+        "PrelimPrediction", ["start_index", "end_index", "start_logit", "end_logit"]
+    )
     prelim_predictions = []
     # for start_index in start_indices:
 
@@ -435,14 +497,16 @@ def get_valid_prelim_predictions_joint_head(start_indices, end_indices, feature,
                     start_index=start_index,
                     end_index=end_index,
                     start_logit=result.start_logits[i],  # start_index],
-                    end_logit=result.end_logits[i * args.beam_size + j]))  # end_index]))
+                    end_logit=result.end_logits[i * args.beam_size + j],
+                )
+            )  # end_index]))
     return prelim_predictions
 
 
 def get_valid_prelim_predictions(start_indices, end_indices, feature, result, args):
     _PrelimPrediction = collections.namedtuple(
-        "PrelimPrediction",
-        ["start_index", "end_index", "start_logit", "end_logit"])
+        "PrelimPrediction", ["start_index", "end_index", "start_logit", "end_logit"]
+    )
     prelim_predictions = []
     for start_index in start_indices:
         for end_index in end_indices:
@@ -466,7 +530,9 @@ def get_valid_prelim_predictions(start_indices, end_indices, feature, result, ar
                     start_index=start_index,
                     end_index=end_index,
                     start_logit=result.start_logits[start_index],
-                    end_logit=result.end_logits[end_index]))
+                    end_logit=result.end_logits[end_index],
+                )
+            )
     return prelim_predictions
 
 
@@ -479,7 +545,9 @@ def match_results(examples, features, results):
     features.sort(key=lambda x: x.unique_id)
     results.sort(key=lambda x: x.unique_id)
 
-    for f, r in zip(features, results):  # original code assumes strict ordering of examples. TODO: rewrite this
+    for f, r in zip(
+        features, results
+    ):  # original code assumes strict ordering of examples. TODO: rewrite this
         yield examples[f.example_index], f, r
 
 
@@ -509,8 +577,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
     start_position = tok_text.find(pred_text)
     if start_position == -1:
         if verbose_logging:
-            logger.info(
-                "Unable to find text: '%s' in '%s'" % (pred_text, orig_text))
+            logger.info("Unable to find text: '%s' in '%s'" % (pred_text, orig_text))
         return orig_text
     end_position = start_position + len(pred_text) - 1
 
@@ -519,8 +586,11 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
 
     if len(orig_ns_text) != len(tok_ns_text):
         if verbose_logging:
-            logger.info("Length not equal after stripping spaces: '%s' vs '%s'",
-                        orig_ns_text, tok_ns_text)
+            logger.info(
+                "Length not equal after stripping spaces: '%s' vs '%s'",
+                orig_ns_text,
+                tok_ns_text,
+            )
         return orig_text
 
     # We then project the characters in `pred_text` back to `orig_text` using
@@ -551,7 +621,7 @@ def get_final_text(pred_text, orig_text, do_lower_case, verbose_logging=False):
             logger.info("Couldn't map end position")
         return orig_text
 
-    output_text = orig_text[orig_start_position:(orig_end_position + 1)]
+    output_text = orig_text[orig_start_position : (orig_end_position + 1)]
     return output_text
 
 
@@ -589,19 +659,25 @@ def _compute_softmax(scores):
         probs.append(score / total_sum)
     return probs
 
+
 def to_list(tensor):
     return tensor.detach().cpu().tolist()
+
 
 def evaluate(args, model, dataset, examples, features, prefix=""):
 
     # if not os.path.exists(args.output_dir) and args.local_rank in [-1, 0]:
     #     os.makedirs(args.output_dir)
 
-    args.eval_batch_size = args.train_batch_size#args.per_gpu_eval_batch_size * max(1, args.n_gpu)
+    args.eval_batch_size = (
+        args.train_batch_size
+    )  # args.per_gpu_eval_batch_size * max(1, args.n_gpu)
 
     # Note that DistributedSampler samples randomly
     eval_sampler = SequentialSampler(dataset)
-    eval_dataloader = DataLoader(dataset, sampler=eval_sampler, batch_size=args.eval_batch_size)
+    eval_dataloader = DataLoader(
+        dataset, sampler=eval_sampler, batch_size=args.eval_batch_size
+    )
 
     # multi-gpu evaluate
     # if args.n_gpu > 1 and not isinstance(model, torch.nn.DataParallel):
@@ -613,7 +689,7 @@ def evaluate(args, model, dataset, examples, features, prefix=""):
     logger.info("  Batch size = %d", args.eval_batch_size)
 
     all_results = []
-    start_time = time.time()#timeit.default_timer()
+    start_time = time.time()  # timeit.default_timer()
     # for batch in tqdm(eval_dataloader, desc="Evaluating"):
     for batch in eval_dataloader:
         # for batch in eval_dataloader:
@@ -625,9 +701,9 @@ def evaluate(args, model, dataset, examples, features, prefix=""):
                 "input_ids": batch[0],
                 "attention_mask": batch[1],
                 "token_type_ids": batch[2],
-                #"cls_index": batch[4],
-                #"p_mask": batch[5],
-                #"eval": True,
+                # "cls_index": batch[4],
+                # "p_mask": batch[5],
+                # "eval": True,
             }
             feature_indices = batch[3]
             with torch.cuda.amp.autocast(enabled=args.amp):
@@ -653,7 +729,8 @@ def evaluate(args, model, dataset, examples, features, prefix=""):
                     end_logits,
                     start_top_index=start_top_index,
                     end_top_index=end_top_index,
-                    cls_logits=cls_logits, )
+                    cls_logits=cls_logits,
+                )
             else:
                 start_logits, end_logits = output
                 result = RawResult(unique_id, start_logits, end_logits)
@@ -661,14 +738,24 @@ def evaluate(args, model, dataset, examples, features, prefix=""):
             all_results.append(result)
 
     eval_time = time.time() - start_time
-    logger.info("  Evaluation done in total %f secs (%f sec per example)", eval_time, eval_time / len(dataset))
+    logger.info(
+        "  Evaluation done in total %f secs (%f sec per example)",
+        eval_time,
+        eval_time / len(dataset),
+    )
 
     # Compute predictions
-    output_prediction_file = os.path.join(args.output_dir, "predictions_{}.json".format(prefix))
-    output_nbest_file = os.path.join(args.output_dir, "nbest_predictions_{}.json".format(prefix))
+    output_prediction_file = os.path.join(
+        args.output_dir, "predictions_{}.json".format(prefix)
+    )
+    output_nbest_file = os.path.join(
+        args.output_dir, "nbest_predictions_{}.json".format(prefix)
+    )
 
     if args.version_2_with_negative:
-        output_null_log_odds_file = os.path.join(args.output_dir, "null_odds_{}.json".format(prefix))
+        output_null_log_odds_file = os.path.join(
+            args.output_dir, "null_odds_{}.json".format(prefix)
+        )
     else:
         output_null_log_odds_file = None
 

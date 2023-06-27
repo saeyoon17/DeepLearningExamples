@@ -20,9 +20,8 @@
 # ==============================================================================
 
 from datasets import core
-
 from datasets.dagm2007 import DAGM2007_Dataset
 
 known_datasets = {cls.dataset_name: cls for cls in core.BaseDataset.__subclasses__()}
 
-__all__ = ['known_datasets']
+__all__ = ["known_datasets"]

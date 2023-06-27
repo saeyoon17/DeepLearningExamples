@@ -1,13 +1,14 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
-import torch
-from torch.nn import functional as F
+import itertools
 
+import torch
+from maskrcnn_benchmark import _C
 from maskrcnn_benchmark.layers import smooth_l1_loss
 from maskrcnn_benchmark.modeling.matcher import Matcher
-from maskrcnn_benchmark.structures.boxlist_ops import boxlist_iou
 from maskrcnn_benchmark.modeling.utils import cat
-from maskrcnn_benchmark import _C
-import itertools
+from maskrcnn_benchmark.structures.boxlist_ops import boxlist_iou
+from torch.nn import functional as F
+
 
 def project_masks_on_boxes(segmentation_masks, proposals, discretization_size):
     """
@@ -27,22 +28,24 @@ def project_masks_on_boxes(segmentation_masks, proposals, discretization_size):
     proposals = proposals.convert("xyxy")
     assert segmentation_masks.size == proposals.size, "{}, {}".format(
         segmentation_masks, proposals
-    )    
+    )
     # CUDA implementation of RLE encoding needs to be fixed to support larger M
     if proposals.bbox.is_cuda and M < 32:
-        polygons_list=[]
+        polygons_list = []
         for poly_obj in segmentation_masks.polygons:
-            polygons_per_instance=[]
+            polygons_per_instance = []
             for poly in poly_obj.polygons:
                 polygons_per_instance.append(poly)
-            polygons_list.append(polygons_per_instance)    
-        dense_coordinate_vec=torch.cat(list(itertools.chain(*polygons_list))).double()
+            polygons_list.append(polygons_per_instance)
+        dense_coordinate_vec = torch.cat(list(itertools.chain(*polygons_list))).double()
         if len(polygons_list) == 0:
-            return torch.empty(0, dtype=torch.float32, device=device)    
-        if len(polygons_list)>0:
-            masks = _C.generate_mask_targets(dense_coordinate_vec, polygons_list,proposals.bbox,M)     
-        return masks          
-    else: 
+            return torch.empty(0, dtype=torch.float32, device=device)
+        if len(polygons_list) > 0:
+            masks = _C.generate_mask_targets(
+                dense_coordinate_vec, polygons_list, proposals.bbox, M
+            )
+        return masks
+    else:
         proposals = proposals.bbox.to(torch.device("cpu"))
         for segmentation_mask, proposal in zip(segmentation_masks, proposals):
             # crop the masks, resize them to the desired resolution and
@@ -55,6 +58,7 @@ def project_masks_on_boxes(segmentation_masks, proposals, discretization_size):
         if len(masks) == 0:
             return torch.empty(0, dtype=torch.float32, device=device)
         return torch.stack(masks, dim=0).to(device, dtype=torch.float32)
+
 
 class MaskRCNNLossComputation(object):
     def __init__(self, proposal_matcher, discretization_size):

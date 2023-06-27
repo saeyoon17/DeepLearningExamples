@@ -110,10 +110,10 @@ def setup_seeds(master_seed, epochs, device):
             # master seed is reported only from rank=0 worker, it's to avoid
             # confusion, seeds from rank=0 are later broadcasted to other
             # workers
-            logging.info(f'Using random master seed: {master_seed}')
+            logging.info(f"Using random master seed: {master_seed}")
     else:
         # master seed was specified from command line
-        logging.info(f'Using master seed from command line: {master_seed}')
+        logging.info(f"Using master seed from command line: {master_seed}")
 
     # initialize seeding RNG
     seeding_rng = random.Random(master_seed)
@@ -184,7 +184,7 @@ def timer(name, ndigits=2, sync_gpu=True):
         torch.cuda.synchronize()
     stop = time.time()
     elapsed = round(stop - start, ndigits)
-    logging.info(f'TIMER {name} {elapsed}')
+    logging.info(f"TIMER {name} {elapsed}")
 
 
 def setup_logging(log_all_ranks=True, log_file=os.devnull):
@@ -195,6 +195,7 @@ def setup_logging(log_all_ranks=True, log_file=os.devnull):
     console don't include timestaps.
     Full logs with timestamps are saved to the log_file file.
     """
+
     class RankFilter(logging.Filter):
         def __init__(self, rank, log_all_ranks):
             self.rank = rank
@@ -205,7 +206,7 @@ def setup_logging(log_all_ranks=True, log_file=os.devnull):
             if self.log_all_ranks:
                 return True
             else:
-                return (self.rank == 0)
+                return self.rank == 0
 
     rank = get_rank()
     rank_filter = RankFilter(rank, log_all_ranks)
@@ -215,17 +216,19 @@ def setup_logging(log_all_ranks=True, log_file=os.devnull):
         handler.close()
 
     logging_format = "%(asctime)s - %(levelname)s - %(rank)s - %(message)s"
-    logging.basicConfig(level=logging.DEBUG,
-                        format=logging_format,
-                        datefmt="%Y-%m-%d %H:%M:%S",
-                        filename=log_file,
-                        filemode='w')
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format=logging_format,
+        datefmt="%Y-%m-%d %H:%M:%S",
+        filename=log_file,
+        filemode="w",
+    )
     console = logging.StreamHandler(sys.stdout)
     console.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(rank)s: %(message)s')
+    formatter = logging.Formatter("%(rank)s: %(message)s")
     console.setFormatter(formatter)
-    logging.getLogger('').addHandler(console)
-    logging.getLogger('').addFilter(rank_filter)
+    logging.getLogger("").addHandler(console)
+    logging.getLogger("").addFilter(rank_filter)
 
 
 def setup_dllogger(enabled=True, filename=os.devnull):
@@ -236,8 +239,8 @@ def setup_dllogger(enabled=True, filename=os.devnull):
             dllogger.JSONStreamBackend(
                 dllogger.Verbosity.VERBOSE,
                 filename,
-                ),
-            ]
+            ),
+        ]
         dllogger.init(backends)
     else:
         dllogger.init([])
@@ -259,9 +262,9 @@ def set_device(cuda, local_rank):
     """
     if cuda:
         torch.cuda.set_device(local_rank)
-        device = torch.device('cuda')
+        device = torch.device("cuda")
     else:
-        device = torch.device('cpu')
+        device = torch.device("cpu")
     return device
 
 
@@ -272,12 +275,11 @@ def init_distributed(cuda):
     :param cuda: (bool) if True initializes nccl backend, if False initializes
         gloo backend
     """
-    world_size = int(os.environ.get('WORLD_SIZE', 1))
-    distributed = (world_size > 1)
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    distributed = world_size > 1
     if distributed:
-        backend = 'nccl' if cuda else 'gloo'
-        dist.init_process_group(backend=backend,
-                                init_method='env://')
+        backend = "nccl" if cuda else "gloo"
+        dist.init_process_group(backend=backend, init_method="env://")
         assert dist.is_initialized()
     return distributed
 
@@ -286,15 +288,15 @@ def log_env_info():
     """
     Prints information about execution environment.
     """
-    logging.info('Collecting environment information...')
+    logging.info("Collecting environment information...")
     env_info = torch.utils.collect_env.get_pretty_env_info()
-    logging.info(f'{env_info}')
+    logging.info(f"{env_info}")
 
 
 def pad_vocabulary(math):
-    if math == 'tf32' or math == 'fp16' or math == 'manual_fp16':
+    if math == "tf32" or math == "fp16" or math == "manual_fp16":
         pad_vocab = 8
-    elif math == 'fp32':
+    elif math == "fp32":
         pad_vocab = 1
     return pad_vocab
 
@@ -303,18 +305,17 @@ def benchmark(test_acc, target_acc, test_perf, target_perf):
     def test(achieved, target, name):
         passed = True
         if target is not None and achieved is not None:
-            logging.info(f'{name} achieved: {achieved:.2f} '
-                         f'target: {target:.2f}')
+            logging.info(f"{name} achieved: {achieved:.2f} " f"target: {target:.2f}")
             if achieved >= target:
-                logging.info(f'{name} test passed')
+                logging.info(f"{name} test passed")
             else:
-                logging.info(f'{name} test failed')
+                logging.info(f"{name} test failed")
                 passed = False
         return passed
 
     passed = True
-    passed &= test(test_acc, target_acc, 'Accuracy')
-    passed &= test(test_perf, target_perf, 'Performance')
+    passed &= test(test_acc, target_acc, "Accuracy")
+    passed &= test(test_perf, target_perf, "Performance")
     return passed
 
 
@@ -329,15 +330,18 @@ def debug_tensor(tensor, name):
     """
     logging.info(name)
     tensor = tensor.detach().float().cpu().numpy()
-    logging.info(f'MIN: {tensor.min()} MAX: {tensor.max()} '
-                 f'AVG: {tensor.mean()} STD: {tensor.std()} '
-                 f'NAN: {np.isnan(tensor).sum()} INF: {np.isinf(tensor).sum()}')
+    logging.info(
+        f"MIN: {tensor.min()} MAX: {tensor.max()} "
+        f"AVG: {tensor.mean()} STD: {tensor.std()} "
+        f"NAN: {np.isnan(tensor).sum()} INF: {np.isinf(tensor).sum()}"
+    )
 
 
 class AverageMeter:
     """
     Computes and stores the average and current value
     """
+
     def __init__(self, warmup=0, keep=False):
         self.reset()
         self.warmup = warmup
@@ -368,13 +372,13 @@ class AverageMeter:
 
         :param op: 'sum' or 'mean', reduction operator
         """
-        if op not in ('sum', 'mean'):
+        if op not in ("sum", "mean"):
             raise NotImplementedError
 
-        distributed = (get_world_size() > 1)
+        distributed = get_world_size() > 1
         if distributed:
             backend = dist.get_backend()
-            cuda = (backend == dist.Backend.NCCL)
+            cuda = backend == dist.Backend.NCCL
 
             if cuda:
                 avg = torch.cuda.FloatTensor([self.avg])
@@ -388,6 +392,6 @@ class AverageMeter:
             self.avg = avg.item()
             self.sum = _sum.item()
 
-            if op == 'mean':
+            if op == "mean":
                 self.avg /= get_world_size()
                 self.sum /= get_world_size()

@@ -15,6 +15,7 @@
 # limitations under the License.
 """Tokenization classes for python and fast tokenizers. Fast tokenizers are provided by HuggingFace's tokenizers library."""
 
+import collections
 import copy
 import functools
 import itertools
@@ -23,23 +24,22 @@ import logging
 import operator
 import os
 import re
-import warnings
 import unicodedata
-import collections
-
+import warnings
 from collections import UserDict, defaultdict
 from contextlib import contextmanager
 from enum import Enum
-from typing import Any, Dict, List, MutableMapping, NamedTuple, Optional, Sequence, Tuple, Union
+from typing import (Any, Dict, List, MutableMapping, NamedTuple, Optional,
+                    Sequence, Tuple, Union)
 
 import numpy as np
+from file_utils import (cached_path, hf_bucket_url, is_remote_url,
+                        is_tf_available, is_torch_available, torch_required)
 from tokenizers import AddedToken as AddedTokenFast
-from tokenizers import Encoding as EncodingFast
 from tokenizers import BertWordPieceTokenizer
+from tokenizers import Encoding as EncodingFast
 from tokenizers.decoders import Decoder as DecoderFast
 from tokenizers.implementations import BaseTokenizer as BaseTokenizerFast
-
-from file_utils import cached_path, hf_bucket_url, is_remote_url, is_tf_available, is_torch_available, torch_required
 
 if is_tf_available():
     import tensorflow as tf
@@ -64,8 +64,12 @@ SPECIAL_TOKENS_MAP_FILE = "special_tokens_map.json"
 ADDED_TOKENS_FILE = "added_tokens.json"
 TOKENIZER_CONFIG_FILE = "tokenizer_config.json"
 
-VERY_LARGE_INTEGER = int(1e30)  # This is used to set the max input length for a model with infinite size input
-LARGE_INTEGER = int(1e20)  # This is used when we need something big but slightly smaller than VERY_LARGE_INTEGER
+VERY_LARGE_INTEGER = int(
+    1e30
+)  # This is used to set the max input length for a model with infinite size input
+LARGE_INTEGER = int(
+    1e20
+)  # This is used when we need something big but slightly smaller than VERY_LARGE_INTEGER
 
 # Define type aliases and NamedTuples
 TextInput = str
@@ -83,11 +87,11 @@ class TensorType(Enum):
 
 
 class CharSpan(NamedTuple):
-    """ Character span in the original string
+    """Character span in the original string
 
-        Args:
-            start: index of the first character in the original string
-            end: index of the character following the last character in the original string
+    Args:
+        start: index of the first character in the original string
+        end: index of the character following the last character in the original string
     """
 
     start: int
@@ -95,11 +99,11 @@ class CharSpan(NamedTuple):
 
 
 class TokenSpan(NamedTuple):
-    """ Token span in an encoded string (list of tokens)
+    """Token span in an encoded string (list of tokens)
 
-        Args:
-            start: index of the first token in the span
-            end: index of the token following the last token in the span
+    Args:
+        start: index of the first token in the span
+        end: index of the token following the last token in the span
     """
 
     start: int
@@ -132,23 +136,23 @@ def truncate_and_pad(
     pad_token_type_id: int,
     pad_token: str,
 ):
-    """ This contextmanager is in charge of defining the truncation and the padding strategies for fast tokenizers
-        (provided by HuggingFace tokenizers library) and restore the tokenizer settings afterwards.
+    """This contextmanager is in charge of defining the truncation and the padding strategies for fast tokenizers
+    (provided by HuggingFace tokenizers library) and restore the tokenizer settings afterwards.
 
-        This contextmanager assumes the provider tokenizer has no padding / truncation strategy
-        before the managed section. If your tokenizer set a padding / truncation strategy before,
-        then it will be reset to no padding/truncation when exiting the managed section.
+    This contextmanager assumes the provider tokenizer has no padding / truncation strategy
+    before the managed section. If your tokenizer set a padding / truncation strategy before,
+    then it will be reset to no padding/truncation when exiting the managed section.
 
-        Args:
-            tokenizer (BaseTokenizerFast): The tokenizer which will be used
-            max_length (int): The maximum size of the sequence
-            stride (int): The stride to use when handling overflow
-            strategy (str): Overflowing logic to use
-            pad_to_max_length (bool): Boolean indicating if the output needs to be padded up to max_length
-            padding_side (str): "left" or "right" indicating the direction the output sequence will be padded
-            pad_token_id (int): The integer representation of the padding token to use
-            pad_token_type_id (int): The integer representation of the padding token type to use
-            pad_token (str): The string representation of the padding token to use
+    Args:
+        tokenizer (BaseTokenizerFast): The tokenizer which will be used
+        max_length (int): The maximum size of the sequence
+        stride (int): The stride to use when handling overflow
+        strategy (str): Overflowing logic to use
+        pad_to_max_length (bool): Boolean indicating if the output needs to be padded up to max_length
+        padding_side (str): "left" or "right" indicating the direction the output sequence will be padded
+        pad_token_id (int): The integer representation of the padding token to use
+        pad_token_type_id (int): The integer representation of the padding token type to use
+        pad_token (str): The string representation of the padding token to use
 
     """
 
@@ -186,7 +190,9 @@ def truncate_and_pad(
 
 
 def convert_to_tensors(
-    batch_outputs: MutableMapping, return_tensors: Union[str, TensorType], prepend_batch_axis: bool = False
+    batch_outputs: MutableMapping,
+    return_tensors: Union[str, TensorType],
+    prepend_batch_axis: bool = False,
 ) -> MutableMapping:
     # Convert to TensorType
     if not isinstance(return_tensors, TensorType):
@@ -231,15 +237,15 @@ def convert_to_tensors(
 
 
 class BatchEncoding(UserDict):
-    """ BatchEncoding hold the output of the encode and batch_encode methods (tokens, attention_masks, etc).
-        This class is derived from a python Dictionary and can be used as a dictionnary.
-        In addition, this class expose utility methods to map from word/char space to token space.
+    """BatchEncoding hold the output of the encode and batch_encode methods (tokens, attention_masks, etc).
+    This class is derived from a python Dictionary and can be used as a dictionnary.
+    In addition, this class expose utility methods to map from word/char space to token space.
 
-        Args:
-            data (:obj:`dict`): Dictionary of lists/arrays returned by the encode/batch_encode methods ('input_ids', 'attention_mask'...)
-            encoding (:obj:`EncodingFast`, :obj:`list(EncodingFast)`, `optional`, defaults to :obj:`None`):
-                If the tokenizer is a fast tokenizer which outputs additional informations like mapping from word/char space to token space
-                the `EncodingFast` instance or list of instance (for batches) hold these informations.
+    Args:
+        data (:obj:`dict`): Dictionary of lists/arrays returned by the encode/batch_encode methods ('input_ids', 'attention_mask'...)
+        encoding (:obj:`EncodingFast`, :obj:`list(EncodingFast)`, `optional`, defaults to :obj:`None`):
+            If the tokenizer is a fast tokenizer which outputs additional informations like mapping from word/char space to token space
+            the `EncodingFast` instance or list of instance (for batches) hold these informations.
 
     """
 
@@ -256,8 +262,8 @@ class BatchEncoding(UserDict):
         self._encodings = encoding
 
     def __getitem__(self, item: Union[int, str]) -> EncodingFast:
-        """ If the key is a string, get the value of the dict associated to `key` ('input_ids', 'attention_mask'...)
-            If the key is an integer, get the EncodingFast for batch item with index `key`
+        """If the key is a string, get the value of the dict associated to `key` ('input_ids', 'attention_mask'...)
+        If the key is an integer, get the EncodingFast for batch item with index `key`
         """
         if isinstance(item, str):
             return self.data[item]
@@ -299,16 +305,22 @@ class BatchEncoding(UserDict):
 
     def tokens(self, batch_index: int = 0) -> List[int]:
         if not self._encodings:
-            raise ValueError("tokens() is not available when using Python based tokenizers")
+            raise ValueError(
+                "tokens() is not available when using Python based tokenizers"
+            )
         return self._encodings[batch_index].tokens
 
     def words(self, batch_index: int = 0) -> List[Optional[int]]:
         if not self._encodings:
-            raise ValueError("words() is not available when using Python based tokenizers")
+            raise ValueError(
+                "words() is not available when using Python based tokenizers"
+            )
         return self._encodings[batch_index].words
 
-    def token_to_word(self, batch_or_token_index: int, token_index: Optional[int] = None) -> int:
-        """ Get the index of the word corresponding (i.e. comprising) to an encoded token
+    def token_to_word(
+        self, batch_or_token_index: int, token_index: Optional[int] = None
+    ) -> int:
+        """Get the index of the word corresponding (i.e. comprising) to an encoded token
             in a sequence of the batch.
 
             Can be called as:
@@ -334,7 +346,9 @@ class BatchEncoding(UserDict):
         """
 
         if not self._encodings:
-            raise ValueError("token_to_word() is not available when using Python based tokenizers")
+            raise ValueError(
+                "token_to_word() is not available when using Python based tokenizers"
+            )
         if token_index is not None:
             batch_index = batch_or_token_index
         else:
@@ -346,8 +360,10 @@ class BatchEncoding(UserDict):
             token_index = self._seq_len + token_index
         return self._encodings[batch_index].token_to_word(token_index)
 
-    def word_to_tokens(self, batch_or_word_index: int, word_index: Optional[int] = None) -> TokenSpan:
-        """ Get the encoded token span corresponding to a word in the sequence of the batch.
+    def word_to_tokens(
+        self, batch_or_word_index: int, word_index: Optional[int] = None
+    ) -> TokenSpan:
+        """Get the encoded token span corresponding to a word in the sequence of the batch.
 
             Token spans are returned as a TokenSpan NamedTuple with:
                 start: index of the first token
@@ -379,7 +395,9 @@ class BatchEncoding(UserDict):
         """
 
         if not self._encodings:
-            raise ValueError("word_to_tokens() is not available when using Python based tokenizers")
+            raise ValueError(
+                "word_to_tokens() is not available when using Python based tokenizers"
+            )
         if word_index is not None:
             batch_index = batch_or_word_index
         else:
@@ -391,8 +409,10 @@ class BatchEncoding(UserDict):
             word_index = self._seq_len + word_index
         return TokenSpan(*(self._encodings[batch_index].word_to_tokens(word_index)))
 
-    def token_to_chars(self, batch_or_token_index: int, token_index: Optional[int] = None) -> CharSpan:
-        """ Get the character span corresponding to an encoded token in a sequence of the batch.
+    def token_to_chars(
+        self, batch_or_token_index: int, token_index: Optional[int] = None
+    ) -> CharSpan:
+        """Get the character span corresponding to an encoded token in a sequence of the batch.
 
             Character spans are returned as a CharSpan NamedTuple with:
                 start: index of the first character in the original string associated to the token
@@ -420,7 +440,9 @@ class BatchEncoding(UserDict):
         """
 
         if not self._encodings:
-            raise ValueError("token_to_chars() is not available when using Python based tokenizers")
+            raise ValueError(
+                "token_to_chars() is not available when using Python based tokenizers"
+            )
         if token_index is not None:
             batch_index = batch_or_token_index
         else:
@@ -428,8 +450,10 @@ class BatchEncoding(UserDict):
             token_index = batch_or_token_index
         return CharSpan(*(self._encodings[batch_index].token_to_chars(token_index)))
 
-    def char_to_token(self, batch_or_char_index: int, char_index: Optional[int] = None) -> int:
-        """ Get the index of the token in the encoded output comprising a character
+    def char_to_token(
+        self, batch_or_char_index: int, char_index: Optional[int] = None
+    ) -> int:
+        """Get the index of the token in the encoded output comprising a character
             in the original string for a sequence of the batch.
 
             Can be called as:
@@ -455,7 +479,9 @@ class BatchEncoding(UserDict):
         """
 
         if not self._encodings:
-            raise ValueError("char_to_token() is not available when using Python based tokenizers")
+            raise ValueError(
+                "char_to_token() is not available when using Python based tokenizers"
+            )
         if char_index is not None:
             batch_index = batch_or_char_index
         else:
@@ -463,8 +489,10 @@ class BatchEncoding(UserDict):
             char_index = batch_or_char_index
         return self._encodings[batch_index].char_to_token(char_index)
 
-    def word_to_chars(self, batch_or_word_index: int, word_index: Optional[int] = None) -> CharSpan:
-        """ Get the character span in the original string corresponding to given word in a sequence
+    def word_to_chars(
+        self, batch_or_word_index: int, word_index: Optional[int] = None
+    ) -> CharSpan:
+        """Get the character span in the original string corresponding to given word in a sequence
             of the batch.
 
             Character spans are returned as a CharSpan NamedTuple with:
@@ -492,7 +520,9 @@ class BatchEncoding(UserDict):
         """
 
         if not self._encodings:
-            raise ValueError("word_to_chars() is not available when using Python based tokenizers")
+            raise ValueError(
+                "word_to_chars() is not available when using Python based tokenizers"
+            )
         if word_index is not None:
             batch_index = batch_or_word_index
         else:
@@ -500,8 +530,10 @@ class BatchEncoding(UserDict):
             word_index = batch_or_word_index
         return CharSpan(*(self._encodings[batch_index].word_to_chars(word_index)))
 
-    def char_to_word(self, batch_or_char_index: int, char_index: Optional[int] = None) -> int:
-        """ Get the word in the original string corresponding to a character in the original string of
+    def char_to_word(
+        self, batch_or_char_index: int, char_index: Optional[int] = None
+    ) -> int:
+        """Get the word in the original string corresponding to a character in the original string of
             a sequence of the batch.
 
             Can be called as:
@@ -527,7 +559,9 @@ class BatchEncoding(UserDict):
         """
 
         if not self._encodings:
-            raise ValueError("char_to_word() is not available when using Python based tokenizers")
+            raise ValueError(
+                "char_to_word() is not available when using Python based tokenizers"
+            )
         if char_index is not None:
             batch_index = batch_or_char_index
         else:
@@ -543,10 +577,10 @@ class BatchEncoding(UserDict):
 
 
 class SpecialTokensMixin:
-    """ SpecialTokensMixin is derived by ``PreTrainedTokenizer`` and ``PreTrainedTokenizerFast`` and
-        handles specific behaviors related to special tokens. In particular, this class hold the
-        attributes which can be used to directly access to these special tokens in a
-        model-independant manner and allow to set and update the special tokens.
+    """SpecialTokensMixin is derived by ``PreTrainedTokenizer`` and ``PreTrainedTokenizerFast`` and
+    handles specific behaviors related to special tokens. In particular, this class hold the
+    attributes which can be used to directly access to these special tokens in a
+    model-independant manner and allow to set and update the special tokens.
     """
 
     SPECIAL_TOKENS_ATTRIBUTES = [
@@ -574,7 +608,9 @@ class SpecialTokensMixin:
         for key, value in kwargs.items():
             if key in self.SPECIAL_TOKENS_ATTRIBUTES:
                 if key == "additional_special_tokens":
-                    assert isinstance(value, (list, tuple)) and all(isinstance(t, str) for t in value)
+                    assert isinstance(value, (list, tuple)) and all(
+                        isinstance(t, str) for t in value
+                    )
                     setattr(self, key, value)
                 elif isinstance(value, AddedTokenFast):
                     setattr(self, key, str(value))
@@ -582,67 +618,69 @@ class SpecialTokensMixin:
                     setattr(self, key, value)
                 else:
                     raise TypeError(
-                        "special token {} has to be either str or AddedTokenFast but got: {}".format(key, type(value))
+                        "special token {} has to be either str or AddedTokenFast but got: {}".format(
+                            key, type(value)
+                        )
                     )
 
     @property
     def bos_token(self):
-        """ Beginning of sentence token (string). Log an error if used while not having been set. """
+        """Beginning of sentence token (string). Log an error if used while not having been set."""
         if self._bos_token is None:
             logger.error("Using bos_token, but it is not set yet.")
         return self._bos_token
 
     @property
     def eos_token(self):
-        """ End of sentence token (string). Log an error if used while not having been set. """
+        """End of sentence token (string). Log an error if used while not having been set."""
         if self._eos_token is None:
             logger.error("Using eos_token, but it is not set yet.")
         return self._eos_token
 
     @property
     def unk_token(self):
-        """ Unknown token (string). Log an error if used while not having been set. """
+        """Unknown token (string). Log an error if used while not having been set."""
         if self._unk_token is None:
             logger.error("Using unk_token, but it is not set yet.")
         return self._unk_token
 
     @property
     def sep_token(self):
-        """ Separation token (string). E.g. separate context and query in an input sequence. Log an error if used while not having been set. """
+        """Separation token (string). E.g. separate context and query in an input sequence. Log an error if used while not having been set."""
         if self._sep_token is None:
             logger.error("Using sep_token, but it is not set yet.")
         return self._sep_token
 
     @property
     def pad_token(self):
-        """ Padding token (string). Log an error if used while not having been set. """
+        """Padding token (string). Log an error if used while not having been set."""
         if self._pad_token is None:
             logger.error("Using pad_token, but it is not set yet.")
         return self._pad_token
 
     @property
     def cls_token(self):
-        """ Classification token (string). E.g. to extract a summary of an input sequence leveraging self-attention along the full depth of the model. Log an error if used while not having been set. """
+        """Classification token (string). E.g. to extract a summary of an input sequence leveraging self-attention along the full depth of the model. Log an error if used while not having been set."""
         if self._cls_token is None:
             logger.error("Using cls_token, but it is not set yet.")
         return self._cls_token
 
     @property
     def mask_token(self):
-        """ Mask token (string). E.g. when training a model with masked-language modeling. Log an error if used while not having been set. """
+        """Mask token (string). E.g. when training a model with masked-language modeling. Log an error if used while not having been set."""
         if self._mask_token is None:
             logger.error("Using mask_token, but it is not set yet.")
         return self._mask_token
 
     @property
     def additional_special_tokens(self):
-        """ All the additional special tokens you may want to use (list of strings). Log an error if used while not having been set. """
+        """All the additional special tokens you may want to use (list of strings). Log an error if used while not having been set."""
         if self._additional_special_tokens is None:
             logger.error("Using additional_special_tokens, but it is not set yet.")
         return self._additional_special_tokens
 
     def _maybe_update_backend(self, value):
-        """ To be overriden by derived class if a backend tokenizer has to be updated. """
+        """To be overriden by derived class if a backend tokenizer has to be updated."""
         pass
 
     @bos_token.setter
@@ -687,53 +725,53 @@ class SpecialTokensMixin:
 
     @property
     def bos_token_id(self):
-        """ Id of the beginning of sentence token in the vocabulary. Log an error if used while not having been set. """
+        """Id of the beginning of sentence token in the vocabulary. Log an error if used while not having been set."""
         return self.convert_tokens_to_ids(self.bos_token)
 
     @property
     def eos_token_id(self):
-        """ Id of the end of sentence token in the vocabulary. Log an error if used while not having been set. """
+        """Id of the end of sentence token in the vocabulary. Log an error if used while not having been set."""
         return self.convert_tokens_to_ids(self.eos_token)
 
     @property
     def unk_token_id(self):
-        """ Id of the unknown token in the vocabulary. Log an error if used while not having been set. """
+        """Id of the unknown token in the vocabulary. Log an error if used while not having been set."""
         return self.convert_tokens_to_ids(self.unk_token)
 
     @property
     def sep_token_id(self):
-        """ Id of the separation token in the vocabulary. E.g. separate context and query in an input sequence. Log an error if used while not having been set. """
+        """Id of the separation token in the vocabulary. E.g. separate context and query in an input sequence. Log an error if used while not having been set."""
         return self.convert_tokens_to_ids(self.sep_token)
 
     @property
     def pad_token_id(self):
-        """ Id of the padding token in the vocabulary. Log an error if used while not having been set. """
+        """Id of the padding token in the vocabulary. Log an error if used while not having been set."""
         return self.convert_tokens_to_ids(self.pad_token)
 
     @property
     def pad_token_type_id(self):
-        """ Id of the padding token type in the vocabulary."""
+        """Id of the padding token type in the vocabulary."""
         return self._pad_token_type_id
 
     @property
     def cls_token_id(self):
-        """ Id of the classification token in the vocabulary. E.g. to extract a summary of an input sequence leveraging self-attention along the full depth of the model. Log an error if used while not having been set. """
+        """Id of the classification token in the vocabulary. E.g. to extract a summary of an input sequence leveraging self-attention along the full depth of the model. Log an error if used while not having been set."""
         return self.convert_tokens_to_ids(self.cls_token)
 
     @property
     def mask_token_id(self):
-        """ Id of the mask token in the vocabulary. E.g. when training a model with masked-language modeling. Log an error if used while not having been set. """
+        """Id of the mask token in the vocabulary. E.g. when training a model with masked-language modeling. Log an error if used while not having been set."""
         return self.convert_tokens_to_ids(self.mask_token)
 
     @property
     def additional_special_tokens_ids(self):
-        """ Ids of all the additional special tokens in the vocabulary (list of integers). Log an error if used while not having been set. """
+        """Ids of all the additional special tokens in the vocabulary (list of integers). Log an error if used while not having been set."""
         return self.convert_tokens_to_ids(self.additional_special_tokens)
 
     @property
     def special_tokens_map(self):
-        """ A dictionary mapping special token class attribute (cls_token, unk_token...) to their
-            values ('<unk>', '<cls>'...)
+        """A dictionary mapping special token class attribute (cls_token, unk_token...) to their
+        values ('<unk>', '<cls>'...)
         """
         set_attr = {}
         for attr in self.SPECIAL_TOKENS_ATTRIBUTES:
@@ -744,20 +782,24 @@ class SpecialTokensMixin:
 
     @property
     def all_special_tokens(self):
-        """ List all the special tokens ('<unk>', '<cls>'...) mapped to class attributes
-            (cls_token, unk_token...).
+        """List all the special tokens ('<unk>', '<cls>'...) mapped to class attributes
+        (cls_token, unk_token...).
         """
         all_toks = []
         set_attr = self.special_tokens_map
         for attr_value in set_attr.values():
-            all_toks = all_toks + (list(attr_value) if isinstance(attr_value, (list, tuple)) else [attr_value])
+            all_toks = all_toks + (
+                list(attr_value)
+                if isinstance(attr_value, (list, tuple))
+                else [attr_value]
+            )
         all_toks = list(set(all_toks))
         return all_toks
 
     @property
     def all_special_ids(self):
-        """ List the vocabulary indices of the special tokens ('<unk>', '<cls>'...) mapped to
-            class attributes (cls_token, unk_token...).
+        """List the vocabulary indices of the special tokens ('<unk>', '<cls>'...) mapped to
+        class attributes (cls_token, unk_token...).
         """
         all_toks = self.all_special_tokens
         all_ids = self.convert_tokens_to_ids(all_toks)
@@ -765,7 +807,7 @@ class SpecialTokensMixin:
 
 
 class PreTrainedTokenizer(SpecialTokensMixin):
-    """ Base class for all tokenizers.
+    """Base class for all tokenizers.
 
     Handle all the shared methods for tokenization and special tokens as well as methods
     downloading/caching/loading pretrained tokenizers as well as adding tokens to the vocabulary.
@@ -829,7 +871,7 @@ class PreTrainedTokenizer(SpecialTokensMixin):
 
     @property
     def vocab_size(self) -> int:
-        """ Size of the base vocabulary (without the added tokens) """
+        """Size of the base vocabulary (without the added tokens)"""
         raise NotImplementedError
 
     @property
@@ -838,8 +880,8 @@ class PreTrainedTokenizer(SpecialTokensMixin):
 
     @property
     def max_len(self) -> int:
-        """ Kept here for backward compatibility.
-            Now renamed to `model_max_length` to avoid ambiguity.
+        """Kept here for backward compatibility.
+        Now renamed to `model_max_length` to avoid ambiguity.
         """
         return self.model_max_length
 
@@ -853,30 +895,34 @@ class PreTrainedTokenizer(SpecialTokensMixin):
 
     @max_len_single_sentence.setter
     def max_len_single_sentence(self, value) -> int:
-        """ For backward compatibility, allow to try to setup 'max_len_single_sentence' """
+        """For backward compatibility, allow to try to setup 'max_len_single_sentence'"""
         if value == self.model_max_length - self.num_special_tokens_to_add(pair=False):
             logger.warning(
-                "Setting 'max_len_single_sentence' is now deprecated. " "This value is automatically set up."
+                "Setting 'max_len_single_sentence' is now deprecated. "
+                "This value is automatically set up."
             )
         else:
             raise ValueError(
-                "Setting 'max_len_single_sentence' is now deprecated. " "This value is automatically set up."
+                "Setting 'max_len_single_sentence' is now deprecated. "
+                "This value is automatically set up."
             )
 
     @max_len_sentences_pair.setter
     def max_len_sentences_pair(self, value) -> int:
-        """ For backward compatibility, allow to try to setup 'max_len_sentences_pair' """
+        """For backward compatibility, allow to try to setup 'max_len_sentences_pair'"""
         if value == self.model_max_length - self.num_special_tokens_to_add(pair=True):
             logger.warning(
-                "Setting 'max_len_sentences_pair' is now deprecated. " "This value is automatically set up."
+                "Setting 'max_len_sentences_pair' is now deprecated. "
+                "This value is automatically set up."
             )
         else:
             raise ValueError(
-                "Setting 'max_len_sentences_pair' is now deprecated. " "This value is automatically set up."
+                "Setting 'max_len_sentences_pair' is now deprecated. "
+                "This value is automatically set up."
             )
 
     def get_vocab(self):
-        """ Returns the vocabulary as a dict of {token: index} pairs. `tokenizer.get_vocab()[token]` is equivalent to `tokenizer.convert_tokens_to_ids(token)` when `token` is in the vocab. """
+        """Returns the vocabulary as a dict of {token: index} pairs. `tokenizer.get_vocab()[token]` is equivalent to `tokenizer.convert_tokens_to_ids(token)` when `token` is in the vocab."""
         raise NotImplementedError()
 
     def __init__(self, model_max_length=None, **kwargs):
@@ -892,7 +938,9 @@ class PreTrainedTokenizer(SpecialTokensMixin):
             )
 
             model_max_length = kwargs.pop("max_len")
-        self.model_max_length = model_max_length if model_max_length is not None else VERY_LARGE_INTEGER
+        self.model_max_length = (
+            model_max_length if model_max_length is not None else VERY_LARGE_INTEGER
+        )
 
         # Padding side is right by default and overridden in subclasses. If specified in the kwargs, it is changed.
         self.padding_side = kwargs.pop("padding_side", self.padding_side)
@@ -912,7 +960,7 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         self.init_kwargs = {}
 
     def __len__(self):
-        """ Size of the full vocabulary with the added tokens """
+        """Size of the full vocabulary with the added tokens"""
         return self.vocab_size + len(self.added_tokens_encoder)
 
     @classmethod
@@ -989,17 +1037,23 @@ class PreTrainedTokenizer(SpecialTokensMixin):
                 cls.pretrained_init_configuration
                 and pretrained_model_name_or_path in cls.pretrained_init_configuration
             ):
-                init_configuration = cls.pretrained_init_configuration[pretrained_model_name_or_path].copy()
+                init_configuration = cls.pretrained_init_configuration[
+                    pretrained_model_name_or_path
+                ].copy()
         else:
             # Get the vocabulary from local files
             logger.info(
                 "Model name '{}' not found in model shortcut name list ({}). "
                 "Assuming '{}' is a path, a model identifier, or url to a directory containing tokenizer files.".format(
-                    pretrained_model_name_or_path, ", ".join(s3_models), pretrained_model_name_or_path
+                    pretrained_model_name_or_path,
+                    ", ".join(s3_models),
+                    pretrained_model_name_or_path,
                 )
             )
 
-            if os.path.isfile(pretrained_model_name_or_path) or is_remote_url(pretrained_model_name_or_path):
+            if os.path.isfile(pretrained_model_name_or_path) or is_remote_url(
+                pretrained_model_name_or_path
+            ):
                 if len(cls.vocab_files_names) > 1:
                     raise ValueError(
                         f"Calling {cls.__name__}.from_pretrained() with the path to a single file or url is not supported."
@@ -1018,15 +1072,26 @@ class PreTrainedTokenizer(SpecialTokensMixin):
                     "tokenizer_config_file": TOKENIZER_CONFIG_FILE,
                 }
                 # Look for the tokenizer main vocabulary files + the additional tokens files
-                for file_id, file_name in {**cls.vocab_files_names, **additional_files_names}.items():
+                for file_id, file_name in {
+                    **cls.vocab_files_names,
+                    **additional_files_names,
+                }.items():
                     if os.path.isdir(pretrained_model_name_or_path):
-                        full_file_name = os.path.join(pretrained_model_name_or_path, file_name)
+                        full_file_name = os.path.join(
+                            pretrained_model_name_or_path, file_name
+                        )
                         if not os.path.exists(full_file_name):
-                            logger.info("Didn't find file {}. We won't load it.".format(full_file_name))
+                            logger.info(
+                                "Didn't find file {}. We won't load it.".format(
+                                    full_file_name
+                                )
+                            )
                             full_file_name = None
                     else:
                         full_file_name = hf_bucket_url(
-                            pretrained_model_name_or_path, filename=file_name, use_cdn=False
+                            pretrained_model_name_or_path,
+                            filename=file_name,
+                            use_cdn=False,
                         )
 
                     vocab_files[file_id] = full_file_name
@@ -1039,8 +1104,7 @@ class PreTrainedTokenizer(SpecialTokensMixin):
                     resolved_vocab_files[file_id] = None
                 else:
                     resolved_vocab_files[file_id] = cached_path(
-                        file_path,
-                        cache_dir=cache_dir
+                        file_path, cache_dir=cache_dir
                     )
         except EnvironmentError:
             if pretrained_model_name_or_path in s3_models:
@@ -1059,7 +1123,9 @@ class PreTrainedTokenizer(SpecialTokensMixin):
 
             raise EnvironmentError(msg)
 
-        if all(full_file_name is None for full_file_name in resolved_vocab_files.values()):
+        if all(
+            full_file_name is None for full_file_name in resolved_vocab_files.values()
+        ):
             raise EnvironmentError(
                 "Model name '{}' was not found in tokenizers model name list ({}). "
                 "We assumed '{}' was a path, a model identifier, or url to a directory containing vocabulary files "
@@ -1075,13 +1141,19 @@ class PreTrainedTokenizer(SpecialTokensMixin):
             if file_path == resolved_vocab_files[file_id]:
                 logger.info("loading file {}".format(file_path))
             else:
-                logger.info("loading file {} from cache at {}".format(file_path, resolved_vocab_files[file_id]))
+                logger.info(
+                    "loading file {} from cache at {}".format(
+                        file_path, resolved_vocab_files[file_id]
+                    )
+                )
 
         # Prepare tokenizer initialization kwargs
         # Did we saved some inputs and kwargs to reload ?
         tokenizer_config_file = resolved_vocab_files.pop("tokenizer_config_file", None)
         if tokenizer_config_file is not None:
-            with open(tokenizer_config_file, encoding="utf-8") as tokenizer_config_handle:
+            with open(
+                tokenizer_config_file, encoding="utf-8"
+            ) as tokenizer_config_handle:
                 init_kwargs = json.load(tokenizer_config_handle)
             saved_init_inputs = init_kwargs.pop("init_inputs", ())
             if not init_inputs:
@@ -1097,17 +1169,25 @@ class PreTrainedTokenizer(SpecialTokensMixin):
             # if we're using a pretrained model, ensure the tokenizer
             # wont index sequences longer than the number of positional embeddings
             model_max_length = cls.max_model_input_sizes[pretrained_model_name_or_path]
-            if model_max_length is not None and isinstance(model_max_length, (int, float)):
-                init_kwargs["model_max_length"] = min(init_kwargs.get("model_max_length", int(1e30)), model_max_length)
+            if model_max_length is not None and isinstance(
+                model_max_length, (int, float)
+            ):
+                init_kwargs["model_max_length"] = min(
+                    init_kwargs.get("model_max_length", int(1e30)), model_max_length
+                )
 
         # Merge resolved_vocab_files arguments in init_kwargs.
         added_tokens_file = resolved_vocab_files.pop("added_tokens_file", None)
-        special_tokens_map_file = resolved_vocab_files.pop("special_tokens_map_file", None)
+        special_tokens_map_file = resolved_vocab_files.pop(
+            "special_tokens_map_file", None
+        )
         for args_name, file_path in resolved_vocab_files.items():
             if args_name not in init_kwargs:
                 init_kwargs[args_name] = file_path
         if special_tokens_map_file is not None:
-            with open(special_tokens_map_file, encoding="utf-8") as special_tokens_map_handle:
+            with open(
+                special_tokens_map_file, encoding="utf-8"
+            ) as special_tokens_map_handle:
                 special_tokens_map = json.load(special_tokens_map_handle)
             for key, value in special_tokens_map.items():
                 if key not in init_kwargs:
@@ -1136,24 +1216,28 @@ class PreTrainedTokenizer(SpecialTokensMixin):
             added_tok_decoder = {v: k for k, v in added_tok_encoder.items()}
             tokenizer.added_tokens_encoder.update(added_tok_encoder)
             tokenizer.added_tokens_decoder.update(added_tok_decoder)
-            tokenizer.unique_added_tokens_encoder.update(set(tokenizer.added_tokens_encoder.keys()))
+            tokenizer.unique_added_tokens_encoder.update(
+                set(tokenizer.added_tokens_encoder.keys())
+            )
 
         return tokenizer
 
     def save_pretrained(self, save_directory):
-        """ Save the tokenizer vocabulary files together with:
-                - added tokens,
-                - special-tokens-to-class-attributes-mapping,
-                - tokenizer instantiation positional and keywords inputs (e.g. do_lower_case for Bert).
+        """Save the tokenizer vocabulary files together with:
+            - added tokens,
+            - special-tokens-to-class-attributes-mapping,
+            - tokenizer instantiation positional and keywords inputs (e.g. do_lower_case for Bert).
 
-            Warning: This won't save modifications you may have applied to the tokenizer after the instantiation
-            (e.g. modifying tokenizer.do_lower_case after creation).
+        Warning: This won't save modifications you may have applied to the tokenizer after the instantiation
+        (e.g. modifying tokenizer.do_lower_case after creation).
 
-            This method make sure the full tokenizer can then be re-loaded using the
-            :func:`~transformers.PreTrainedTokenizer.from_pretrained` class method.
+        This method make sure the full tokenizer can then be re-loaded using the
+        :func:`~transformers.PreTrainedTokenizer.from_pretrained` class method.
         """
         if not os.path.isdir(save_directory):
-            logger.error("Saving directory ({}) should be a directory".format(save_directory))
+            logger.error(
+                "Saving directory ({}) should be a directory".format(save_directory)
+            )
             return
 
         special_tokens_map_file = os.path.join(save_directory, SPECIAL_TOKENS_MAP_FILE)
@@ -1182,12 +1266,12 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         return vocab_files + (special_tokens_map_file, added_tokens_file)
 
     def save_vocabulary(self, save_directory) -> Tuple[str]:
-        """ Save the tokenizer vocabulary to a directory. This method does *NOT* save added tokens
-            and special token mappings.
+        """Save the tokenizer vocabulary to a directory. This method does *NOT* save added tokens
+        and special token mappings.
 
-            Please use :func:`~transformers.PreTrainedTokenizer.save_pretrained` `()` to save the full
-            Tokenizer state if you want to reload it using the :func:`~transformers.PreTrainedTokenizer.from_pretrained`
-            class method.
+        Please use :func:`~transformers.PreTrainedTokenizer.save_pretrained` `()` to save the full
+        Tokenizer state if you want to reload it using the :func:`~transformers.PreTrainedTokenizer.from_pretrained`
+        class method.
         """
         raise NotImplementedError
 
@@ -1222,20 +1306,28 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         tokens_to_add = []
         for token in new_tokens:
             assert isinstance(token, str)
-            if self.init_kwargs.get("do_lower_case", False) and token not in self.all_special_tokens:
+            if (
+                self.init_kwargs.get("do_lower_case", False)
+                and token not in self.all_special_tokens
+            ):
                 token = token.lower()
             if (
                 token != self.unk_token
-                and self.convert_tokens_to_ids(token) == self.convert_tokens_to_ids(self.unk_token)
+                and self.convert_tokens_to_ids(token)
+                == self.convert_tokens_to_ids(self.unk_token)
                 and token not in tokens_to_add
             ):
                 tokens_to_add.append(token)
                 logger.info("Adding %s to the vocabulary", token)
 
-        added_tok_encoder = dict((tok, len(self) + i) for i, tok in enumerate(tokens_to_add))
+        added_tok_encoder = dict(
+            (tok, len(self) + i) for i, tok in enumerate(tokens_to_add)
+        )
         added_tok_decoder = {v: k for k, v in added_tok_encoder.items()}
         self.added_tokens_encoder.update(added_tok_encoder)
-        self.unique_added_tokens_encoder = set(self.added_tokens_encoder.keys()).union(set(self.all_special_tokens))
+        self.unique_added_tokens_encoder = set(self.added_tokens_encoder.keys()).union(
+            set(self.all_special_tokens)
+        )
         self.added_tokens_decoder.update(added_tok_decoder)
 
         return len(tokens_to_add)
@@ -1257,7 +1349,11 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         """
         token_ids_0 = []
         token_ids_1 = []
-        return len(self.build_inputs_with_special_tokens(token_ids_0, token_ids_1 if pair else None))
+        return len(
+            self.build_inputs_with_special_tokens(
+                token_ids_0, token_ids_1 if pair else None
+            )
+        )
 
     def add_special_tokens(self, special_tokens_dict):
         """
@@ -1303,7 +1399,9 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         for key, value in special_tokens_dict.items():
             assert key in self.SPECIAL_TOKENS_ATTRIBUTES
             if key == "additional_special_tokens":
-                assert isinstance(value, (list, tuple)) and all(isinstance(t, str) for t in value)
+                assert isinstance(value, (list, tuple)) and all(
+                    isinstance(t, str) for t in value
+                )
                 added_tokens += self.add_tokens(value)
             else:
                 assert isinstance(value, str)
@@ -1314,15 +1412,15 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         return added_tokens
 
     def tokenize(self, text: TextInput, **kwargs):
-        """ Converts a string in a sequence of tokens (string), using the tokenizer.
-            Split in words for word-based vocabulary or sub-words for sub-word-based
-            vocabularies (BPE/SentencePieces/WordPieces).
+        """Converts a string in a sequence of tokens (string), using the tokenizer.
+        Split in words for word-based vocabulary or sub-words for sub-word-based
+        vocabularies (BPE/SentencePieces/WordPieces).
 
-            Take care of added tokens.
+        Take care of added tokens.
 
-            Args:
-                text (:obj:`string`): The sequence to be encoded.
-                **kwargs (:obj: `dict`): Arguments passed to the model-specific `prepare_for_tokenization` preprocessing method.
+        Args:
+            text (:obj:`string`): The sequence to be encoded.
+            **kwargs (:obj: `dict`): Arguments passed to the model-specific `prepare_for_tokenization` preprocessing method.
         """
         all_special_tokens = self.all_special_tokens
         text = self.prepare_for_tokenization(text, **kwargs)
@@ -1375,7 +1473,9 @@ class PreTrainedTokenizer(SpecialTokensMixin):
             return list(
                 itertools.chain.from_iterable(
                     (
-                        self._tokenize(token) if token not in self.unique_added_tokens_encoder else [token]
+                        self._tokenize(token)
+                        if token not in self.unique_added_tokens_encoder
+                        else [token]
                         for token in tokenized_text
                     )
                 )
@@ -1386,17 +1486,17 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         return tokenized_text
 
     def _tokenize(self, text, **kwargs):
-        """ Converts a string in a sequence of tokens (string), using the tokenizer.
-            Split in words for word-based vocabulary or sub-words for sub-word-based
-            vocabularies (BPE/SentencePieces/WordPieces).
+        """Converts a string in a sequence of tokens (string), using the tokenizer.
+        Split in words for word-based vocabulary or sub-words for sub-word-based
+        vocabularies (BPE/SentencePieces/WordPieces).
 
-            Do NOT take care of added tokens.
+        Do NOT take care of added tokens.
         """
         raise NotImplementedError
 
     def convert_tokens_to_ids(self, tokens):
-        """ Converts a token string (or a sequence of tokens) in a single integer id
-            (or a sequence of ids), using the vocabulary.
+        """Converts a token string (or a sequence of tokens) in a single integer id
+        (or a sequence of ids), using the vocabulary.
         """
         if tokens is None:
             return None
@@ -1430,7 +1530,7 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         truncation_strategy: str = "longest_first",
         pad_to_max_length: bool = False,
         return_tensors: Optional[Union[str, TensorType]] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Converts a string in a sequence of ids (integer), using the tokenizer and vocabulary. Adds the model-specific
@@ -1509,7 +1609,7 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         return_overflowing_tokens: bool = False,
         return_special_tokens_mask: bool = False,
         return_offsets_mapping: bool = False,
-        **kwargs
+        **kwargs,
     ) -> BatchEncoding:
         """
         Returns a dictionary containing the encoded sequence or sequence pair and additional information:
@@ -1602,11 +1702,21 @@ class PreTrainedTokenizer(SpecialTokensMixin):
 
         def get_input_ids(text):
             if isinstance(text, str):
-                tokens = self.tokenize(text, add_special_tokens=add_special_tokens, **kwargs)
+                tokens = self.tokenize(
+                    text, add_special_tokens=add_special_tokens, **kwargs
+                )
                 return self.convert_tokens_to_ids(tokens)
-            elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], str):
+            elif (
+                isinstance(text, (list, tuple))
+                and len(text) > 0
+                and isinstance(text[0], str)
+            ):
                 return self.convert_tokens_to_ids(text)
-            elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], int):
+            elif (
+                isinstance(text, (list, tuple))
+                and len(text) > 0
+                and isinstance(text[0], int)
+            ):
                 return text
             else:
                 raise ValueError(
@@ -1672,7 +1782,7 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         return_special_tokens_masks: bool = False,
         return_offsets_mapping: bool = False,
         return_lengths: bool = False,
-        **kwargs
+        **kwargs,
     ) -> BatchEncoding:
         """
         Returns a dictionary containing the encoded sequence or sequence pair and additional information:
@@ -1764,11 +1874,21 @@ class PreTrainedTokenizer(SpecialTokensMixin):
 
         def get_input_ids(text):
             if isinstance(text, str):
-                tokens = self.tokenize(text, add_special_tokens=add_special_tokens, **kwargs)
+                tokens = self.tokenize(
+                    text, add_special_tokens=add_special_tokens, **kwargs
+                )
                 return self.convert_tokens_to_ids(tokens)
-            elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], str):
+            elif (
+                isinstance(text, (list, tuple))
+                and len(text) > 0
+                and isinstance(text[0], str)
+            ):
                 return self.convert_tokens_to_ids(text)
-            elif isinstance(text, (list, tuple)) and len(text) > 0 and isinstance(text[0], int):
+            elif (
+                isinstance(text, (list, tuple))
+                and len(text) > 0
+                and isinstance(text[0], int)
+            ):
                 return text
             else:
                 raise ValueError(
@@ -1792,7 +1912,11 @@ class PreTrainedTokenizer(SpecialTokensMixin):
 
         input_ids = []
         for ids_or_pair_ids in batch_text_or_text_pairs:
-            if isinstance(ids_or_pair_ids, (list, tuple)) and len(ids_or_pair_ids) == 2 and not is_pretokenized:
+            if (
+                isinstance(ids_or_pair_ids, (list, tuple))
+                and len(ids_or_pair_ids) == 2
+                and not is_pretokenized
+            ):
                 ids, pair_ids = ids_or_pair_ids
             else:
                 ids, pair_ids = ids_or_pair_ids, None
@@ -1861,7 +1985,7 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         return_lengths: bool = False,
         prepend_batch_axis: bool = False,
     ) -> BatchEncoding:
-        """ Prepares a sequence of input id, or a pair of sequences of inputs ids so that it can be used by the model.
+        """Prepares a sequence of input id, or a pair of sequences of inputs ids so that it can be used by the model.
         It adds special tokens, truncates sequences if overflowing while taking into account the special tokens and
         manages a moving window (with user defined stride) for overflowing tokens
 
@@ -1934,7 +2058,11 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         encoded_inputs = {}
 
         # Truncation: Handle max sequence length
-        total_len = len_ids + len_pair_ids + (self.num_special_tokens_to_add(pair=pair) if add_special_tokens else 0)
+        total_len = (
+            len_ids
+            + len_pair_ids
+            + (self.num_special_tokens_to_add(pair=pair) if add_special_tokens else 0)
+        )
         if max_length and total_len > max_length:
             ids, pair_ids, overflowing_tokens = self.truncate_sequences(
                 ids,
@@ -1961,13 +2089,18 @@ class PreTrainedTokenizer(SpecialTokensMixin):
             encoded_inputs["token_type_ids"] = token_type_ids
         if return_special_tokens_mask:
             if add_special_tokens:
-                encoded_inputs["special_tokens_mask"] = self.get_special_tokens_mask(ids, pair_ids)
+                encoded_inputs["special_tokens_mask"] = self.get_special_tokens_mask(
+                    ids, pair_ids
+                )
             else:
                 encoded_inputs["special_tokens_mask"] = [0] * len(sequence)
 
         # Check lengths
         assert max_length is None or len(encoded_inputs["input_ids"]) <= max_length
-        if max_length is None and len(encoded_inputs["input_ids"]) > self.model_max_length:
+        if (
+            max_length is None
+            and len(encoded_inputs["input_ids"]) > self.model_max_length
+        ):
             logger.warning(
                 "Token indices sequence length is longer than the specified maximum sequence length "
                 "for this model ({} > {}). Running this sequence through the model will result in "
@@ -1983,40 +2116,59 @@ class PreTrainedTokenizer(SpecialTokensMixin):
             and self.model_max_length <= LARGE_INTEGER
         )
 
-        if pad_to_max_length and max_length is None and self.model_max_length > LARGE_INTEGER:
+        if (
+            pad_to_max_length
+            and max_length is None
+            and self.model_max_length > LARGE_INTEGER
+        ):
             logger.warning(
                 "Sequence can't be padded as no maximum length is specified and the model maximum length is too high."
             )
 
         if needs_to_be_padded:
-            difference = (max_length if max_length is not None else self.model_max_length) - len(
-                encoded_inputs["input_ids"]
-            )
+            difference = (
+                max_length if max_length is not None else self.model_max_length
+            ) - len(encoded_inputs["input_ids"])
             if self.padding_side == "right":
                 if return_attention_mask:
-                    encoded_inputs["attention_mask"] = [1] * len(encoded_inputs["input_ids"]) + [0] * difference
+                    encoded_inputs["attention_mask"] = [1] * len(
+                        encoded_inputs["input_ids"]
+                    ) + [0] * difference
                 if return_token_type_ids:
                     encoded_inputs["token_type_ids"] = (
-                        encoded_inputs["token_type_ids"] + [self.pad_token_type_id] * difference
+                        encoded_inputs["token_type_ids"]
+                        + [self.pad_token_type_id] * difference
                     )
                 if return_special_tokens_mask:
-                    encoded_inputs["special_tokens_mask"] = encoded_inputs["special_tokens_mask"] + [1] * difference
-                encoded_inputs["input_ids"] = encoded_inputs["input_ids"] + [self.pad_token_id] * difference
+                    encoded_inputs["special_tokens_mask"] = (
+                        encoded_inputs["special_tokens_mask"] + [1] * difference
+                    )
+                encoded_inputs["input_ids"] = (
+                    encoded_inputs["input_ids"] + [self.pad_token_id] * difference
+                )
             elif self.padding_side == "left":
                 if return_attention_mask:
-                    encoded_inputs["attention_mask"] = [0] * difference + [1] * len(encoded_inputs["input_ids"])
+                    encoded_inputs["attention_mask"] = [0] * difference + [1] * len(
+                        encoded_inputs["input_ids"]
+                    )
                 if return_token_type_ids:
-                    encoded_inputs["token_type_ids"] = [self.pad_token_type_id] * difference + encoded_inputs[
-                        "token_type_ids"
-                    ]
+                    encoded_inputs["token_type_ids"] = [
+                        self.pad_token_type_id
+                    ] * difference + encoded_inputs["token_type_ids"]
                 if return_special_tokens_mask:
-                    encoded_inputs["special_tokens_mask"] = [1] * difference + encoded_inputs["special_tokens_mask"]
-                encoded_inputs["input_ids"] = [self.pad_token_id] * difference + encoded_inputs["input_ids"]
+                    encoded_inputs["special_tokens_mask"] = [
+                        1
+                    ] * difference + encoded_inputs["special_tokens_mask"]
+                encoded_inputs["input_ids"] = [
+                    self.pad_token_id
+                ] * difference + encoded_inputs["input_ids"]
             else:
                 raise ValueError("Invalid padding strategy:" + str(self.padding_side))
         else:
             if return_attention_mask:
-                encoded_inputs["attention_mask"] = [1] * len(encoded_inputs["input_ids"])
+                encoded_inputs["attention_mask"] = [1] * len(
+                    encoded_inputs["input_ids"]
+                )
 
         if return_lengths:
             encoded_inputs["length"] = len(encoded_inputs["input_ids"])
@@ -2028,7 +2180,7 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         return BatchEncoding(encoded_inputs)
 
     def prepare_for_tokenization(self, text: str, **kwargs) -> str:
-        """ Performs any necessary transformations before tokenization """
+        """Performs any necessary transformations before tokenization"""
         return text
 
     def truncate_sequences(
@@ -2039,7 +2191,7 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         truncation_strategy: str = "longest_first",
         stride: int = 0,
     ) -> Tuple[List[int], List[int], List[int]]:
-        """ Truncates a sequence pair in place to the maximum length.
+        """Truncates a sequence pair in place to the maximum length.
 
         Args:
             ids: list of tokenized input ids. Can be obtained from a string by chaining the
@@ -2084,19 +2236,25 @@ class PreTrainedTokenizer(SpecialTokensMixin):
             overflowing_tokens = pair_ids[-window_len:]
             pair_ids = pair_ids[:-num_tokens_to_remove]
         elif truncation_strategy == "do_not_truncate":
-            raise ValueError("Input sequence are too long for max_length. Please select a truncation strategy.")
+            raise ValueError(
+                "Input sequence are too long for max_length. Please select a truncation strategy."
+            )
         else:
             raise ValueError(
                 "Truncation_strategy should be selected in ['longest_first', 'only_first', 'only_second', 'do_not_truncate']"
             )
         return (ids, pair_ids, overflowing_tokens)
 
-    def create_token_type_ids_from_sequences(self, token_ids_0: List, token_ids_1: Optional[List] = None) -> List[int]:
+    def create_token_type_ids_from_sequences(
+        self, token_ids_0: List, token_ids_1: Optional[List] = None
+    ) -> List[int]:
         if token_ids_1 is None:
             return len(token_ids_0) * [0]
         return [0] * len(token_ids_0) + [1] * len(token_ids_1)
 
-    def build_inputs_with_special_tokens(self, token_ids_0: List, token_ids_1: Optional[List] = None) -> List:
+    def build_inputs_with_special_tokens(
+        self, token_ids_0: List, token_ids_1: Optional[List] = None
+    ) -> List:
         """
         Build model inputs from a sequence or a pair of sequence for sequence classification tasks
         by concatenating and adding special tokens. This implementation does not add special tokens.
@@ -2106,7 +2264,10 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         return token_ids_0 + token_ids_1
 
     def get_special_tokens_mask(
-        self, token_ids_0: List, token_ids_1: Optional[List] = None, already_has_special_tokens: bool = False
+        self,
+        token_ids_0: List,
+        token_ids_1: Optional[List] = None,
+        already_has_special_tokens: bool = False,
     ) -> List[int]:
         """
         Retrieves sequence ids from a token list that has no special tokens added. This method is called when adding
@@ -2127,11 +2288,11 @@ class PreTrainedTokenizer(SpecialTokensMixin):
     def convert_ids_to_tokens(
         self, ids: Union[int, List[int]], skip_special_tokens: bool = False
     ) -> Union[int, List[int]]:
-        """ Converts a single index or a sequence of indices (integers) in a token "
-            (resp.) a sequence of tokens (str), using the vocabulary and added tokens.
+        """Converts a single index or a sequence of indices (integers) in a token "
+        (resp.) a sequence of tokens (str), using the vocabulary and added tokens.
 
-            Args:
-                skip_special_tokens: Don't decode special tokens (self.all_special_tokens). Default: False
+        Args:
+            skip_special_tokens: Don't decode special tokens (self.all_special_tokens). Default: False
         """
         if isinstance(ids, int):
             if ids in self.added_tokens_decoder:
@@ -2153,14 +2314,17 @@ class PreTrainedTokenizer(SpecialTokensMixin):
         raise NotImplementedError
 
     def convert_tokens_to_string(self, tokens: List[str]) -> str:
-        """ Converts a sequence of tokens (string) in a single string.
-            The most simple way to do it is ' '.join(self.convert_ids_to_tokens(token_ids))
-            but we often want to remove sub-word tokenization artifacts at the same time.
+        """Converts a sequence of tokens (string) in a single string.
+        The most simple way to do it is ' '.join(self.convert_ids_to_tokens(token_ids))
+        but we often want to remove sub-word tokenization artifacts at the same time.
         """
         return " ".join(self.convert_ids_to_tokens(tokens))
 
     def decode(
-        self, token_ids: List[int], skip_special_tokens: bool = False, clean_up_tokenization_spaces: bool = True
+        self,
+        token_ids: List[int],
+        skip_special_tokens: bool = False,
+        clean_up_tokenization_spaces: bool = True,
     ) -> str:
         """
         Converts a sequence of ids (integer) in a string, using the tokenizer and vocabulary
@@ -2172,7 +2336,9 @@ class PreTrainedTokenizer(SpecialTokensMixin):
             skip_special_tokens: if set to True, will replace special tokens.
             clean_up_tokenization_spaces: if set to True, will clean up the tokenization spaces.
         """
-        filtered_tokens = self.convert_ids_to_tokens(token_ids, skip_special_tokens=skip_special_tokens)
+        filtered_tokens = self.convert_ids_to_tokens(
+            token_ids, skip_special_tokens=skip_special_tokens
+        )
 
         # To avoid mixing byte-level and unicode for byte-level BPT
         # we need to build string separatly for added tokens and byte-level tokens
@@ -2204,8 +2370,7 @@ class PreTrainedTokenizer(SpecialTokensMixin):
 
     @staticmethod
     def clean_up_tokenization(out_string: str) -> str:
-        """ Clean up a list of simple English tokenization artifacts like spaces before punctuations and abreviated forms.
-        """
+        """Clean up a list of simple English tokenization artifacts like spaces before punctuations and abreviated forms."""
         out_string = (
             out_string.replace(" .", ".")
             .replace(" ?", "?")
@@ -2222,7 +2387,7 @@ class PreTrainedTokenizer(SpecialTokensMixin):
 
 
 class PreTrainedTokenizerFast(PreTrainedTokenizer):
-    """ Base class for all fast tokenizers (wrapping HuggingFace tokenizers library).
+    """Base class for all fast tokenizers (wrapping HuggingFace tokenizers library).
 
     Inherit from PreTrainedTokenizer.
 
@@ -2282,7 +2447,8 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
     def __init__(self, tokenizer: BaseTokenizerFast, **kwargs):
         if not isinstance(tokenizer, BaseTokenizerFast):
             raise ValueError(
-                "Tokenizer should be an instance of a Tokenizer " "provided by HuggingFace tokenizers library."
+                "Tokenizer should be an instance of a Tokenizer "
+                "provided by HuggingFace tokenizers library."
             )
         self._tokenizer: BaseTokenizerFast = tokenizer
 
@@ -2309,8 +2475,8 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
         return self._tokenizer.get_vocab_size(with_added_tokens=True)
 
     def _maybe_update_backend(self, value):
-        """ Update the backend fast tokenizer.
-            Override method from base class SpecialTokensMixin """
+        """Update the backend fast tokenizer.
+        Override method from base class SpecialTokensMixin"""
         self._tokenizer.add_special_tokens(value)
 
     def _convert_encoding(
@@ -2323,14 +2489,14 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
         return_special_tokens_mask: bool = False,
         return_offsets_mapping: bool = False,
     ) -> Dict[str, Any]:
-        """ Convert the encoding representation (from low-level HuggingFace tokenizer output) to a python Dict.
+        """Convert the encoding representation (from low-level HuggingFace tokenizer output) to a python Dict.
 
-            Overflowing tokens are converted to additional examples (like batches) so the output values of
-            the dict are lists (overflows) of lists (tokens).
+        Overflowing tokens are converted to additional examples (like batches) so the output values of
+        the dict are lists (overflows) of lists (tokens).
 
-            If return_tensors is not None, these lists of lists are converted to 2-D tensors
-            for input_ids, token_type_ids and attention_mask.
-            Output shape: (overflows, sequence length)
+        If return_tensors is not None, these lists of lists are converted to 2-D tensors
+        for input_ids, token_type_ids and attention_mask.
+        Output shape: (overflows, sequence length)
         """
         if return_token_type_ids is None:
             return_token_type_ids = "token_type_ids" in self.model_input_names
@@ -2372,7 +2538,9 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
     def get_vocab(self):
         return self._tokenizer.get_vocab(True)
 
-    def convert_tokens_to_string(self, tokens: List[int], skip_special_tokens: bool = False) -> str:
+    def convert_tokens_to_string(
+        self, tokens: List[int], skip_special_tokens: bool = False
+    ) -> str:
         return self._tokenizer.decode(tokens, skip_special_tokens)
 
     def add_tokens(self, new_tokens: List[Union[str, AddedTokenFast]]) -> int:
@@ -2425,14 +2593,20 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
         return self._tokenizer.num_special_tokens_to_add(pair)
 
     def tokenize(
-        self, text: TextInput, pair: Optional[TextInput] = None, add_special_tokens: bool = False
+        self,
+        text: TextInput,
+        pair: Optional[TextInput] = None,
+        add_special_tokens: bool = False,
     ) -> List[str]:
         return self._tokenizer.encode(text, pair, add_special_tokens).tokens
 
     def batch_encode_plus(
         self,
         batch_text_or_text_pairs: Union[
-            List[TextInput], List[TextInputPair], List[PreTokenizedInput], List[PreTokenizedInputPair]
+            List[TextInput],
+            List[TextInputPair],
+            List[PreTokenizedInput],
+            List[PreTokenizedInputPair],
         ],
         add_special_tokens: bool = True,
         max_length: Optional[int] = None,
@@ -2447,20 +2621,26 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
         return_special_tokens_mask: bool = False,
         return_offsets_mapping: bool = False,
         return_lengths: bool = False,
-        **kwargs
+        **kwargs,
     ) -> BatchEncoding:
 
         if not isinstance(batch_text_or_text_pairs, list):
             raise ValueError(
-                "batch_text_or_text_pairs has to be a list (got {})".format(type(batch_text_or_text_pairs))
+                "batch_text_or_text_pairs has to be a list (got {})".format(
+                    type(batch_text_or_text_pairs)
+                )
             )
 
         # Needed if we have to return a tensor
-        pad_to_max_length = pad_to_max_length or (return_tensors is not None and len(batch_text_or_text_pairs) > 1)
+        pad_to_max_length = pad_to_max_length or (
+            return_tensors is not None and len(batch_text_or_text_pairs) > 1
+        )
 
         # Throw an error if we can pad because there is no padding token
         if pad_to_max_length and self.pad_token_id is None:
-            raise ValueError("Unable to set proper padding strategy as the tokenizer does not have a padding token")
+            raise ValueError(
+                "Unable to set proper padding strategy as the tokenizer does not have a padding token"
+            )
 
         # Set the truncation and padding strategy and restore the initial configuration
         with truncate_and_pad(
@@ -2490,25 +2670,33 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
                         )
 
                     # Test if we have a pair of sentences by checking the depth of nesting
-                    is_pair = bool(len(sample) > 0 and isinstance(sample[0], (list, tuple)))
+                    is_pair = bool(
+                        len(sample) > 0 and isinstance(sample[0], (list, tuple))
+                    )
 
                     # Take care of the first sequence - we multi-thread over the words
                     encodings_text = EncodingFast.merge(
-                        self._tokenizer.encode_batch(sample[0] if is_pair else sample, add_special_tokens=False),
+                        self._tokenizer.encode_batch(
+                            sample[0] if is_pair else sample, add_special_tokens=False
+                        ),
                         growing_offsets=True,
                     )
 
                     # Take care of the second sequence if we have a pair
                     if is_pair:
                         encodings_pair = EncodingFast.merge(
-                            self._tokenizer.encode_batch([("", s) for s in sample[1]], add_special_tokens=False),
+                            self._tokenizer.encode_batch(
+                                [("", s) for s in sample[1]], add_special_tokens=False
+                            ),
                             growing_offsets=True,
                         )
                     else:
                         encodings_pair = None
 
                     # Post-process - truncate/pad and add special tokens
-                    encoding = self._tokenizer.post_process(encodings_text, encodings_pair, add_special_tokens)
+                    encoding = self._tokenizer.post_process(
+                        encodings_text, encodings_pair, add_special_tokens
+                    )
                     encodings.append(encoding)
 
             # Classical path with strings input
@@ -2517,11 +2705,13 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
                 if len(batch_text_or_text_pairs) == 1:
                     if isinstance(batch_text_or_text_pairs[0], (tuple, list)):
                         encodings = self._tokenizer.encode(
-                            *batch_text_or_text_pairs[0], add_special_tokens=add_special_tokens
+                            *batch_text_or_text_pairs[0],
+                            add_special_tokens=add_special_tokens,
                         )
                     else:
                         encodings = self._tokenizer.encode(
-                            batch_text_or_text_pairs[0], add_special_tokens=add_special_tokens
+                            batch_text_or_text_pairs[0],
+                            add_special_tokens=add_special_tokens,
                         )
                     encodings = [encodings]
                 else:
@@ -2562,7 +2752,9 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
         # If returning overflowing tokens, we need to return a mapping
         # from the batch idx to the original sample
         if return_overflowing_tokens:
-            overflow_to_sample_mapping = flatten([[i] * len(enc["input_ids"]) for i, enc in enumerate(tokens)])
+            overflow_to_sample_mapping = flatten(
+                [[i] * len(enc["input_ids"]) for i, enc in enumerate(tokens)]
+            )
             sanitized["overflow_to_sample_mapping"] = overflow_to_sample_mapping
 
         return BatchEncoding(sanitized, encodings)
@@ -2583,7 +2775,7 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
         return_overflowing_tokens: bool = False,
         return_special_tokens_mask: bool = False,
         return_offsets_mapping: bool = False,
-        **kwargs
+        **kwargs,
     ) -> BatchEncoding:
 
         # Check for pretokenized path (ie [token1, token2, ..., tokenN] -> [id1, id2, ..., idN]
@@ -2600,17 +2792,23 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
                     encoding_pair = self._tokenizer.encode_batch(
                         [("", p) for p in text_pair], add_special_tokens=False
                     )
-                    encoding_pair = EncodingFast.merge(encoding_pair, growing_offsets=True)
+                    encoding_pair = EncodingFast.merge(
+                        encoding_pair, growing_offsets=True
+                    )
                 elif text_pair is None:
                     encoding_pair = None
                 else:
                     raise TypeError(
                         "encode_plus(..., is_pretokenized=True) requires text and text_pair to be List[str] "
-                        "but got (text={}, text_pair={})".format(type(text), type(text_pair))
+                        "but got (text={}, text_pair={})".format(
+                            type(text), type(text_pair)
+                        )
                     )
 
                 # Post process and if asked to do so, insert special tokens where needed
-                encoding = self._tokenizer.post_process(encoding, encoding_pair, add_special_tokens)
+                encoding = self._tokenizer.post_process(
+                    encoding, encoding_pair, add_special_tokens
+                )
 
                 batched_output = BatchEncoding(
                     self._convert_encoding(
@@ -2627,7 +2825,9 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
             else:
                 raise TypeError(
                     "encode_plus(..., is_pretokenized=True) requires text to be List[str] "
-                    "but got (text={}, text_pair={})".format(type(text), type(text_pair))
+                    "but got (text={}, text_pair={})".format(
+                        type(text), type(text_pair)
+                    )
                 )
         else:
             batched_input = [(text, text_pair)] if text_pair else [text]
@@ -2651,7 +2851,9 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
         if not return_tensors:
             batched_output = BatchEncoding(
                 {
-                    key: value[0] if len(value) > 0 and isinstance(value[0], list) else value
+                    key: value[0]
+                    if len(value) > 0 and isinstance(value[0], list)
+                    else value
                     for key, value in batched_output.items()
                 },
                 batched_output.encodings,
@@ -2660,7 +2862,10 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
         return batched_output
 
     def decode(
-        self, token_ids: List[int], skip_special_tokens: bool = False, clean_up_tokenization_spaces: bool = True
+        self,
+        token_ids: List[int],
+        skip_special_tokens: bool = False,
+        clean_up_tokenization_spaces: bool = True,
     ) -> str:
         text = self._tokenizer.decode(token_ids, skip_special_tokens)
 
@@ -2681,7 +2886,9 @@ class PreTrainedTokenizerFast(PreTrainedTokenizer):
 
 
 def trim_batch(
-    input_ids, pad_token_id, attention_mask=None,
+    input_ids,
+    pad_token_id,
+    attention_mask=None,
 ):
     """Remove columns that are populated exclusively by pad_token_id"""
     keep_column_mask = input_ids.ne(pad_token_id).any(dim=0)
@@ -2689,8 +2896,6 @@ def trim_batch(
         return input_ids[:, keep_column_mask]
     else:
         return (input_ids[:, keep_column_mask], attention_mask[:, keep_column_mask])
-
-
 
 
 VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt"}
@@ -2837,7 +3042,7 @@ class BertTokenizer(PreTrainedTokenizer):
         cls_token="[CLS]",
         mask_token="[MASK]",
         tokenize_chinese_chars=True,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
             unk_token=unk_token,
@@ -2851,16 +3056,24 @@ class BertTokenizer(PreTrainedTokenizer):
         if not os.path.isfile(vocab_file):
             raise ValueError(
                 "Can't find a vocabulary file at path '{}'. To load the vocabulary from a Google pretrained "
-                "model use `tokenizer = BertTokenizer.from_pretrained(PRETRAINED_MODEL_NAME)`".format(vocab_file)
+                "model use `tokenizer = BertTokenizer.from_pretrained(PRETRAINED_MODEL_NAME)`".format(
+                    vocab_file
+                )
             )
         self.vocab = load_vocab(vocab_file)
-        self.ids_to_tokens = collections.OrderedDict([(ids, tok) for tok, ids in self.vocab.items()])
+        self.ids_to_tokens = collections.OrderedDict(
+            [(ids, tok) for tok, ids in self.vocab.items()]
+        )
         self.do_basic_tokenize = do_basic_tokenize
         if do_basic_tokenize:
             self.basic_tokenizer = BasicTokenizer(
-                do_lower_case=do_lower_case, never_split=never_split, tokenize_chinese_chars=tokenize_chinese_chars
+                do_lower_case=do_lower_case,
+                never_split=never_split,
+                tokenize_chinese_chars=tokenize_chinese_chars,
             )
-        self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self.vocab, unk_token=self.unk_token)
+        self.wordpiece_tokenizer = WordpieceTokenizer(
+            vocab=self.vocab, unk_token=self.unk_token
+        )
 
     @property
     def vocab_size(self):
@@ -2872,7 +3085,9 @@ class BertTokenizer(PreTrainedTokenizer):
     def _tokenize(self, text):
         split_tokens = []
         if self.do_basic_tokenize:
-            for token in self.basic_tokenizer.tokenize(text, never_split=self.all_special_tokens):
+            for token in self.basic_tokenizer.tokenize(
+                text, never_split=self.all_special_tokens
+            ):
 
                 # If the token is part of the never_split set
                 if token in self.basic_tokenizer.never_split:
@@ -2884,7 +3099,7 @@ class BertTokenizer(PreTrainedTokenizer):
         return split_tokens
 
     def _convert_token_to_id(self, token):
-        """ Converts a token (str) in an id using the vocab. """
+        """Converts a token (str) in an id using the vocab."""
         return self.vocab.get(token, self.vocab.get(self.unk_token))
 
     def _convert_id_to_token(self, index):
@@ -2892,7 +3107,7 @@ class BertTokenizer(PreTrainedTokenizer):
         return self.ids_to_tokens.get(index, self.unk_token)
 
     def convert_tokens_to_string(self, tokens):
-        """ Converts a sequence of tokens (string) in a single string. """
+        """Converts a sequence of tokens (string) in a single string."""
         out_string = " ".join(tokens).replace(" ##", "").strip()
         return out_string
 
@@ -2923,7 +3138,10 @@ class BertTokenizer(PreTrainedTokenizer):
         return cls + token_ids_0 + sep + token_ids_1 + sep
 
     def get_special_tokens_mask(
-        self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None, already_has_special_tokens: bool = False
+        self,
+        token_ids_0: List[int],
+        token_ids_1: Optional[List[int]] = None,
+        already_has_special_tokens: bool = False,
     ) -> List[int]:
         """
         Retrieves sequence ids from a token list that has no special tokens added. This method is called when adding
@@ -2947,7 +3165,12 @@ class BertTokenizer(PreTrainedTokenizer):
                     "You should not supply a second sequence if the provided sequence of "
                     "ids is already formated with special tokens for the model."
                 )
-            return list(map(lambda x: 1 if x in [self.sep_token_id, self.cls_token_id] else 0, token_ids_0))
+            return list(
+                map(
+                    lambda x: 1 if x in [self.sep_token_id, self.cls_token_id] else 0,
+                    token_ids_0,
+                )
+            )
 
         if token_ids_1 is not None:
             return [1] + ([0] * len(token_ids_0)) + [1] + ([0] * len(token_ids_1)) + [1]
@@ -3004,7 +3227,9 @@ class BertTokenizer(PreTrainedTokenizer):
                 if index != token_index:
                     logger.warning(
                         "Saving vocabulary to {}: vocabulary indices are not consecutive."
-                        " Please check that the vocabulary is not corrupted!".format(vocab_file)
+                        " Please check that the vocabulary is not corrupted!".format(
+                            vocab_file
+                        )
                     )
                     index = token_index
                 writer.write(token + "\n")
@@ -3015,8 +3240,10 @@ class BertTokenizer(PreTrainedTokenizer):
 class BasicTokenizer(object):
     """Runs basic tokenization (punctuation splitting, lower casing, etc.)."""
 
-    def __init__(self, do_lower_case=True, never_split=None, tokenize_chinese_chars=True):
-        """ Constructs a BasicTokenizer.
+    def __init__(
+        self, do_lower_case=True, never_split=None, tokenize_chinese_chars=True
+    ):
+        """Constructs a BasicTokenizer.
 
         Args:
             **do_lower_case**: Whether to lower case the input.
@@ -3036,7 +3263,7 @@ class BasicTokenizer(object):
         self.tokenize_chinese_chars = tokenize_chinese_chars
 
     def tokenize(self, text, never_split=None):
-        """ Basic Tokenization of a piece of text.
+        """Basic Tokenization of a piece of text.
             Split on "white spaces" only, for sub-word tokenization, see WordPieceTokenizer.
 
         Args:
@@ -3046,7 +3273,11 @@ class BasicTokenizer(object):
                 List of token not to split.
         """
         # union() returns a new set by concatenating the two sets.
-        never_split = self.never_split.union(set(never_split)) if never_split else self.never_split
+        never_split = (
+            self.never_split.union(set(never_split))
+            if never_split
+            else self.never_split
+        )
 
         # This was added on November 1st, 2018 for the multilingual and Chinese
         # models. This is also applied to the English models now, but it doesn't
@@ -3242,7 +3473,12 @@ def _is_punctuation(char):
     # Characters such as "^", "$", and "`" are not in the Unicode
     # Punctuation class but we treat them as punctuation anyways, for
     # consistency.
-    if (cp >= 33 and cp <= 47) or (cp >= 58 and cp <= 64) or (cp >= 91 and cp <= 96) or (cp >= 123 and cp <= 126):
+    if (
+        (cp >= 33 and cp <= 47)
+        or (cp >= 58 and cp <= 64)
+        or (cp >= 91 and cp <= 96)
+        or (cp >= 123 and cp <= 126)
+    ):
         return True
     cat = unicodedata.category(char)
     if cat.startswith("P"):
@@ -3311,7 +3547,7 @@ class BertTokenizerFast(PreTrainedTokenizerFast):
         tokenize_chinese_chars=True,
         strip_accents=True,
         wordpieces_prefix="##",
-        **kwargs
+        **kwargs,
     ):
         super().__init__(
             BertWordPieceTokenizer(
@@ -3372,4 +3608,3 @@ class BertTokenizerFast(PreTrainedTokenizerFast):
         if token_ids_1 is None:
             return len(cls + token_ids_0 + sep) * [0]
         return len(cls + token_ids_0 + sep) * [0] + len(token_ids_1 + sep) * [1]
-

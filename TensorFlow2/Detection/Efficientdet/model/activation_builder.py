@@ -14,35 +14,36 @@
 # ==============================================================================
 """Common utils."""
 from typing import Text
+
 import tensorflow as tf
 
 
 def srelu_fn(x):
-  """Smooth relu: a smooth version of relu."""
-  with tf.name_scope('srelu'):
-    beta = tf.Variable(20.0, name='srelu_beta', dtype=tf.float32)**2
-    beta = tf.cast(beta**2, x.dtype)
-    safe_log = tf.math.log(tf.where(x > 0., beta * x + 1., tf.ones_like(x)))
-    return tf.where((x > 0.), x - (1. / beta) * safe_log, tf.zeros_like(x))
+    """Smooth relu: a smooth version of relu."""
+    with tf.name_scope("srelu"):
+        beta = tf.Variable(20.0, name="srelu_beta", dtype=tf.float32) ** 2
+        beta = tf.cast(beta**2, x.dtype)
+        safe_log = tf.math.log(tf.where(x > 0.0, beta * x + 1.0, tf.ones_like(x)))
+        return tf.where((x > 0.0), x - (1.0 / beta) * safe_log, tf.zeros_like(x))
 
 
 def activation_fn(features: tf.Tensor, act_type: Text):
-  """Customized non-linear activation type."""
-  if act_type in ('silu', 'swish'):
-    return tf.nn.swish(features)
-  elif act_type == 'swish_native':
-    return features * tf.sigmoid(features)
-  elif act_type == 'hswish':
-    return features * tf.nn.relu6(features + 3) / 6
-  elif act_type == 'relu':
-    return tf.nn.relu(features)
-  elif act_type == 'relu6':
-    return tf.nn.relu6(features)
-  elif act_type == 'mish':
-    return features * tf.math.tanh(tf.math.softplus(features))
-  elif act_type == 'identity':
-    return tf.identity(features)
-  elif act_type == 'srelu':
-    return srelu_fn(features)
-  else:
-    raise ValueError('Unsupported act_type {}'.format(act_type))
+    """Customized non-linear activation type."""
+    if act_type in ("silu", "swish"):
+        return tf.nn.swish(features)
+    elif act_type == "swish_native":
+        return features * tf.sigmoid(features)
+    elif act_type == "hswish":
+        return features * tf.nn.relu6(features + 3) / 6
+    elif act_type == "relu":
+        return tf.nn.relu(features)
+    elif act_type == "relu6":
+        return tf.nn.relu6(features)
+    elif act_type == "mish":
+        return features * tf.math.tanh(tf.math.softplus(features))
+    elif act_type == "identity":
+        return tf.identity(features)
+    elif act_type == "srelu":
+        return srelu_fn(features)
+    else:
+        raise ValueError("Unsupported act_type {}".format(act_type))

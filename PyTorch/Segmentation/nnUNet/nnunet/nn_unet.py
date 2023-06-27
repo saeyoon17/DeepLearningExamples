@@ -101,7 +101,9 @@ class NNUnet(pl.LightningModule):
         loss = self.loss(pred, lbl)
         if self.args.invert_resampled_y:
             meta, lbl = batch["meta"][0].cpu().detach().numpy(), batch["orig_lbl"]
-            pred = nn.functional.interpolate(pred, size=tuple(meta[3]), mode="trilinear", align_corners=True)
+            pred = nn.functional.interpolate(
+                pred, size=tuple(meta[3]), mode="trilinear", align_corners=True
+            )
         self.dice.update(pred, lbl[:, 0], loss)
 
     def test_step(self, batch, batch_idx):
@@ -124,7 +126,13 @@ class NNUnet(pl.LightningModule):
                 resized_pred = np.zeros((n_class, *cropped_shape))
                 for i in range(n_class):
                     resized_pred[i] = resize(
-                        pred[i], cropped_shape, order=3, mode="edge", cval=0, clip=True, anti_aliasing=False
+                        pred[i],
+                        cropped_shape,
+                        order=3,
+                        mode="edge",
+                        cval=0,
+                        clip=True,
+                        anti_aliasing=False,
                     )
                 pred = resized_pred
             final_pred = np.zeros((n_class, *original_shape))
@@ -143,7 +151,8 @@ class NNUnet(pl.LightningModule):
         while True:
             spacing_ratio = [spacing / min(spacings) for spacing in spacings]
             stride = [
-                2 if ratio <= 2 and size >= 2 * self.args.min_fmap else 1 for (ratio, size) in zip(spacing_ratio, sizes)
+                2 if ratio <= 2 and size >= 2 * self.args.min_fmap else 1
+                for (ratio, size) in zip(spacing_ratio, sizes)
             ]
             kernel = [3 if ratio <= 2 else 1 for ratio in spacing_ratio]
             if all(s == 1 for s in stride):
@@ -164,7 +173,9 @@ class NNUnet(pl.LightningModule):
         strides = tensor.stride()
         shape = tensor.shape
         tensor = torch.as_strided(
-            tensor, (shape[0], shape[-1], *shape[1:-1]), (strides[0], strides[-1], *strides[1:-1])
+            tensor,
+            (shape[0], shape[-1], *shape[1:-1]),
+            (strides[0], strides[-1], *strides[1:-1]),
         )
         return tensor
 
@@ -173,7 +184,13 @@ class NNUnet(pl.LightningModule):
         return img, lbl
 
     def build_nnunet(self):
-        self.in_channels, out_channels, kernels, strides, self.patch_size = self.get_unet_params()
+        (
+            self.in_channels,
+            out_channels,
+            kernels,
+            strides,
+            self.patch_size,
+        ) = self.get_unet_params()
         self.n_class = out_channels - 1
         if self.args.brats:
             out_channels = 3
@@ -198,7 +215,9 @@ class NNUnet(pl.LightningModule):
             )
         if self.args.layout == "NDHWC" and self.args.dim == 3:
             self.model.to(memory_format=torch.channels_last_3d)
-        print0(f"Filters: {self.model.filters},\nKernels: {kernels}\nStrides: {strides}")
+        print0(
+            f"Filters: {self.model.filters},\nKernels: {kernels}\nStrides: {strides}"
+        )
 
     def do_inference(self, image):
         if self.args.dim == 3:
@@ -263,7 +282,9 @@ class NNUnet(pl.LightningModule):
         metrics["Max Dice"] = self.round(self.best_mean_dice)
         metrics["Best epoch"] = self.best_epoch
         metrics["Train Loss"] = (
-            0 if len(self.train_loss) == 0 else round(sum(self.train_loss) / len(self.train_loss), 4)
+            0
+            if len(self.train_loss) == 0
+            else round(sum(self.train_loss) / len(self.train_loss), 4)
         )
         if self.n_class > 1:
             metrics.update({f"D{i+1}": self.round(m) for i, m in enumerate(dice)})
@@ -281,7 +302,9 @@ class NNUnet(pl.LightningModule):
         if not self.args.benchmark:
             metrics = {}
             metrics["dice_score"] = round(self.best_mean.item(), 2)
-            metrics["train_loss"] = round(sum(self.train_loss) / len(self.train_loss), 4)
+            metrics["train_loss"] = round(
+                sum(self.train_loss) / len(self.train_loss), 4
+            )
             metrics["val_loss"] = round(1 - self.best_mean.item() / 100, 4)
             metrics["Epoch"] = self.best_epoch
             self.dllogger.log_metrics(step=(), metrics=metrics)
@@ -289,13 +312,25 @@ class NNUnet(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = {
-            "sgd": FusedSGD(self.parameters(), lr=self.learning_rate, momentum=self.args.momentum),
-            "adam": FusedAdam(self.parameters(), lr=self.learning_rate, weight_decay=self.args.weight_decay),
+            "sgd": FusedSGD(
+                self.parameters(), lr=self.learning_rate, momentum=self.args.momentum
+            ),
+            "adam": FusedAdam(
+                self.parameters(),
+                lr=self.learning_rate,
+                weight_decay=self.args.weight_decay,
+            ),
         }[self.args.optimizer.lower()]
 
         if self.args.scheduler:
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, 4096, eta_min=8e-5)
-            return {"optimizer": optimizer, "monitor": "val_loss", "lr_scheduler": scheduler}
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+                optimizer, 4096, eta_min=8e-5
+            )
+            return {
+                "optimizer": optimizer,
+                "monitor": "val_loss",
+                "lr_scheduler": scheduler,
+            }
         return {"optimizer": optimizer, "monitor": "val_loss"}
 
     def save_mask(self, pred):

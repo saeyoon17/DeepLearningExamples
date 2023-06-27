@@ -17,14 +17,19 @@
 
 import tensorflow as tf
 
-__all__ = ['pad']
+__all__ = ["pad"]
 
 
-def pad(inputs, paddings, mode='CONSTANT', name='padding', constant_values=0):
+def pad(inputs, paddings, mode="CONSTANT", name="padding", constant_values=0):
 
-    if mode.upper() not in ['CONSTANT', 'REFLECT', 'SYMMETRIC']:
-        raise ValueError("Unknown padding mode: `%s` (accepted: ['CONSTANT', 'REFLECT', 'SYMMETRIC'])" % mode)
+    if mode.upper() not in ["CONSTANT", "REFLECT", "SYMMETRIC"]:
+        raise ValueError(
+            "Unknown padding mode: `%s` (accepted: ['CONSTANT', 'REFLECT', 'SYMMETRIC'])"
+            % mode
+        )
 
-    net = tf.pad(inputs, paddings=paddings, mode=mode, name=name, constant_values=constant_values)
+    net = tf.pad(
+        inputs, paddings=paddings, mode=mode, name=name, constant_values=constant_values
+    )
 
     return net

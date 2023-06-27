@@ -1,7 +1,7 @@
 """
 UNet 3+ Loss
 """
-from .loss import focal_loss, ssim_loss, iou_loss
+from .loss import focal_loss, iou_loss, ssim_loss
 
 
 def unet3p_hybrid_loss(y_true, y_pred):

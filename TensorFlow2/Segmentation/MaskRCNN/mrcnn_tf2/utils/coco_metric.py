@@ -33,8 +33,7 @@ from pycocotools.cocoeval import COCOeval
 
 
 class MaskCOCO(COCO):
-    """COCO object for mask evaluation.
-    """
+    """COCO object for mask evaluation."""
 
     def reset(self, dataset):
         """Reset the dataset and groundtruth data index in this object.
@@ -55,10 +54,10 @@ class MaskCOCO(COCO):
         Raises:
           AttributeError: If the dataset is empty or not a dict.
         """
-        assert dataset, 'Groundtruth should not be empty.'
-        assert isinstance(dataset,
-                          dict), 'annotation file format {} not supported'.format(
-            type(dataset))
+        assert dataset, "Groundtruth should not be empty."
+        assert isinstance(
+            dataset, dict
+        ), "annotation file format {} not supported".format(type(dataset))
         self.anns, self.cats, self.imgs = dict(), dict(), dict()
         self.dataset = copy.deepcopy(dataset)
         self.createIndex()
@@ -75,47 +74,44 @@ class MaskCOCO(COCO):
           res: result MaskCOCO api object
         """
         res = MaskCOCO()
-        res.dataset['images'] = [img for img in self.dataset['images']]
-        logging.info('Loading and preparing results...')
+        res.dataset["images"] = [img for img in self.dataset["images"]]
+        logging.info("Loading and preparing results...")
         predictions = self.load_predictions(
-            detection_results,
-            include_mask=include_mask,
-            is_image_mask=is_image_mask)
-        assert isinstance(predictions, list), 'results in not an array of objects'
+            detection_results, include_mask=include_mask, is_image_mask=is_image_mask
+        )
+        assert isinstance(predictions, list), "results in not an array of objects"
         if predictions:
-            image_ids = [pred['image_id'] for pred in predictions]
-            assert set(image_ids) == (set(image_ids) & set(self.getImgIds())), \
-                'Results do not correspond to current coco set'
+            image_ids = [pred["image_id"] for pred in predictions]
+            assert set(image_ids) == (
+                set(image_ids) & set(self.getImgIds())
+            ), "Results do not correspond to current coco set"
 
-            if (predictions and 'bbox' in predictions[0] and predictions[0]['bbox']):
-                res.dataset['categories'] = copy.deepcopy(self.dataset['categories'])
+            if predictions and "bbox" in predictions[0] and predictions[0]["bbox"]:
+                res.dataset["categories"] = copy.deepcopy(self.dataset["categories"])
                 for idx, pred in enumerate(predictions):
-                    bb = pred['bbox']
+                    bb = pred["bbox"]
                     x1, x2, y1, y2 = [bb[0], bb[0] + bb[2], bb[1], bb[1] + bb[3]]
-                    if 'segmentation' not in pred:
-                        pred['segmentation'] = [[x1, y1, x1, y2, x2, y2, x2, y1]]
-                    pred['area'] = bb[2] * bb[3]
-                    pred['id'] = idx + 1
-                    pred['iscrowd'] = 0
-            elif 'segmentation' in predictions[0]:
-                res.dataset['categories'] = copy.deepcopy(self.dataset['categories'])
+                    if "segmentation" not in pred:
+                        pred["segmentation"] = [[x1, y1, x1, y2, x2, y2, x2, y1]]
+                    pred["area"] = bb[2] * bb[3]
+                    pred["id"] = idx + 1
+                    pred["iscrowd"] = 0
+            elif "segmentation" in predictions[0]:
+                res.dataset["categories"] = copy.deepcopy(self.dataset["categories"])
                 for idx, pred in enumerate(predictions):
                     # now only support compressed RLE format as segmentation results
-                    pred['area'] = maskUtils.area(pred['segmentation'])
-                    if 'bbox' not in pred:
-                        pred['bbox'] = maskUtils.toBbox(pred['segmentation'])
-                    pred['id'] = idx + 1
-                    pred['iscrowd'] = 0
+                    pred["area"] = maskUtils.area(pred["segmentation"])
+                    if "bbox" not in pred:
+                        pred["bbox"] = maskUtils.toBbox(pred["segmentation"])
+                    pred["id"] = idx + 1
+                    pred["iscrowd"] = 0
 
-            res.dataset['annotations'] = predictions
+            res.dataset["annotations"] = predictions
 
         res.createIndex()
         return res
 
-    def load_predictions(self,
-                         detection_results,
-                         include_mask,
-                         is_image_mask=False):
+    def load_predictions(self, detection_results, include_mask, is_image_mask=False):
         """Create prediction dictionary list from detection and mask results.
 
         Args:
@@ -129,18 +125,18 @@ class MaskCOCO(COCO):
             in numpy form.
         """
         predictions = []
-        num_detections = detection_results['detection_scores'].size
+        num_detections = detection_results["detection_scores"].size
         current_index = 0
-        for i, image_id in enumerate(detection_results['source_ids']):
+        for i, image_id in enumerate(detection_results["source_ids"]):
 
             if include_mask:
-                box_coorindates_in_image = detection_results['detection_boxes'][i]
+                box_coorindates_in_image = detection_results["detection_boxes"][i]
                 segments = generate_segmentation_from_masks(
-                    detection_results['detection_masks'][i],
+                    detection_results["detection_masks"][i],
                     box_coorindates_in_image,
-                    int(detection_results['image_info'][i][3]),
-                    int(detection_results['image_info'][i][4]),
-                    is_image_mask=is_image_mask
+                    int(detection_results["image_info"][i][3]),
+                    int(detection_results["image_info"][i][4]),
+                    is_image_mask=is_image_mask,
                 )
 
                 # Convert the mask to uint8 and then to fortranarray for RLE encoder.
@@ -149,33 +145,32 @@ class MaskCOCO(COCO):
                     for instance_mask in segments
                 ]
 
-            for box_index in range(int(detection_results['num_detections'][i])):
+            for box_index in range(int(detection_results["num_detections"][i])):
                 if current_index % 1000 == 0:
-                    logging.info('{}/{}'.format(current_index, num_detections))
+                    logging.info("{}/{}".format(current_index, num_detections))
 
                 current_index += 1
 
                 prediction = {
-                    'image_id': int(image_id),
-                    'bbox': detection_results['detection_boxes'][i][box_index].tolist(),
-                    'score': detection_results['detection_scores'][i][box_index],
-                    'category_id': int(
-                        detection_results['detection_classes'][i][box_index]),
+                    "image_id": int(image_id),
+                    "bbox": detection_results["detection_boxes"][i][box_index].tolist(),
+                    "score": detection_results["detection_scores"][i][box_index],
+                    "category_id": int(
+                        detection_results["detection_classes"][i][box_index]
+                    ),
                 }
 
                 if include_mask:
-                    prediction['segmentation'] = encoded_masks[box_index]
+                    prediction["segmentation"] = encoded_masks[box_index]
 
                 predictions.append(prediction)
 
         return predictions
 
 
-def generate_segmentation_from_masks(masks,
-                                     detected_boxes,
-                                     image_height,
-                                     image_width,
-                                     is_image_mask=False):
+def generate_segmentation_from_masks(
+    masks, detected_boxes, image_height, image_width, is_image_mask=False
+):
     """Generates segmentation result from instance masks.
 
     Args:
@@ -198,8 +193,8 @@ def generate_segmentation_from_masks(masks,
         # Reference: https://github.com/facebookresearch/Detectron/blob/master/detectron/utils/boxes.py#L227
         # The `boxes` in the reference implementation is in [x1, y1, x2, y2] form,
         # whereas `boxes` here is in [x1, y1, w, h] form
-        w_half = boxes[:, 2] * .5
-        h_half = boxes[:, 3] * .5
+        w_half = boxes[:, 2] * 0.5
+        h_half = boxes[:, 3] * 0.5
         x_c = boxes[:, 0] + w_half
         y_c = boxes[:, 1] + h_half
 
@@ -222,8 +217,7 @@ def generate_segmentation_from_masks(masks,
     # appropriate factor.
 
     _, mask_height, mask_width = masks.shape
-    scale = max((mask_width + 2.0) / mask_width,
-                (mask_height + 2.0) / mask_height)
+    scale = max((mask_width + 2.0) / mask_width, (mask_height + 2.0) / mask_height)
 
     ref_boxes = expand_boxes(detected_boxes, scale)
     ref_boxes = ref_boxes.astype(np.int32)
@@ -252,10 +246,10 @@ def generate_segmentation_from_masks(masks,
             y_0 = max(ref_box[1], 0)
             y_1 = min(ref_box[3] + 1, image_height)
 
-            im_mask[y_0:y_1, x_0:x_1] = mask[(y_0 - ref_box[1]):(y_1 - ref_box[1]), (
-                                                                                            x_0 - ref_box[
-                                                                                        0]):(x_1 - ref_box[
-                0])]
+            im_mask[y_0:y_1, x_0:x_1] = mask[
+                (y_0 - ref_box[1]) : (y_1 - ref_box[1]),
+                (x_0 - ref_box[0]) : (x_1 - ref_box[0]),
+            ]
         segms.append(im_mask)
 
     segms = np.array(segms)
@@ -279,8 +273,8 @@ class EvaluationMetric:
           include_mask: boolean to indicate whether or not to include mask eval.
         """
         if filename:
-            if filename.startswith('gs://'):
-                _, local_val_json = tempfile.mkstemp(suffix='.json')
+            if filename.startswith("gs://"):
+                _, local_val_json = tempfile.mkstemp(suffix=".json")
                 tf.io.gfile.remove(local_val_json)
 
                 tf.io.gfile.copy(filename, local_val_json)
@@ -289,31 +283,43 @@ class EvaluationMetric:
                 local_val_json = filename
             self.coco_gt = MaskCOCO(local_val_json)
         self.filename = filename
-        self.metric_names = ['AP', 'AP50', 'AP75', 'APs', 'APm', 'APl', 'ARmax1',
-                             'ARmax10', 'ARmax100', 'ARs', 'ARm', 'ARl']
+        self.metric_names = [
+            "AP",
+            "AP50",
+            "AP75",
+            "APs",
+            "APm",
+            "APl",
+            "ARmax1",
+            "ARmax10",
+            "ARmax100",
+            "ARs",
+            "ARm",
+            "ARl",
+        ]
         self._include_mask = include_mask
         if self._include_mask:
-            mask_metric_names = ['mask_' + x for x in self.metric_names]
+            mask_metric_names = ["mask_" + x for x in self.metric_names]
             self.metric_names.extend(mask_metric_names)
 
         self._reset()
 
     def _reset(self):
         """Reset COCO API object."""
-        if self.filename is None and not hasattr(self, 'coco_gt'):
+        if self.filename is None and not hasattr(self, "coco_gt"):
             self.coco_gt = MaskCOCO()
 
-    def predict_metric_fn(self,
-                          predictions,
-                          is_predict_image_mask=False,
-                          groundtruth_data=None):
+    def predict_metric_fn(
+        self, predictions, is_predict_image_mask=False, groundtruth_data=None
+    ):
         """Generates COCO metrics."""
-        image_ids = list(set(predictions['source_ids']))
+        image_ids = list(set(predictions["source_ids"]))
         if groundtruth_data is not None:
             self.coco_gt.reset(groundtruth_data)
         coco_dt = self.coco_gt.loadRes(
-            predictions, self._include_mask, is_image_mask=is_predict_image_mask)
-        coco_eval = COCOeval(self.coco_gt, coco_dt, iouType='bbox')
+            predictions, self._include_mask, is_image_mask=is_predict_image_mask
+        )
+        coco_eval = COCOeval(self.coco_gt, coco_dt, iouType="bbox")
         coco_eval.params.imgIds = image_ids
         coco_eval.evaluate()
         coco_eval.accumulate()
@@ -322,7 +328,7 @@ class EvaluationMetric:
 
         if self._include_mask:
             # Create another object for instance segmentation metric evaluation.
-            mcoco_eval = COCOeval(self.coco_gt, coco_dt, iouType='segm')
+            mcoco_eval = COCOeval(self.coco_gt, coco_dt, iouType="segm")
             mcoco_eval.params.imgIds = image_ids
             mcoco_eval.evaluate()
             mcoco_eval.accumulate()

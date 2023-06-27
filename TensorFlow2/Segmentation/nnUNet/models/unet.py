@@ -1,5 +1,4 @@
 import tensorflow as tf
-
 from models import layers
 
 
@@ -21,7 +20,10 @@ class UNet(tf.keras.Model):
         self.negative_slope = negative_slope
         self.norm = normalization_layer
         self.deep_supervision = deep_supervision
-        filters = [min(2 ** (5 + i), 320 if dimension == 3 else 512) for i in range(len(strides))]
+        filters = [
+            min(2 ** (5 + i), 320 if dimension == 3 else 512)
+            for i in range(len(strides))
+        ]
         self.filters = filters
         self.kernels = kernels
         self.strides = strides
@@ -35,10 +37,16 @@ class UNet(tf.keras.Model):
             input_shape=input_shape,
         )
         self.downsamples = self.get_block_list(
-            conv_block=down_block, filters=filters[1:], kernels=kernels[1:-1], strides=strides[1:-1]
+            conv_block=down_block,
+            filters=filters[1:],
+            kernels=kernels[1:-1],
+            strides=strides[1:-1],
         )
         self.bottleneck = self.get_conv_block(
-            conv_block=down_block, filters=filters[-1], kernel_size=kernels[-1], stride=strides[-1]
+            conv_block=down_block,
+            filters=filters[-1],
+            kernel_size=kernels[-1],
+            stride=strides[-1],
         )
         self.upsamples = self.get_block_list(
             conv_block=layers.UpsampleBlock,
@@ -48,7 +56,10 @@ class UNet(tf.keras.Model):
         )
         self.output_block = self.get_output_block()
         if self.deep_supervision:
-            self.deep_supervision_heads = [self.get_output_block(), self.get_output_block()]
+            self.deep_supervision_heads = [
+                self.get_output_block(),
+                self.get_output_block(),
+            ]
         self.n_layers = len(self.upsamples) - 1
 
     def call(self, x, training=True):
@@ -78,7 +89,9 @@ class UNet(tf.keras.Model):
         return out
 
     def get_output_block(self):
-        return layers.OutputBlock(filters=self.n_class, dim=self.dim, negative_slope=self.negative_slope)
+        return layers.OutputBlock(
+            filters=self.n_class, dim=self.dim, negative_slope=self.negative_slope
+        )
 
     def get_conv_block(self, conv_block, filters, kernel_size, stride, **kwargs):
         return conv_block(

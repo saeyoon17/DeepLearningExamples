@@ -19,20 +19,35 @@ from torch.nn import functional as F
 
 
 class ConvNorm(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=1, stride=1,
-                 padding=None, dilation=1, bias=True, w_init_gain='linear'):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=1,
+        stride=1,
+        padding=None,
+        dilation=1,
+        bias=True,
+        w_init_gain="linear",
+    ):
         super(ConvNorm, self).__init__()
         if padding is None:
-            assert(kernel_size % 2 == 1)
+            assert kernel_size % 2 == 1
             padding = int(dilation * (kernel_size - 1) / 2)
 
-        self.conv = torch.nn.Conv1d(in_channels, out_channels,
-                                    kernel_size=kernel_size, stride=stride,
-                                    padding=padding, dilation=dilation,
-                                    bias=bias)
+        self.conv = torch.nn.Conv1d(
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            bias=bias,
+        )
 
         torch.nn.init.xavier_uniform_(
-            self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
+            self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain)
+        )
 
     def forward(self, signal):
         conv_signal = self.conv(signal)
@@ -46,14 +61,14 @@ class Invertible1x1ConvLUS(torch.nn.Module):
         W, _ = torch.linalg.qr(torch.randn(c, c))
         # Ensure determinant is 1.0 not -1.0
         if torch.det(W) < 0:
-            W[:, 0] = -1*W[:, 0]
+            W[:, 0] = -1 * W[:, 0]
         p, lower, upper = torch.lu_unpack(*torch.lu(W))
 
-        self.register_buffer('p', p)
+        self.register_buffer("p", p)
         # diagonals of lower will always be 1s anyway
         lower = torch.tril(lower, -1)
         lower_diag = torch.diag(torch.eye(c, c))
-        self.register_buffer('lower_diag', lower_diag)
+        self.register_buffer("lower_diag", lower_diag)
         self.lower = nn.Parameter(lower)
         self.upper_diag = nn.Parameter(torch.diag(upper))
         self.upper = nn.Parameter(torch.triu(upper, 1))
@@ -63,10 +78,10 @@ class Invertible1x1ConvLUS(torch.nn.Module):
         L = torch.tril(self.lower, -1) + torch.diag(self.lower_diag)
         W = torch.mm(self.p, torch.mm(L, U))
         if reverse:
-            if not hasattr(self, 'W_inverse'):
+            if not hasattr(self, "W_inverse"):
                 # Reverse computation
                 W_inverse = W.float().inverse()
-                if z.type() == 'torch.cuda.HalfTensor':
+                if z.type() == "torch.cuda.HalfTensor":
                     W_inverse = W_inverse.half()
 
                 self.W_inverse = W_inverse[..., None]
@@ -80,10 +95,17 @@ class Invertible1x1ConvLUS(torch.nn.Module):
 
 
 class ConvAttention(torch.nn.Module):
-    def __init__(self, n_mel_channels=80, n_speaker_dim=128,
-                 n_text_channels=512, n_att_channels=80, temperature=1.0,
-                 n_mel_convs=2, align_query_enc_type='3xconv',
-                 use_query_proj=True):
+    def __init__(
+        self,
+        n_mel_channels=80,
+        n_speaker_dim=128,
+        n_text_channels=512,
+        n_att_channels=80,
+        temperature=1.0,
+        n_mel_convs=2,
+        align_query_enc_type="3xconv",
+        use_query_proj=True,
+    ):
         super(ConvAttention, self).__init__()
         self.temperature = temperature
         self.att_scaling_factor = np.sqrt(n_att_channels)
@@ -95,16 +117,16 @@ class ConvAttention(torch.nn.Module):
         self.use_query_proj = bool(use_query_proj)
 
         self.key_proj = nn.Sequential(
-            ConvNorm(n_text_channels,
-                     n_text_channels * 2,
-                     kernel_size=3,
-                     bias=True,
-                     w_init_gain='relu'),
+            ConvNorm(
+                n_text_channels,
+                n_text_channels * 2,
+                kernel_size=3,
+                bias=True,
+                w_init_gain="relu",
+            ),
             torch.nn.ReLU(),
-            ConvNorm(n_text_channels * 2,
-                     n_att_channels,
-                     kernel_size=1,
-                     bias=True))
+            ConvNorm(n_text_channels * 2, n_att_channels, kernel_size=1, bias=True),
+        )
 
         self.align_query_enc_type = align_query_enc_type
 
@@ -112,26 +134,24 @@ class ConvAttention(torch.nn.Module):
             self.query_proj = Invertible1x1ConvLUS(n_mel_channels)
         elif align_query_enc_type == "3xconv":
             self.query_proj = nn.Sequential(
-                ConvNorm(n_mel_channels,
-                         n_mel_channels * 2,
-                         kernel_size=3,
-                         bias=True,
-                         w_init_gain='relu'),
+                ConvNorm(
+                    n_mel_channels,
+                    n_mel_channels * 2,
+                    kernel_size=3,
+                    bias=True,
+                    w_init_gain="relu",
+                ),
                 torch.nn.ReLU(),
-                ConvNorm(n_mel_channels * 2,
-                         n_mel_channels,
-                         kernel_size=1,
-                         bias=True),
+                ConvNorm(n_mel_channels * 2, n_mel_channels, kernel_size=1, bias=True),
                 torch.nn.ReLU(),
-                ConvNorm(n_mel_channels,
-                         n_att_channels,
-                         kernel_size=1,
-                         bias=True))
+                ConvNorm(n_mel_channels, n_att_channels, kernel_size=1, bias=True),
+            )
         else:
             raise ValueError("Unknown query encoder type specified")
 
-    def run_padded_sequence(self, sorted_idx, unsort_idx, lens, padded_data,
-                            recurrent_model):
+    def run_padded_sequence(
+        self, sorted_idx, unsort_idx, lens, padded_data, recurrent_model
+    ):
         """Sorts input data by previded ordering (and un-ordering) and runs the
         packed data through the recurrent model
 
@@ -163,13 +183,22 @@ class ConvAttention(torch.nn.Module):
         for i in range(len(ids)):
             original_ids[ids[i]] = i
 
-        query_encoded = self.run_padded_sequence(ids, original_ids, lens,
-                                                 query, self.query_lstm)
+        query_encoded = self.run_padded_sequence(
+            ids, original_ids, lens, query, self.query_lstm
+        )
         query_encoded = query_encoded.permute(1, 2, 0)
         return query_encoded
 
-    def forward(self, queries, keys, query_lens, mask=None, key_lens=None,
-                keys_encoded=None, attn_prior=None):
+    def forward(
+        self,
+        queries,
+        keys,
+        query_lens,
+        mask=None,
+        key_lens=None,
+        keys_encoded=None,
+        attn_prior=None,
+    ):
         """Attention mechanism for flowtron parallel
         Unlike in Flowtron, we have no restrictions such as causality etc,
         since we only need this during training.
@@ -208,13 +237,12 @@ class ConvAttention(torch.nn.Module):
         # compute log likelihood from a gaussian
         attn = -0.0005 * attn.sum(1, keepdim=True)
         if attn_prior is not None:
-            attn = self.log_softmax(attn) + torch.log(attn_prior[:, None]+1e-8)
+            attn = self.log_softmax(attn) + torch.log(attn_prior[:, None] + 1e-8)
 
         attn_logprob = attn.clone()
 
         if mask is not None:
-            attn.data.masked_fill_(mask.permute(0, 2, 1).unsqueeze(2),
-                                   -float("inf"))
+            attn.data.masked_fill_(mask.permute(0, 2, 1).unsqueeze(2), -float("inf"))
 
         attn = self.softmax(attn)  # Softmax along T2
         return attn, attn_logprob

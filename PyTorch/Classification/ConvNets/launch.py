@@ -1,13 +1,12 @@
-import os
-from pathlib import Path
-from dataclasses import dataclass
-from typing import Dict, Any
-import yaml
-
-from main import main, add_parser_arguments, available_models
-import torch.backends.cudnn as cudnn
-
 import argparse
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict
+
+import torch.backends.cudnn as cudnn
+import yaml
+from main import add_parser_arguments, available_models, main
 
 
 def get_config_path():
@@ -31,7 +30,7 @@ if __name__ == "__main__":
 
     with open(yaml_args.cfg_file, "r") as cfg_file:
         config = yaml.load(cfg_file, Loader=yaml.FullLoader)
-    
+
     cfg = {
         **config["precision"][yaml_args.precision],
         **config["platform"][yaml_args.platform],

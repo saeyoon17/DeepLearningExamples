@@ -19,7 +19,7 @@ from syngen.generator.graph.rmat_bipartite import RMATBipartiteGenerator
 
 
 class RandomBipartite(RMATBipartiteGenerator):
-    """ Graph generator based on erdos-renyi model that generate random bipartite graphs
+    """Graph generator based on erdos-renyi model that generate random bipartite graphs
     Args:
         seed (int):
             Seed to reproduce the results. If None then random seed will be used.
@@ -30,7 +30,12 @@ class RandomBipartite(RMATBipartiteGenerator):
             Fitter to be used.
     """
 
-    def __init__(self, seed: Optional[int] = None, logdir: str = "./logs", **kwargs,):
+    def __init__(
+        self,
+        seed: Optional[int] = None,
+        logdir: str = "./logs",
+        **kwargs,
+    ):
         fitter = RandomFitter()
         super().__init__(seed, logdir, fitter)
         self.fit()
@@ -42,9 +47,7 @@ class RandomBipartite(RMATBipartiteGenerator):
         dst_set: Optional[Set[int]] = None,
         is_directed: bool = False,
     ):
-        """ Fits generator on the graph. For random graph it is graph independent."""
+        """Fits generator on the graph. For random graph it is graph independent."""
 
         self._fit_src_dst_results = self.fitter.fit(graph)
-        self._fit_dst_src_results = (
-            None if not is_directed else self.fitter.fit(graph)
-        )
+        self._fit_dst_src_results = None if not is_directed else self.fitter.fit(graph)

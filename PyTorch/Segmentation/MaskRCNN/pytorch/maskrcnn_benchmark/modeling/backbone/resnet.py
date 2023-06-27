@@ -21,13 +21,10 @@ from collections import namedtuple
 
 import torch
 import torch.nn.functional as F
-from torch import nn
-
-from maskrcnn_benchmark.layers import FrozenBatchNorm2d
-from maskrcnn_benchmark.layers import Conv2d
+from maskrcnn_benchmark.layers import Conv2d, FrozenBatchNorm2d
 from maskrcnn_benchmark.modeling.make_layers import group_norm
 from maskrcnn_benchmark.utils.registry import Registry
-
+from torch import nn
 
 # ResNet stage specification
 StageSpec = namedtuple(
@@ -152,7 +149,7 @@ class ResNetHead(nn.Module):
         stride_in_1x1=True,
         stride_init=None,
         res2_out_channels=256,
-        dilation=1
+        dilation=1,
     ):
         super(ResNetHead, self).__init__()
 
@@ -179,7 +176,7 @@ class ResNetHead(nn.Module):
                 num_groups,
                 stride_in_1x1,
                 first_stride=stride,
-                dilation=dilation
+                dilation=dilation,
             )
             stride = None
             self.add_module(name, module)
@@ -200,7 +197,7 @@ def _make_stage(
     num_groups,
     stride_in_1x1,
     first_stride,
-    dilation=1
+    dilation=1,
 ):
     blocks = []
     stride = first_stride
@@ -213,7 +210,7 @@ def _make_stage(
                 num_groups,
                 stride_in_1x1,
                 stride,
-                dilation=dilation
+                dilation=dilation,
             )
         )
         stride = 1
@@ -231,7 +228,7 @@ class Bottleneck(nn.Module):
         stride_in_1x1,
         stride,
         dilation,
-        norm_func
+        norm_func,
     ):
         super(Bottleneck, self).__init__()
 
@@ -240,18 +237,23 @@ class Bottleneck(nn.Module):
             down_stride = stride if dilation == 1 else 1
             self.downsample = nn.Sequential(
                 Conv2d(
-                    in_channels, out_channels, 
-                    kernel_size=1, stride=down_stride, bias=False
+                    in_channels,
+                    out_channels,
+                    kernel_size=1,
+                    stride=down_stride,
+                    bias=False,
                 ),
                 norm_func(out_channels),
             )
-            for modules in [self.downsample,]:
+            for modules in [
+                self.downsample,
+            ]:
                 for l in modules.modules():
                     if isinstance(l, Conv2d):
                         nn.init.kaiming_uniform_(l.weight, a=1)
 
         if dilation > 1:
-            stride = 1 # reset to be 1
+            stride = 1  # reset to be 1
 
         # The original MSRA ResNet models have stride in the first 1x1 conv
         # The subsequent fb.torch.resnet and Caffe2 ResNe[X]t implementations have
@@ -276,7 +278,7 @@ class Bottleneck(nn.Module):
             padding=dilation,
             bias=False,
             groups=num_groups,
-            dilation=dilation
+            dilation=dilation,
         )
         self.bn2 = norm_func(bottleneck_channels)
 
@@ -285,7 +287,11 @@ class Bottleneck(nn.Module):
         )
         self.bn3 = norm_func(out_channels)
 
-        for l in [self.conv1, self.conv2, self.conv3,]:
+        for l in [
+            self.conv1,
+            self.conv2,
+            self.conv3,
+        ]:
             nn.init.kaiming_uniform_(l.weight, a=1)
 
     def forward(self, x):
@@ -322,7 +328,9 @@ class BaseStem(nn.Module):
         )
         self.bn1 = norm_func(out_channels)
 
-        for l in [self.conv1,]:
+        for l in [
+            self.conv1,
+        ]:
             nn.init.kaiming_uniform_(l.weight, a=1)
 
     def forward(self, x):
@@ -342,7 +350,7 @@ class BottleneckWithFixedBatchNorm(Bottleneck):
         num_groups=1,
         stride_in_1x1=True,
         stride=1,
-        dilation=1
+        dilation=1,
     ):
         super(BottleneckWithFixedBatchNorm, self).__init__(
             in_channels=in_channels,
@@ -352,15 +360,13 @@ class BottleneckWithFixedBatchNorm(Bottleneck):
             stride_in_1x1=stride_in_1x1,
             stride=stride,
             dilation=dilation,
-            norm_func=FrozenBatchNorm2d
+            norm_func=FrozenBatchNorm2d,
         )
 
 
 class StemWithFixedBatchNorm(BaseStem):
     def __init__(self, cfg):
-        super(StemWithFixedBatchNorm, self).__init__(
-            cfg, norm_func=FrozenBatchNorm2d
-        )
+        super(StemWithFixedBatchNorm, self).__init__(cfg, norm_func=FrozenBatchNorm2d)
 
 
 class BottleneckWithGN(Bottleneck):
@@ -372,7 +378,7 @@ class BottleneckWithGN(Bottleneck):
         num_groups=1,
         stride_in_1x1=True,
         stride=1,
-        dilation=1
+        dilation=1,
     ):
         super(BottleneckWithGN, self).__init__(
             in_channels=in_channels,
@@ -382,7 +388,7 @@ class BottleneckWithGN(Bottleneck):
             stride_in_1x1=stride_in_1x1,
             stride=stride,
             dilation=dilation,
-            norm_func=group_norm
+            norm_func=group_norm,
         )
 
 
@@ -391,21 +397,27 @@ class StemWithGN(BaseStem):
         super(StemWithGN, self).__init__(cfg, norm_func=group_norm)
 
 
-_TRANSFORMATION_MODULES = Registry({
-    "BottleneckWithFixedBatchNorm": BottleneckWithFixedBatchNorm,
-    "BottleneckWithGN": BottleneckWithGN,
-})
+_TRANSFORMATION_MODULES = Registry(
+    {
+        "BottleneckWithFixedBatchNorm": BottleneckWithFixedBatchNorm,
+        "BottleneckWithGN": BottleneckWithGN,
+    }
+)
 
-_STEM_MODULES = Registry({
-    "StemWithFixedBatchNorm": StemWithFixedBatchNorm,
-    "StemWithGN": StemWithGN,
-})
+_STEM_MODULES = Registry(
+    {
+        "StemWithFixedBatchNorm": StemWithFixedBatchNorm,
+        "StemWithGN": StemWithGN,
+    }
+)
 
-_STAGE_SPECS = Registry({
-    "R-50-C4": ResNet50StagesTo4,
-    "R-50-C5": ResNet50StagesTo5,
-    "R-101-C4": ResNet101StagesTo4,
-    "R-101-C5": ResNet101StagesTo5,
-    "R-50-FPN": ResNet50FPNStagesTo5,
-    "R-101-FPN": ResNet101FPNStagesTo5,
-})
+_STAGE_SPECS = Registry(
+    {
+        "R-50-C4": ResNet50StagesTo4,
+        "R-50-C5": ResNet50StagesTo5,
+        "R-101-C4": ResNet101StagesTo4,
+        "R-101-C5": ResNet101StagesTo5,
+        "R-50-FPN": ResNet50FPNStagesTo5,
+        "R-101-FPN": ResNet101FPNStagesTo5,
+    }
+)

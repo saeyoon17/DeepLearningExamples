@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import logging
+import sys
+
 import paddle
 
 
@@ -40,19 +41,24 @@ class Cosine:
         self.warmup_start_lr = args.warmup_start_lr
 
     def __call__(self):
-        learning_rate = paddle.optimizer.lr.CosineAnnealingDecay(
-            learning_rate=self.learning_rate,
-            T_max=self.T_max,
-            eta_min=self.eta_min,
-            last_epoch=self.
-            last_epoch) if self.T_max > 0 else self.learning_rate
+        learning_rate = (
+            paddle.optimizer.lr.CosineAnnealingDecay(
+                learning_rate=self.learning_rate,
+                T_max=self.T_max,
+                eta_min=self.eta_min,
+                last_epoch=self.last_epoch,
+            )
+            if self.T_max > 0
+            else self.learning_rate
+        )
         if self.warmup_steps > 0:
             learning_rate = paddle.optimizer.lr.LinearWarmup(
                 learning_rate=learning_rate,
                 warmup_steps=self.warmup_steps,
                 start_lr=self.warmup_start_lr,
                 end_lr=self.learning_rate,
-                last_epoch=self.last_epoch)
+                last_epoch=self.last_epoch,
+            )
         return learning_rate
 
 
@@ -69,8 +75,7 @@ def build_lr_scheduler(args, step_each_epoch):
     # Turn last_epoch to last_step, since we update lr each step instead of each epoch.
     last_step = args.start_epoch * step_each_epoch - 1
     learning_rate_mod = sys.modules[__name__]
-    lr = getattr(learning_rate_mod, args.lr_scheduler)(args, step_each_epoch,
-                                                       last_step)
+    lr = getattr(learning_rate_mod, args.lr_scheduler)(args, step_each_epoch, last_step)
     if not isinstance(lr, paddle.optimizer.lr.LRScheduler):
         lr = lr()
     logging.info("build lr %s success..", lr)

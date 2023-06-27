@@ -6,7 +6,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 #
-#-------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 #
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,26 +21,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import os
+import sys
 import time
 from collections import namedtuple
 
+import dllogger
 import numpy as np
 import torch
-from torch.serialization import default_restore_location
-
-from fairseq import data, options, tokenizer, utils, log_helper
-from fairseq.sequence_generator import SequenceGenerator
+from apply_bpe import BPE
+from fairseq import data, log_helper, options, tokenizer, utils
 from fairseq.meters import StopwatchMeter
 from fairseq.models.transformer import TransformerModel
-import dllogger
+from fairseq.sequence_generator import SequenceGenerator
+from torch.serialization import default_restore_location
 
-from apply_bpe import BPE
-
-
-Batch = namedtuple('Batch', 'srcs tokens lengths')
-Translation = namedtuple('Translation', 'src_str hypos pos_scores alignments')
+Batch = namedtuple("Batch", "srcs tokens lengths")
+Translation = namedtuple("Translation", "src_str hypos pos_scores alignments")
 
 
 def load_ensemble_for_inference(filenames):
@@ -54,21 +51,23 @@ def load_ensemble_for_inference(filenames):
     states = []
     for filename in filenames:
         if not os.path.exists(filename):
-            raise IOError('Model file not found: {}'.format(filename))
-        state = torch.load(filename, map_location=lambda s, l: default_restore_location(s, 'cpu'))
+            raise IOError("Model file not found: {}".format(filename))
+        state = torch.load(
+            filename, map_location=lambda s, l: default_restore_location(s, "cpu")
+        )
         states.append(state)
 
     ensemble = []
     for state in states:
-        args = state['args']
+        args = state["args"]
 
         # build model for ensemble
         model = TransformerModel.build_model(args)
-        model.load_state_dict(state['model'], strict=True)
+        model.load_state_dict(state["model"], strict=True)
         ensemble.append(model)
 
-    src_dict = states[0]['extra_state']['src_dict']
-    tgt_dict = states[0]['extra_state']['tgt_dict']
+    src_dict = states[0]["extra_state"]["src_dict"]
+    tgt_dict = states[0]["extra_state"]["tgt_dict"]
 
     return ensemble, args, src_dict, tgt_dict
 
@@ -92,8 +91,8 @@ def make_batches(lines, args, src_dict, max_positions, bpe=None):
             src_dict,
             tokenize=tokenizer.tokenize_en,
             add_if_not_exist=False,
-            bpe=bpe
-            ).long()
+            bpe=bpe,
+        ).long()
         for src_str in lines
     ]
     lengths = np.array([t.numel() for t in tokens])
@@ -105,21 +104,30 @@ def make_batches(lines, args, src_dict, max_positions, bpe=None):
     ).next_epoch_itr(shuffle=False)
     for batch in itr:
         yield Batch(
-            srcs=[lines[i] for i in batch['id']],
-            tokens=batch['net_input']['src_tokens'],
-            lengths=batch['net_input']['src_lengths'],
-        ), batch['id']
+            srcs=[lines[i] for i in batch["id"]],
+            tokens=batch["net_input"]["src_tokens"],
+            lengths=batch["net_input"]["src_lengths"],
+        ), batch["id"]
 
 
 def setup_logger(args):
     if not args.no_dllogger:
-        dllogger.init(backends=[dllogger.JSONStreamBackend(verbosity=1, filename=args.stat_file)])
+        dllogger.init(
+            backends=[dllogger.JSONStreamBackend(verbosity=1, filename=args.stat_file)]
+        )
         for k, v in vars(args).items():
-            dllogger.log(step='PARAMETER', data={k:v}, verbosity=0)
+            dllogger.log(step="PARAMETER", data={k: v}, verbosity=0)
         container_setup_info = log_helper.get_framework_env_vars()
-        dllogger.log(step='PARAMETER', data=container_setup_info, verbosity=0)
-        dllogger.metadata('throughput',
-                          {'unit':'tokens/s', 'format':':/3f', 'GOAL':'MAXIMIZE', 'STAGE':'INFER'})
+        dllogger.log(step="PARAMETER", data=container_setup_info, verbosity=0)
+        dllogger.metadata(
+            "throughput",
+            {
+                "unit": "tokens/s",
+                "format": ":/3f",
+                "GOAL": "MAXIMIZE",
+                "STAGE": "INFER",
+            },
+        )
     else:
         dllogger.init(backends=[])
 
@@ -127,25 +135,32 @@ def setup_logger(args):
 def main(args):
     setup_logger(args)
 
-    args.interactive = sys.stdin.isatty() and not args.file # Just make the code more understendable
-    
+    args.interactive = (
+        sys.stdin.isatty() and not args.file
+    )  # Just make the code more understendable
+
     if args.file:
-        data_descriptor = open(args.file, 'r')
+        data_descriptor = open(args.file, "r")
     else:
         data_descriptor = sys.stdin
-    
+
     if args.interactive:
         args.buffer_size = 1
     if args.max_tokens is None and args.max_sentences is None:
         args.max_sentences = 1
     if args.buffer_size > 50000:
-        print("WARNING: To prevent memory exhaustion buffer size is set to 50000", file=sys.stderr)
+        print(
+            "WARNING: To prevent memory exhaustion buffer size is set to 50000",
+            file=sys.stderr,
+        )
         args.buffer_size = 50000
 
-    assert not args.sampling or args.nbest == args.beam, \
-        '--sampling requires --nbest to be equal to --beam'
-    assert not args.max_sentences or args.max_sentences <= args.buffer_size, \
-        '--max-sentences/--batch-size cannot be larger than --buffer-size'
+    assert (
+        not args.sampling or args.nbest == args.beam
+    ), "--sampling requires --nbest to be equal to --beam"
+    assert (
+        not args.max_sentences or args.max_sentences <= args.buffer_size
+    ), "--max-sentences/--batch-size cannot be larger than --buffer-size"
 
     print(args, file=sys.stderr)
 
@@ -155,8 +170,8 @@ def main(args):
     processing_start = time.time()
 
     # Load ensemble
-    print('| loading model(s) from {}'.format(args.path), file=sys.stderr)
-    model_paths = args.path.split(':')
+    print("| loading model(s) from {}".format(args.path), file=sys.stderr)
+    model_paths = args.path.split(":")
     models, model_args, src_dict, tgt_dict = load_ensemble_for_inference(model_paths)
     if args.fp16:
         for model in models:
@@ -179,7 +194,7 @@ def main(args):
         sampling=args.sampling,
         sampling_topk=args.sampling_topk,
         minlen=args.min_len,
-        sampling_temperature=args.sampling_temperature
+        sampling_temperature=args.sampling_temperature,
     )
 
     if use_cuda:
@@ -188,7 +203,7 @@ def main(args):
     # Load BPE codes file
     bpe = None
     if args.bpe_codes:
-        codes = open(args.bpe_codes, 'r')
+        codes = open(args.bpe_codes, "r")
         bpe = BPE(codes)
     # Load alignment dictionary for unknown word replacement
     # (None if no unknown word replacement, empty if no path to align dictionary)
@@ -203,21 +218,27 @@ def main(args):
         )
 
         # Process top predictions
-        for hypo in hypos[:min(len(hypos), args.nbest)]:
+        for hypo in hypos[: min(len(hypos), args.nbest)]:
             hypo_tokens, hypo_str, alignment = utils.post_process_prediction(
-                hypo_tokens=hypo['tokens'].int().cpu(),
+                hypo_tokens=hypo["tokens"].int().cpu(),
                 src_str=src_str,
-                alignment=hypo['alignment'].int().cpu() if hypo['alignment'] is not None else None,
+                alignment=hypo["alignment"].int().cpu()
+                if hypo["alignment"] is not None
+                else None,
                 align_dict=align_dict,
                 tgt_dict=tgt_dict,
                 remove_bpe=args.remove_bpe,
             )
-            hypo_str = tokenizer.Tokenizer.detokenize(hypo_str, 'de').strip()
-            result.hypos.append((hypo['score'], hypo_str))
-            result.pos_scores.append('P\t' + ' '.join(f'{x:.4f}' for x in hypo['positional_scores'].tolist()))
-            result.alignments.append('A\t' + ' '.join(str(utils.item(x)) for x in alignment)
-                                     if args.print_alignment else None
-                                    )
+            hypo_str = tokenizer.Tokenizer.detokenize(hypo_str, "de").strip()
+            result.hypos.append((hypo["score"], hypo_str))
+            result.pos_scores.append(
+                "P\t" + " ".join(f"{x:.4f}" for x in hypo["positional_scores"].tolist())
+            )
+            result.alignments.append(
+                "A\t" + " ".join(str(utils.item(x)) for x in alignment)
+                if args.print_alignment
+                else None
+            )
 
         return result
 
@@ -240,27 +261,31 @@ def main(args):
             lengths,
             maxlen=int(args.max_len_a * tokens.size(1) + args.max_len_b),
         )
-        gen_timer.stop(sum(len(h[0]['tokens']) for h in translations))
+        gen_timer.stop(sum(len(h[0]["tokens"]) for h in translations))
 
         torch.cuda.synchronize()
-        dllogger.log(step='infer', data={'latency': time.time() - translation_start})
+        dllogger.log(step="infer", data={"latency": time.time() - translation_start})
 
         return [make_result(batch.srcs[i], t) for i, t in enumerate(translations)]
 
     if args.interactive:
-        print('| Type the input sentence and press return:')
+        print("| Type the input sentence and press return:")
     for inputs in buffered_read(args.buffer_size, data_descriptor):
         indices = []
         results = []
-        for batch, batch_indices in make_batches(inputs, args, src_dict, args.max_positions, bpe):
+        for batch, batch_indices in make_batches(
+            inputs, args, src_dict, args.max_positions, bpe
+        ):
             indices.extend(batch_indices)
             results += process_batch(batch)
 
         for i in np.argsort(indices):
             result = results[i]
             print(result.src_str, file=sys.stderr)
-            for hypo, pos_scores, align in zip(result.hypos, result.pos_scores, result.alignments):
-                print(f'Score {hypo[0]}', file=sys.stderr)
+            for hypo, pos_scores, align in zip(
+                result.hypos, result.pos_scores, result.alignments
+            ):
+                print(f"Score {hypo[0]}", file=sys.stderr)
                 print(hypo[1])
                 if align is not None:
                     print(align, file=sys.stderr)
@@ -270,27 +295,39 @@ def main(args):
 
     torch.cuda.synchronize()
     log_dict = {
-                'throughput': 1./gen_timer.avg,
-                'latency_avg': sum(gen_timer.intervals)/len(gen_timer.intervals),
-                'latency_p90': gen_timer.p(90),
-                'latency_p95': gen_timer.p(95),
-                'latency_p99': gen_timer.p(99),
-                'total_infernece_time': gen_timer.sum,
-                'total_run_time': time.time() - processing_start,
-                }
-    print('Translation time: {} s'.format(log_dict['total_infernece_time']),
-          file=sys.stderr)
-    print('Model throughput (beam {}): {} tokens/s'.format(args.beam, log_dict['throughput']),
-          file=sys.stderr)
-    print('Latency:\n\tAverage {:.3f}s\n\tp90 {:.3f}s\n\tp95 {:.3f}s\n\tp99 {:.3f}s'.format(
-          log_dict['latency_avg'], log_dict['latency_p90'], log_dict['latency_p95'], log_dict['latency_p99']),
-          file=sys.stderr)
-    print('End to end time: {} s'.format(log_dict['total_run_time']), file=sys.stderr)
+        "throughput": 1.0 / gen_timer.avg,
+        "latency_avg": sum(gen_timer.intervals) / len(gen_timer.intervals),
+        "latency_p90": gen_timer.p(90),
+        "latency_p95": gen_timer.p(95),
+        "latency_p99": gen_timer.p(99),
+        "total_infernece_time": gen_timer.sum,
+        "total_run_time": time.time() - processing_start,
+    }
+    print(
+        "Translation time: {} s".format(log_dict["total_infernece_time"]),
+        file=sys.stderr,
+    )
+    print(
+        "Model throughput (beam {}): {} tokens/s".format(
+            args.beam, log_dict["throughput"]
+        ),
+        file=sys.stderr,
+    )
+    print(
+        "Latency:\n\tAverage {:.3f}s\n\tp90 {:.3f}s\n\tp95 {:.3f}s\n\tp99 {:.3f}s".format(
+            log_dict["latency_avg"],
+            log_dict["latency_p90"],
+            log_dict["latency_p95"],
+            log_dict["latency_p99"],
+        ),
+        file=sys.stderr,
+    )
+    print("End to end time: {} s".format(log_dict["total_run_time"]), file=sys.stderr)
     dllogger.log(step=(), data=log_dict)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = options.get_inference_parser()
-    parser.add_argument('--no-dllogger', action='store_true')
+    parser.add_argument("--no-dllogger", action="store_true")
     ARGS = options.parse_args_and_arch(parser)
     main(ARGS)

@@ -24,19 +24,23 @@ class FairseqIncrementalDecoder(nn.Module):
         previous time step. A typical use case is beam search, where the input
         order changes between time steps based on the selection of beams.
         """
+
         def apply_reorder_incremental_state(module):
-            if module != self and hasattr(module, 'reorder_incremental_state'):
+            if module != self and hasattr(module, "reorder_incremental_state"):
                 module.reorder_incremental_state(
                     incremental_state,
                     new_order,
                 )
+
         self.apply(apply_reorder_incremental_state)
 
     def set_beam_size(self, beam_size):
         """Sets the beam size in the decoder and all children."""
-        if getattr(self, '_beam_size', -1) != beam_size:
+        if getattr(self, "_beam_size", -1) != beam_size:
+
             def apply_set_beam_size(module):
-                if module != self and hasattr(module, 'set_beam_size'):
+                if module != self and hasattr(module, "set_beam_size"):
                     module.set_beam_size(beam_size)
+
             self.apply(apply_set_beam_size)
             self._beam_size = beam_size

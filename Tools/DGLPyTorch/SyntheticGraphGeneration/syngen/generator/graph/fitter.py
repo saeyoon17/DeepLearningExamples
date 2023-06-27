@@ -21,15 +21,17 @@ from scipy.optimize import minimize
 
 
 class BaseFitter(ABC):
-    """ Base fitter for graph generators """
+    """Base fitter for graph generators"""
+
     def fit(self, graph: Optional[List[Tuple[int, int]]], *args):
         raise NotImplementedError()
 
 
 class RandomFitter(BaseFitter):
-    """ Random fitter for RMAT generators. Implements erdos-renyi model. """
+    """Random fitter for RMAT generators. Implements erdos-renyi model."""
+
     def fit(self, graph: Optional[List[Tuple[int, int]]], *args):
-        """ Fit method for erdos-renyi model, it is graph independent.
+        """Fit method for erdos-renyi model, it is graph independent.
         Args:
             graph (List[Tuple[int, int]]): graph to be fitted on
         Returns:
@@ -40,8 +42,10 @@ class RandomFitter(BaseFitter):
 
 MAXK = 1000
 
+
 class FastFitter(BaseFitter):
-    """ Fast version of fitter RMAT generators. Finds seeding matrix based on given degree distribution """
+    """Fast version of fitter RMAT generators. Finds seeding matrix based on given degree distribution"""
+
     def _convert_graph_to_fitformat(self, edges, in_out_degree):
         if in_out_degree == "out":
             combined = edges[:, 0]
@@ -111,7 +115,7 @@ class FastFitter(BaseFitter):
                     current_sum = np.exp(
                         logeck[m]
                         + np.log(p) * (n_exp * m)
-                        + np.log(1 - p ** n_exp) * (E - m)
+                        + np.log(1 - p**n_exp) * (E - m)
                     )
 
                     for i in range(1, n_exp + 1):
@@ -120,17 +124,14 @@ class FastFitter(BaseFitter):
                             + lognci[i]
                             + np.log(p) * (m * (n_exp - i))
                             + np.log(1 - p) * (m * i)
-                            + np.log(1 - p ** (n_exp - i) * (1 - p) ** i)
-                            * (E - m)
+                            + np.log(1 - p ** (n_exp - i) * (1 - p) ** i) * (E - m)
                         )
                 else:
-                    logecm = (
-                        E * np.log(E) - m * np.log(m) - (E - m) * np.log(E - m)
-                    )
+                    logecm = E * np.log(E) - m * np.log(m) - (E - m) * np.log(E - m)
                     current_sum = np.exp(
                         logecm
                         + np.log(p) * (n_exp * m)
-                        + np.log(1 - p ** n_exp) * (E - m)
+                        + np.log(1 - p**n_exp) * (E - m)
                     )
                     for i in range(1, n_exp + 1):
                         current_sum = current_sum + np.exp(
@@ -138,8 +139,7 @@ class FastFitter(BaseFitter):
                             + lognci[i]
                             + np.log(p) * (m * (n_exp - i))
                             + np.log(1 - p) * (m * i)
-                            + np.log(1 - p ** (n_exp - i) * (1 - p) ** i)
-                            * (E - m)
+                            + np.log(1 - p ** (n_exp - i) * (1 - p) ** i) * (E - m)
                         )
                 y = np.log(current_sum)
                 y = max(0, y)
@@ -157,7 +157,7 @@ class FastFitter(BaseFitter):
         self.optimization_steps = []
 
     def fit(self, graph: List[Tuple[int, int]], return_log_d=False):
-        """ Fits the graph to the degree distribution.
+        """Fits the graph to the degree distribution.
         Args:
             graph (List[Tuple[int, int]]): graph to be fitted on
             return_log_d (bool): flag if set returns additionally log_2 from numbers of nodes
@@ -173,9 +173,7 @@ class FastFitter(BaseFitter):
             out_dd,
             log2_from_nnodes,
         ) = self._convert_graph_to_fitformat(graph, "out")
-        node_indd, in_dd, log2_to_nnodes = self._convert_graph_to_fitformat(
-            graph, "in"
-        )
+        node_indd, in_dd, log2_to_nnodes = self._convert_graph_to_fitformat(graph, "in")
 
         p = self._get_p_directed_graph(out_dd, log2_from_nnodes)
         self._check_optimization_history()
@@ -193,7 +191,7 @@ class FastFitter(BaseFitter):
 
 
 class Fitter(FastFitter):
-    """ Full version of fitter RMAT generators. Finds seeding matrix based on given degree distribution """
+    """Full version of fitter RMAT generators. Finds seeding matrix based on given degree distribution"""
 
     def _loglik(self, p, E, n_exp, count, logeck, lognci, k_cost_threeshold):
 
@@ -226,7 +224,7 @@ class Fitter(FastFitter):
                 current_sum = np.exp(
                     logeck[m]
                     + np.log(p) * (n_exp * m)
-                    + np.log(1 - p ** n_exp) * (E - m)
+                    + np.log(1 - p**n_exp) * (E - m)
                 )
 
                 for i in range(1, n_exp + 1):
@@ -235,17 +233,12 @@ class Fitter(FastFitter):
                         + lognci[i]
                         + np.log(p) * (m * (n_exp - i))
                         + np.log(1.0 - p) * (m * i)
-                        + np.log(1.0 - p ** (n_exp - i) * (1.0 - p) ** i)
-                        * (E - m)
+                        + np.log(1.0 - p ** (n_exp - i) * (1.0 - p) ** i) * (E - m)
                     )
             else:
-                logecm = (
-                    E * np.log(E) - m * np.log(m) - (E - m) * np.log(E - m)
-                )
+                logecm = E * np.log(E) - m * np.log(m) - (E - m) * np.log(E - m)
                 current_sum = np.exp(
-                    logecm
-                    + np.log(p) * (n_exp * m)
-                    + np.log(1 - p ** n_exp) * (E - m)
+                    logecm + np.log(p) * (n_exp * m) + np.log(1 - p**n_exp) * (E - m)
                 )
                 for i in range(1, n_exp + 1):
                     current_sum = current_sum + np.exp(
@@ -253,8 +246,7 @@ class Fitter(FastFitter):
                         + lognci[i]
                         + np.log(p) * (m * (n_exp - i))
                         + np.log(1.0 - p) * (m * i)
-                        + np.log(1.0 - p ** (n_exp - i) * (1.0 - p) ** i)
-                        * (E - m)
+                        + np.log(1.0 - p ** (n_exp - i) * (1.0 - p) ** i) * (E - m)
                     )
 
             y = np.log(current_sum)

@@ -12,40 +12,43 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import logging
 import argparse
 import glob
-import tensorflow as tf
-import math
-import numpy as np
 import itertools
-import ipdb
-import os
-import h5py
-import cv2
-import sys
 import json
-import matplotlib.pyplot as plt
+import logging
+import math
+import os
+import sys
 from collections import Counter
+
+import cv2
+import h5py
+import ipdb
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
 from google.cloud import storage
 
 tf.compat.v1.enable_eager_execution()
 
-from waymo_open_dataset.utils import range_image_utils
-from waymo_open_dataset.utils import transform_utils
-from waymo_open_dataset.utils import frame_utils
 from waymo_open_dataset import dataset_pb2 as open_dataset
+from waymo_open_dataset.utils import (frame_utils, range_image_utils,
+                                      transform_utils)
 
 args = None
 
+
 def hash(m, n, t):
-    return int(int(m)*10000000 + int(n)*100 + int(t))
+    return int(int(m) * 10000000 + int(n) * 100 + int(t))
 
 
 def parse_args():
     global args, seg_id
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", choices=["training", "validation"], default="validation")
+    parser.add_argument(
+        "--dataset", choices=["training", "validation"], default="validation"
+    )
     parser.add_argument("--tf-dir", default="/workspace/data/waymo_tfrecords_val")
     parser.add_argument("--out-dir", default="/workspace/data/waymo_coco_format_val")
     parser.add_argument("--seg-min", default=0, type=int)
@@ -59,12 +62,14 @@ def parse_args():
 
 
 def setup_logging(args):
-    logging.basicConfig(filename="/results/{}.log".format(args.log_file),
-                        # filemode="w",
-                        format="%(asctime)s:%(levelname)s:%(message)s",
-                        datefmt="%m/%d/%Y %I:%M:%S %p",
-                        level=logging.DEBUG)
-    logging.info('Logging setup done!')
+    logging.basicConfig(
+        filename="/results/{}.log".format(args.log_file),
+        # filemode="w",
+        format="%(asctime)s:%(levelname)s:%(message)s",
+        datefmt="%m/%d/%Y %I:%M:%S %p",
+        level=logging.DEBUG,
+    )
+    logging.info("Logging setup done!")
 
 
 def create_dirs(args):
@@ -75,8 +80,11 @@ def create_dirs(args):
     args.annotations_dir = os.path.join(args.out_dir, "annotations")
     os.makedirs(args.images_dir, exist_ok=True)
     os.makedirs(args.annotations_dir, exist_ok=True)
-    logging.info("Created images and annotations directories: {} {}".format(
-        args.images_dir, args.annotations_dir))
+    logging.info(
+        "Created images and annotations directories: {} {}".format(
+            args.images_dir, args.annotations_dir
+        )
+    )
 
 
 # set global frame and annotations id
@@ -87,69 +95,70 @@ images_content = []
 annotations_content = []
 
 info = {
-    u'description': u'COCO 2014 Dataset',
-    u'url': u'http://cocodataset.org',
-    u'version': u'1.0',
-    u'year': 2014,
-    u'contributor': u'COCO Consortium',
-    u'date_created': u'2017/09/01'
+    "description": "COCO 2014 Dataset",
+    "url": "http://cocodataset.org",
+    "version": "1.0",
+    "year": 2014,
+    "contributor": "COCO Consortium",
+    "date_created": "2017/09/01",
 }
 
-licenses = [{
-    u'url': u'http://creativecommons.org/licenses/by-nc-sa/2.0/',
-    u'id': 1,
-    u'name': u'Attribution-NonCommercial-ShareAlike License'
-}, {
-    u'url': u'http://creativecommons.org/licenses/by-nc/2.0/',
-    u'id': 2,
-    u'name': u'Attribution-NonCommercial License'
-}, {
-    u'url': u'http://creativecommons.org/licenses/by-nc-nd/2.0/',
-    u'id': 3,
-    u'name': u'Attribution-NonCommercial-NoDerivs License'
-}, {
-    u'url': u'http://creativecommons.org/licenses/by/2.0/',
-    u'id': 4,
-    u'name': u'Attribution License'
-}, {
-    u'url': u'http://creativecommons.org/licenses/by-sa/2.0/',
-    u'id': 5,
-    u'name': u'Attribution-ShareAlike License'
-}, {
-    u'url': u'http://creativecommons.org/licenses/by-nd/2.0/',
-    u'id': 6,
-    u'name': u'Attribution-NoDerivs License'
-}, {
-    u'url': u'http://flickr.com/commons/usage/',
-    u'id': 7,
-    u'name': u'No known copyright restrictions'
-}, {
-    u'url': u'http://www.usa.gov/copyright.shtml',
-    u'id': 8,
-    u'name': u'United States Government Work'
-}]
+licenses = [
+    {
+        "url": "http://creativecommons.org/licenses/by-nc-sa/2.0/",
+        "id": 1,
+        "name": "Attribution-NonCommercial-ShareAlike License",
+    },
+    {
+        "url": "http://creativecommons.org/licenses/by-nc/2.0/",
+        "id": 2,
+        "name": "Attribution-NonCommercial License",
+    },
+    {
+        "url": "http://creativecommons.org/licenses/by-nc-nd/2.0/",
+        "id": 3,
+        "name": "Attribution-NonCommercial-NoDerivs License",
+    },
+    {
+        "url": "http://creativecommons.org/licenses/by/2.0/",
+        "id": 4,
+        "name": "Attribution License",
+    },
+    {
+        "url": "http://creativecommons.org/licenses/by-sa/2.0/",
+        "id": 5,
+        "name": "Attribution-ShareAlike License",
+    },
+    {
+        "url": "http://creativecommons.org/licenses/by-nd/2.0/",
+        "id": 6,
+        "name": "Attribution-NoDerivs License",
+    },
+    {
+        "url": "http://flickr.com/commons/usage/",
+        "id": 7,
+        "name": "No known copyright restrictions",
+    },
+    {
+        "url": "http://www.usa.gov/copyright.shtml",
+        "id": 8,
+        "name": "United States Government Work",
+    },
+]
 
-#dataset-specific
-category = [{
-    u'supercategory': u'object',
-    u'id': 1,
-    u'name': u'vehicle'
-}, {
-    u'supercategory': u'object',
-    u'id': 2,
-    u'name': u'pedestrian'
-}, {
-    u'supercategory': u'object',
-    u'id': 3,
-    u'name': u'cyclist'
-}]
+# dataset-specific
+category = [
+    {"supercategory": "object", "id": 1, "name": "vehicle"},
+    {"supercategory": "object", "id": 2, "name": "pedestrian"},
+    {"supercategory": "object", "id": 3, "name": "cyclist"},
+]
 
 
 # Function to convert Waymo TFrecord to COCO format
 def convert(tfrecord):
     global frame_id, seg_id, annotation_id, images_content, annotations_content
     try:
-        dataset = tf.data.TFRecordDataset(tfrecord, compression_type='')
+        dataset = tf.data.TFRecordDataset(tfrecord, compression_type="")
         num_frames = 0
         images = []
         annotations = []
@@ -172,52 +181,58 @@ def convert(tfrecord):
                     if camera_labels.name != camera_image.name:
                         continue
                     for image_labels in camera_labels.labels:
-                        #Since label 3 doesn't exist
+                        # Since label 3 doesn't exist
                         if image_labels.type == 4:
                             image_labels.type = 3
-                        annotations.append({
-                            "image_id":
-                            hash(seg_id, frame_id, image_id),
-                            "area":
-                            image_labels.box.width * image_labels.box.length,
-                            "bbox": [
-                                image_labels.box.center_x -
-                                image_labels.box.length / 2.,
-                                image_labels.box.center_y -
-                                image_labels.box.width / 2.,
-                                image_labels.box.length, image_labels.box.width
-                            ],
-                            "category_id":
-                            image_labels.type,
-                            "iscrowd":
-                            0,
-                            "id":
-                            annotation_id
-                        })
+                        annotations.append(
+                            {
+                                "image_id": hash(seg_id, frame_id, image_id),
+                                "area": image_labels.box.width
+                                * image_labels.box.length,
+                                "bbox": [
+                                    image_labels.box.center_x
+                                    - image_labels.box.length / 2.0,
+                                    image_labels.box.center_y
+                                    - image_labels.box.width / 2.0,
+                                    image_labels.box.length,
+                                    image_labels.box.width,
+                                ],
+                                "category_id": image_labels.type,
+                                "iscrowd": 0,
+                                "id": annotation_id,
+                            }
+                        )
                         all_labels.append(image_labels.type)
                         annotation_id += 1
 
                 h, w, c = output_image.shape
-                plt.imsave("{}/{}_{}_{}.jpg".format(args.images_dir, seg_id, frame_id, image_id),
-                        output_image,
-                        cmap=None)
+                plt.imsave(
+                    "{}/{}_{}_{}.jpg".format(
+                        args.images_dir, seg_id, frame_id, image_id
+                    ),
+                    output_image,
+                    cmap=None,
+                )
 
-                images.append({
-                    u'license': 1,
-                    u'file_name': "{}_{}_{}.jpg".format(seg_id, frame_id, image_id),
-                    u'waymo_url': None,
-                    u'height': h,
-                    u'width': w,
-                    u'date_captured': u'2013-11-14 16:28:13',
-                    u'flickr_url': None,
-                    u'id': hash(seg_id, frame_id, image_id)
-                })
+                images.append(
+                    {
+                        "license": 1,
+                        "file_name": "{}_{}_{}.jpg".format(seg_id, frame_id, image_id),
+                        "waymo_url": None,
+                        "height": h,
+                        "width": w,
+                        "date_captured": "2013-11-14 16:28:13",
+                        "flickr_url": None,
+                        "id": hash(seg_id, frame_id, image_id),
+                    }
+                )
                 image_id += 1
         logging.info("Converted {} frames in {}".format(num_frames, tfrecord))
         images_content += images
         annotations_content += annotations
-        logging.info("# images: {} # annotations: {}".format(
-            len(images), len(annotations)))
+        logging.info(
+            "# images: {} # annotations: {}".format(len(images), len(annotations))
+        )
         logging.info("# Label spread: {}".format(Counter(all_labels)))
     except:
         logging.info("Corrupted record {}".format(tfrecord))
@@ -231,10 +246,16 @@ def combine():
         "images": images_content,
         "licenses": licenses,
         "annotations": annotations_content,
-        "categories": category
+        "categories": category,
     }
-    with open("{}/annotations-{}-{}.json".format(args.annotations_dir, args.seg_min, args.seg_max), 'w') as outfile:
+    with open(
+        "{}/annotations-{}-{}.json".format(
+            args.annotations_dir, args.seg_min, args.seg_max
+        ),
+        "w",
+    ) as outfile:
         json.dump(all_data, outfile)
+
 
 # download waymo data
 def download_and_convert(args):
@@ -254,18 +275,27 @@ def download_and_convert(args):
     while seg_id < args.seg_max:
         # copy from bucket
         frame_id = 0
-        source_blob_name = '{dataset}/{dataset}_{:04}.tar'.format(
-            seg_id, dataset=args.dataset)
+        source_blob_name = "{dataset}/{dataset}_{:04}.tar".format(
+            seg_id, dataset=args.dataset
+        )
         try:
             blob = bucket.blob(source_blob_name)
-            blob.download_to_filename(os.path.join(args.tf_dir, "{}_{:04}.tar".format(args.dataset, seg_id)))
+            blob.download_to_filename(
+                os.path.join(args.tf_dir, "{}_{:04}.tar".format(args.dataset, seg_id))
+            )
         except AssertionError as err:
             logging.exception(
-                "Failed to download segment {}. Make sure GOOGLE_APPLICATION_CREDENTIALS is set and you have access to gs://waymo_open_dataset_v_1_2_0"
-                .format(seg_id))
+                "Failed to download segment {}. Make sure GOOGLE_APPLICATION_CREDENTIALS is set and you have access to gs://waymo_open_dataset_v_1_2_0".format(
+                    seg_id
+                )
+            )
             sys.exit()
-        logging.info("Extracting tfrecords from segment: {}_{:04}".format(args.dataset, seg_id))
-        os.system("cd {}; tar -xvf {}_{:04}.tar".format(args.tf_dir, args.dataset, seg_id))
+        logging.info(
+            "Extracting tfrecords from segment: {}_{:04}".format(args.dataset, seg_id)
+        )
+        os.system(
+            "cd {}; tar -xvf {}_{:04}.tar".format(args.tf_dir, args.dataset, seg_id)
+        )
         tfrecords = glob.glob("{}/*.tfrecord".format(args.tf_dir))
 
         # extract data from each record
@@ -288,9 +318,15 @@ def download_and_convert(args):
 if __name__ == "__main__":
 
     # trigger download and conversion of Waymo data
-    print("Usage: python waymo_data_converter.py --dataset <validation/training> --tf-dir <empty scratch pad dir> --out-dir <empty coco format output dir> --seg-min <0 or any starting seg id> --seg-max <32 - train, 8 - validation or any ending seg id> --log-file <name of log file which will be written to /results>")
+    print(
+        "Usage: python waymo_data_converter.py --dataset <validation/training> --tf-dir <empty scratch pad dir> --out-dir <empty coco format output dir> --seg-min <0 or any starting seg id> --seg-max <32 - train, 8 - validation or any ending seg id> --log-file <name of log file which will be written to /results>"
+    )
     args = parse_args()
     setup_logging(args)
     create_dirs(args)
-    logging.info("Running on dataset: {} \ntf records dir: {} \ncoco format out dir: {}".format(args.dataset, args.tf_dir, args.out_dir))
+    logging.info(
+        "Running on dataset: {} \ntf records dir: {} \ncoco format out dir: {}".format(
+            args.dataset, args.tf_dir, args.out_dir
+        )
+    )
     download_and_convert(args)

@@ -23,9 +23,9 @@ import cupy
 import dask.dataframe
 import dask_cudf
 import rmm
-
 from preprocessing.io import load_metadata, load_review_data, save_metadata
-from preprocessing.ops import ExplodeSequence, add_negative_sequence, list_slice, slice_and_pad_left
+from preprocessing.ops import (ExplodeSequence, add_negative_sequence,
+                               list_slice, slice_and_pad_left)
 
 DASK_TRAIN_DATASET_CHUNKSIZE = 15_000
 TRAIN_DATA_DIR = "train"
@@ -56,7 +56,9 @@ def add_categorified_column(df, col_name, id_col_name):
     return df
 
 
-def categorify_items(all_items_unique: cudf.DataFrame, metadata: cudf.DataFrame) -> cudf.DataFrame:
+def categorify_items(
+    all_items_unique: cudf.DataFrame, metadata: cudf.DataFrame
+) -> cudf.DataFrame:
     unique_item_with_category = all_items_unique.merge(metadata, how="left", on="item")
     unique_item_with_category = unique_item_with_category.fillna("no_category")
 
@@ -66,7 +68,9 @@ def categorify_items(all_items_unique: cudf.DataFrame, metadata: cudf.DataFrame)
     return df
 
 
-def filter_too_short_sequences(reviews: cudf.DataFrame, min_seq_length: int) -> cudf.DataFrame:
+def filter_too_short_sequences(
+    reviews: cudf.DataFrame, min_seq_length: int
+) -> cudf.DataFrame:
     user_counts = reviews["user"].value_counts()
     user_counts_filtered = user_counts[user_counts >= min_seq_length]
     valid_users = user_counts_filtered.index
@@ -89,8 +93,7 @@ def categorify_users(reviews: cudf.DataFrame) -> cudf.DataFrame:
 
 
 def create_sampling_df(
-    all_items: cudf.DataFrame,
-    item_and_cat_with_ids: cudf.DataFrame
+    all_items: cudf.DataFrame, item_and_cat_with_ids: cudf.DataFrame
 ) -> cudf.DataFrame:
     sampling_df = all_items.merge(item_and_cat_with_ids, how="left", on="item")
     sampling_df = sampling_df[["item_id", "cat_id"]]
@@ -101,15 +104,19 @@ def create_sampling_df(
 
 def aggregate_per_user(df):
     df = df.sort_values(by=["unixReviewTime", "item"])
-    df = df.groupby("uid").agg({
-        "item_id": list,
-        "cat_id": list,
-    })
+    df = df.groupby("uid").agg(
+        {
+            "item_id": list,
+            "cat_id": list,
+        }
+    )
     df.reset_index(inplace=True)
-    df = df.rename(columns={
-        "item_id": "item_sequence",
-        "cat_id": "cat_sequence",
-    })
+    df = df.rename(
+        columns={
+            "item_id": "item_sequence",
+            "cat_id": "cat_sequence",
+        }
+    )
 
     df["item"] = df["item_sequence"].list.get(-1)
     df["cat"] = df["cat_sequence"].list.get(-1)
@@ -120,7 +127,9 @@ def aggregate_per_user(df):
     return df
 
 
-def explode_sequence(df: cudf.DataFrame, min_elements: int, max_elements: int) -> cudf.DataFrame:
+def explode_sequence(
+    df: cudf.DataFrame, min_elements: int, max_elements: int
+) -> cudf.DataFrame:
     df = ExplodeSequence(
         col_names=["item_sequence", "cat_sequence"],
         keep_cols=["uid"],
@@ -138,7 +147,9 @@ def explode_sequence(df: cudf.DataFrame, min_elements: int, max_elements: int) -
     return df
 
 
-def add_negative_label(pos_df: cudf.DataFrame, sampling_df: cudf.DataFrame) -> cudf.DataFrame:
+def add_negative_label(
+    pos_df: cudf.DataFrame, sampling_df: cudf.DataFrame
+) -> cudf.DataFrame:
     neg_df = pos_df.copy()
     pos_df["label"] = cupy.int8(1)
     neg_df["label"] = cupy.int8(0)
@@ -161,7 +172,9 @@ def add_negative_label(pos_df: cudf.DataFrame, sampling_df: cudf.DataFrame) -> c
     return df
 
 
-def add_negative_sampling(df: cudf.DataFrame, sampling_df: cudf.DataFrame) -> cudf.DataFrame:
+def add_negative_sampling(
+    df: cudf.DataFrame, sampling_df: cudf.DataFrame
+) -> cudf.DataFrame:
     df = add_negative_label(df, sampling_df)
 
     neg = cupy.random.randint(
@@ -268,7 +281,7 @@ def create_test_dataset(
     "--shortest_sequence_for_user",
     default=20,
     help="Specifies what is a minimal length of a sequence. "
-    "Every user with a sequence shorter than this value will be discarded."
+    "Every user with a sequence shorter than this value will be discarded.",
 )
 @click.option(
     "--shortest_sequence_for_training",
@@ -284,7 +297,7 @@ def create_test_dataset(
     "--review_loader_num_workers",
     default=20,
     help="Specifies the number of dask workers used to read reviews data. "
-    "Note that, as each worker is a new process, too high value might cause GPU OOM errors."
+    "Note that, as each worker is a new process, too high value might cause GPU OOM errors.",
 )
 @click.option(
     "--seed",
@@ -313,7 +326,9 @@ def main(
 
     logging.info("Loading metadata")
     metadata = load_metadata(metadata_path, metadata_loader_n_proc)
-    assert len(metadata) == metadata["item"].nunique(), "metadata should contain unique items"
+    assert (
+        len(metadata) == metadata["item"].nunique()
+    ), "metadata should contain unique items"
 
     logging.info("Loading review data")
     reviews = load_review_data(reviews_path, review_loader_num_workers)

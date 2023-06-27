@@ -14,53 +14,41 @@
 # ==============================================================================
 
 import argparse
+import datetime
 import glob
+import json
 import logging
 import os
-from tabnanny import check
-import time
-import datetime
 import random
+import time
 from collections import defaultdict
 from pathlib import Path
+from tabnanny import check
 from typing import Dict, List, Tuple
-import json
 
+import dllogger
+import lddl.torch
 import numpy as np
 import torch
+from bart.configuration.configuration_bart import BartConfig
+from bart.modeling.modeling_bart import BartForConditionalGeneration
+from bart.tokenization.tokenization_bart import BartTokenizer
+from bart.tokenization.tokenization_mbart import MBartTokenizer
+from lddl.utils import get_all_parquets_under
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-
 from training_base import BaseTransformer, add_generic_args, generic_train
-from bart.tokenization.tokenization_mbart import MBartTokenizer
-
-from bart.configuration.configuration_bart import BartConfig
-from bart.tokenization.tokenization_bart import BartTokenizer
-from bart.modeling.modeling_bart import BartForConditionalGeneration
-
-from utils.utils import (
-    PretrainingSeq2SeqDataset,
-    Seq2SeqDataset,
-    assert_all_frozen,
-    freeze_params,
-    get_git_info,
-    label_smoothed_nll_loss,
-    lmap,
-    pickle_save,
-    save_git_info,
-    save_json,
-    use_task_specific_params,
-    format_step
-)
 from utils.data_collator import DataCollatorForBART
+from utils.distributed_utils import get_device_count, get_rank, get_world_size
 from utils.gpu_affinity import set_affinity
-from utils.distributed_utils import get_rank, get_device_count, get_world_size
-import dllogger
-
-import lddl.torch
-from lddl.utils import get_all_parquets_under
+from utils.utils import (PretrainingSeq2SeqDataset, Seq2SeqDataset,
+                         assert_all_frozen, format_step, freeze_params,
+                         get_git_info, label_smoothed_nll_loss, lmap,
+                         pickle_save, save_git_info, save_json,
+                         use_task_specific_params)
 
 logger = logging.getLogger(__name__)
+
 
 class BartForConditionalGenerationWrapper(torch.nn.Module):
     def __init__(self, model, args):
@@ -75,9 +63,15 @@ class BartForConditionalGenerationWrapper(torch.nn.Module):
         self.module = model
 
     def forward(self, input_ids, attention_mask, decoder_input_ids):
-        outputs = self.module.forward(input_ids, attention_mask=attention_mask, decoder_input_ids=decoder_input_ids, use_cache=False)
+        outputs = self.module.forward(
+            input_ids,
+            attention_mask=attention_mask,
+            decoder_input_ids=decoder_input_ids,
+            use_cache=False,
+        )
 
         return outputs
+
 
 class PretrainingModule(BaseTransformer):
     mode = "pretraining"
@@ -102,7 +96,7 @@ class PretrainingModule(BaseTransformer):
             "train": self.hparams.n_train if self.hparams.n_train >= 0 else None
         }
 
-        #@todo should you freeze?
+        # @todo should you freeze?
         if self.hparams.freeze_embeds:
             self.freeze_embeds()
         if self.hparams.freeze_encoder:
@@ -113,20 +107,22 @@ class PretrainingModule(BaseTransformer):
         self.num_workers = hparams.num_workers
         self.decoder_start_token_id = None  # default to config
 
-        if self.model.config.decoder_start_token_id is None and isinstance(self.tokenizer, MBartTokenizer):
-            self.decoder_start_token_id = self.tokenizer.lang_code_to_id[hparams.tgt_lang]
+        if self.model.config.decoder_start_token_id is None and isinstance(
+            self.tokenizer, MBartTokenizer
+        ):
+            self.decoder_start_token_id = self.tokenizer.lang_code_to_id[
+                hparams.tgt_lang
+            ]
             self.model.config.decoder_start_token_id = self.decoder_start_token_id
 
         self.collate_fn = DataCollatorForBART(
             tokenizer=self.tokenizer,
             mlm_probability=self.hparams.mlm_probability,
             permute_sentence_ratio=self.hparams.permute_sentence_ratio,
-            decoder_start_token_id=self.model.config.decoder_start_token_id
+            decoder_start_token_id=self.model.config.decoder_start_token_id,
         )
 
-        self.dataset_class = (
-            PretrainingSeq2SeqDataset
-        )
+        self.dataset_class = PretrainingSeq2SeqDataset
 
         self.conig = self.model.config
 
@@ -151,20 +147,32 @@ class PretrainingModule(BaseTransformer):
         )
         return lmap(str.strip, gen_text)
 
-
     def _step(self, batch: dict) -> Tuple:
         pad_token_id = self.tokenizer.pad_token_id
-        src_ids, src_mask, decoder_input_ids = batch["input_ids"], batch["attention_mask"], batch["decoder_input_ids"]
+        src_ids, src_mask, decoder_input_ids = (
+            batch["input_ids"],
+            batch["attention_mask"],
+            batch["decoder_input_ids"],
+        )
         tgt_ids = batch["labels"]
 
-        outputs = self(src_ids, attention_mask=src_mask, decoder_input_ids=decoder_input_ids, use_cache=False)
+        outputs = self(
+            src_ids,
+            attention_mask=src_mask,
+            decoder_input_ids=decoder_input_ids,
+            use_cache=False,
+        )
         lm_logits = outputs[0]
         if self.hparams.label_smoothing == 0:
             # Same behavior as modeling_bart.py, besides ignoring pad_token_id
-            ce_loss_fct = torch.nn.CrossEntropyLoss(ignore_index=pad_token_id) #@should you ignore unmasked tokens? Check!
+            ce_loss_fct = torch.nn.CrossEntropyLoss(
+                ignore_index=pad_token_id
+            )  # @should you ignore unmasked tokens? Check!
 
             assert lm_logits.shape[-1] == self.config.vocab_size
-            loss = ce_loss_fct(lm_logits.view(-1, lm_logits.shape[-1]), tgt_ids.view(-1))
+            loss = ce_loss_fct(
+                lm_logits.view(-1, lm_logits.shape[-1]), tgt_ids.view(-1)
+            )
         else:
             lprobs = torch.nn.functional.log_softmax(lm_logits, dim=-1)
             loss, nll_loss = label_smoothed_nll_loss(
@@ -182,7 +190,9 @@ class PretrainingModule(BaseTransformer):
         # tokens per batch
         logs["ip_tpb"] = batch["input_ids"].numel()
         logs["op_tpb"] = batch["labels"].numel()
-        logs["tpb"] = batch["input_ids"].ne(self.pad).sum() + batch["labels"].ne(self.pad).sum()
+        logs["tpb"] = (
+            batch["input_ids"].ne(self.pad).sum() + batch["labels"].ne(self.pad).sum()
+        )
         logs["bs"] = batch["input_ids"].shape[0]
         logs["src_pad_tok"] = batch["input_ids"].eq(self.pad).sum()
         logs["src_pad_frac"] = batch["input_ids"].eq(self.pad).float().mean()
@@ -200,18 +210,22 @@ class PretrainingModule(BaseTransformer):
         self.metrics[type_path].append(latest_metrics)
         save_json(self.metrics, self.metrics_save_path)
 
-    def get_dataset(self, type_path, src_file,
-                    shuffle_buffer_size=1000,
-                    shuffle_buffer_warmup_factor=16,
-                    max_shards_per_node=1048576) -> Seq2SeqDataset:
+    def get_dataset(
+        self,
+        type_path,
+        src_file,
+        shuffle_buffer_size=1000,
+        shuffle_buffer_warmup_factor=16,
+        max_shards_per_node=1048576,
+    ) -> Seq2SeqDataset:
 
         lddl_dataset_kwargs = {
-          'transform':lambda x:x,
-          'local_rank': get_rank(),
-          'shuffle_buffer_size': shuffle_buffer_size,
-          'shuffle_buffer_warmup_factor': shuffle_buffer_warmup_factor,
-          'base_seed': self.hparams.seed,
-          'max_shards_per_node': max_shards_per_node
+            "transform": lambda x: x,
+            "local_rank": get_rank(),
+            "shuffle_buffer_size": shuffle_buffer_size,
+            "shuffle_buffer_warmup_factor": shuffle_buffer_warmup_factor,
+            "base_seed": self.hparams.seed,
+            "max_shards_per_node": max_shards_per_node,
         }
 
         n_obs = self.n_obs[type_path]
@@ -220,14 +234,17 @@ class PretrainingModule(BaseTransformer):
             self.tokenizer,
             n_obs=n_obs,
             type_path=type_path,
-            **self.dataset_kwargs, **lddl_dataset_kwargs,
+            **self.dataset_kwargs,
+            **lddl_dataset_kwargs,
         )
         return dataset
 
-    def get_dataloader(self, type_path: str, batch_size: int, shuffle: bool = False) -> DataLoader:
+    def get_dataloader(
+        self, type_path: str, batch_size: int, shuffle: bool = False
+    ) -> DataLoader:
         dataset = self.get_dataset(type_path, self.hparams.data_dir)
 
-        dataloader_args = {"collate_fn":self.collate_fn}
+        dataloader_args = {"collate_fn": self.collate_fn}
 
         return DataLoader(
             dataset,
@@ -236,11 +253,13 @@ class PretrainingModule(BaseTransformer):
             shuffle=False,
             num_workers=self.num_workers,
             sampler=None,
-            pin_memory=True
+            pin_memory=True,
         )
 
     def train_dataloader(self) -> DataLoader:
-        dataloader = self.get_dataloader("train", batch_size=self.hparams.train_batch_size, shuffle=True)
+        dataloader = self.get_dataloader(
+            "train", batch_size=self.hparams.train_batch_size, shuffle=True
+        )
         return dataloader
 
     @staticmethod
@@ -254,18 +273,49 @@ class PretrainingModule(BaseTransformer):
             help="The maximum total input sequence length after tokenization. Sequences longer "
             "than this will be truncated, sequences shorter will be padded.",
         )
-        parser.add_argument("--load_model_weights_only", action="store_true", help="Only load model weights, ignoring other ckpt states. useful at the start of phase2 training")
+        parser.add_argument(
+            "--load_model_weights_only",
+            action="store_true",
+            help="Only load model weights, ignoring other ckpt states. useful at the start of phase2 training",
+        )
         parser.add_argument("--freeze_encoder", action="store_true")
         parser.add_argument("--freeze_embeds", action="store_true")
-        parser.add_argument("--logger_name", type=str, choices=["default", "wandb", "wandb_shared"], default="default")
-        parser.add_argument("--n_train", type=int, default=-1, required=False, help="# examples. -1 means use all.")
-        parser.add_argument("--buffer_size", type=int, default=128, required=False, help="Buffer size for shuffling dataset")
         parser.add_argument(
-            "--task", type=str, default="pretraining", required=False, help="# examples. -1 means use all."
+            "--logger_name",
+            type=str,
+            choices=["default", "wandb", "wandb_shared"],
+            default="default",
         )
-        parser.add_argument("--label_smoothing", type=float, default=0.0, required=False)
-        parser.add_argument("--mlm_probability", type=float, default=0.3, required=False)
-        parser.add_argument("--permute_sentence_ratio", type=float, default=1.0, required=False)
+        parser.add_argument(
+            "--n_train",
+            type=int,
+            default=-1,
+            required=False,
+            help="# examples. -1 means use all.",
+        )
+        parser.add_argument(
+            "--buffer_size",
+            type=int,
+            default=128,
+            required=False,
+            help="Buffer size for shuffling dataset",
+        )
+        parser.add_argument(
+            "--task",
+            type=str,
+            default="pretraining",
+            required=False,
+            help="# examples. -1 means use all.",
+        )
+        parser.add_argument(
+            "--label_smoothing", type=float, default=0.0, required=False
+        )
+        parser.add_argument(
+            "--mlm_probability", type=float, default=0.3, required=False
+        )
+        parser.add_argument(
+            "--permute_sentence_ratio", type=float, default=1.0, required=False
+        )
         parser.add_argument("--src_lang", type=str, default="", required=False)
         parser.add_argument("--tgt_lang", type=str, default="", required=False)
 
@@ -276,26 +326,38 @@ class PretrainingModule(BaseTransformer):
             required=False,
             help="-1 means never early stop. early_stopping_patience is measured in validation checks, not epochs. So val_check_interval will effect it.",
         )
-        parser.add_argument("--local_rank", type=int, default=os.getenv('LOCAL_RANK', 0), help="local_rank for distributed training on gpus")
-        parser.add_argument('--json-summary', type=str, default="results/dllogger.json",
-                            help='If provided, the json summary will be written to'
-                                 'the specified file.')
+        parser.add_argument(
+            "--local_rank",
+            type=int,
+            default=os.getenv("LOCAL_RANK", 0),
+            help="local_rank for distributed training on gpus",
+        )
+        parser.add_argument(
+            "--json-summary",
+            type=str,
+            default="results/dllogger.json",
+            help="If provided, the json summary will be written to"
+            "the specified file.",
+        )
         return parser
+
 
 def set_seed(args):
     random.seed(args.seed + get_rank())
     np.random.seed(args.seed + get_rank())
     torch.manual_seed(args.seed + get_rank())
 
+
 def load_checkpoint(args, path, model, optimizer, scaler):
     checkpoint = torch.load(path, map_location=args.device)
     model.load_state_dict(checkpoint["model"])
 
     if not args.load_model_weights_only:
-        if 'optimizer' in checkpoint:
+        if "optimizer" in checkpoint:
             optimizer.load_state_dict(checkpoint["optimizer"])
-        if 'scaler' in checkpoint:
+        if "scaler" in checkpoint:
             scaler.load_state_dict(checkpoint["scaler"])
+
 
 def main(args, model=None) -> PretrainingModule:
     print(args)
@@ -308,13 +370,9 @@ def main(args, model=None) -> PretrainingModule:
     args.device = device
 
     # Set GPU affinity
-    if args.affinity != 'disabled':
-        affinity = set_affinity(
-            get_rank(),
-            get_device_count(),
-            args.affinity
-        )
-        logger.warning(f'{get_rank()}: thread affinity: {affinity}')
+    if args.affinity != "disabled":
+        affinity = set_affinity(get_rank(), get_device_count(), args.affinity)
+        logger.warning(f"{get_rank()}: thread affinity: {affinity}")
 
     # Set seed
     set_seed(args)
@@ -349,8 +407,11 @@ def main(args, model=None) -> PretrainingModule:
 
             model = BartForConditionalGeneration(config=config)
             tokenizer = BartTokenizer.from_pretrained(
-                'facebook/bart-large')  # Downloads vocab and merges file automatically
-            trainer: PretrainingModule = PretrainingModule(args, model=model, config=config, tokenizer=tokenizer)
+                "facebook/bart-large"
+            )  # Downloads vocab and merges file automatically
+            trainer: PretrainingModule = PretrainingModule(
+                args, model=model, config=config, tokenizer=tokenizer
+            )
         else:
             raise ValueError("Only pretraining supported!")
 
@@ -360,18 +421,22 @@ def main(args, model=None) -> PretrainingModule:
     # Set up optimizer and scheduler
     optimizer, scheduler = trainer.configure_optimizers()
     optimizer = optimizer[0]
-    scheduler = scheduler[0]['scheduler']
+    scheduler = scheduler[0]["scheduler"]
     scaler = torch.cuda.amp.GradScaler(enabled=args.fp16)
 
-    checkpoints = list(sorted(glob.glob(os.path.join(args.output_dir, "_step*.ckpt"), recursive=True),
-                key=lambda x:int(x.split("step")[1].split(".")[0])))
+    checkpoints = list(
+        sorted(
+            glob.glob(os.path.join(args.output_dir, "_step*.ckpt"), recursive=True),
+            key=lambda x: int(x.split("step")[1].split(".")[0]),
+        )
+    )
 
     step = 0
     if args.resume_from_checkpoint:
         if ".ckpt" in args.resume_from_checkpoint:
             checkpoint = args.resume_from_checkpoint
         else:
-            if len(checkpoints) > 0: #No checkpoints available
+            if len(checkpoints) > 0:  # No checkpoints available
                 checkpoint = checkpoints[-1]
                 args.resume_from_checkpoint = checkpoint
             else:
@@ -399,7 +464,10 @@ def main(args, model=None) -> PretrainingModule:
     # Distributed training (should be after apex fp16 initialization)
     if args.local_rank != -1:
         trainer.model = torch.nn.parallel.DistributedDataParallel(
-            trainer.model, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=True
+            trainer.model,
+            device_ids=[args.local_rank],
+            output_device=args.local_rank,
+            find_unused_parameters=True,
         )
 
     generic_train(args, trainer, optimizer, scheduler, scaler, checkpoints, step)
@@ -415,8 +483,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if get_rank() == 0:
-        dllogger.init(backends=[dllogger.JSONStreamBackend(verbosity=dllogger.Verbosity.VERBOSE,
-                                                           filename=args.json_summary)])
+        dllogger.init(
+            backends=[
+                dllogger.JSONStreamBackend(
+                    verbosity=dllogger.Verbosity.VERBOSE, filename=args.json_summary
+                )
+            ]
+        )
 
     main(args)
 

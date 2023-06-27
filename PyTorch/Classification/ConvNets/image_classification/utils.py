@@ -29,10 +29,11 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import math
 import os
-import numpy as np
-import torch
 import shutil
 import signal
+
+import numpy as np
+import torch
 import torch.distributed as dist
 
 
@@ -68,14 +69,10 @@ class Checkpointer:
         torch.save(state, full_path)
         self.checkpoints.append(filename)
 
-        shutil.copyfile(
-            full_path, self.get_full_path(self.last_filename)
-        )
+        shutil.copyfile(full_path, self.get_full_path(self.last_filename))
 
         if is_best:
-            shutil.copyfile(
-                full_path, self.get_full_path("model_best.pth.tar")
-            )
+            shutil.copyfile(full_path, self.get_full_path("model_best.pth.tar"))
 
         self.cleanup()
 

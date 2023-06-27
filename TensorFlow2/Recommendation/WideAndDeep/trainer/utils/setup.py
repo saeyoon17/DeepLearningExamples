@@ -20,10 +20,10 @@ import os
 import dllogger
 import horovod.tensorflow.keras as hvd
 import tensorflow as tf
-
 from data.feature_spec import FeatureSpec
 from data.outbrain.dataloader import get_dataset
-from data.outbrain.defaults import TEST_MAPPING, TRAIN_MAPPING, MULTIHOT_CHANNEL, ONEHOT_CHANNEL
+from data.outbrain.defaults import (MULTIHOT_CHANNEL, ONEHOT_CHANNEL,
+                                    TEST_MAPPING, TRAIN_MAPPING)
 from trainer.utils.gpu_affinity import set_affinity
 
 
@@ -69,7 +69,6 @@ def init_gpu(args, logger):
     assert pValue.contents.value == 128
 
 
-
 def init_logger(args, full, logger):
     if full:
         logger.setLevel(logging.INFO)
@@ -98,6 +97,7 @@ def init_logger(args, full, logger):
     dllogger.metadata("train_throughput", {"unit": "samples/s"})
     dllogger.metadata("validation_throughput", {"unit": "samples/s"})
 
+
 def check_embedding_sizes(embedding_sizes: dict, feature_spec: FeatureSpec) -> None:
     onehot_features = feature_spec.get_names_by_channel(ONEHOT_CHANNEL)
     multihot_features = feature_spec.get_names_by_channel(MULTIHOT_CHANNEL)
@@ -106,12 +106,13 @@ def check_embedding_sizes(embedding_sizes: dict, feature_spec: FeatureSpec) -> N
         assert feature in embedding_sizes
         assert isinstance(embedding_sizes[feature], int)
 
+
 def create_config(args):
     assert not (
-            args.cpu and args.amp
+        args.cpu and args.amp
     ), "Automatic mixed precision conversion works only with GPU"
     assert (
-            not args.benchmark or args.benchmark_warmup_steps < args.benchmark_steps
+        not args.benchmark or args.benchmark_warmup_steps < args.benchmark_steps
     ), "Number of benchmark steps must be higher than warmup steps"
 
     logger = logging.getLogger("tensorflow")
@@ -127,13 +128,15 @@ def create_config(args):
 
     fspec_path = os.path.join(args.dataset_path, args.fspec_file)
     feature_spec = FeatureSpec.from_yaml(fspec_path)
-    feature_spec.check_feature_spec(require_map_channel=args.map_calculation_enabled, world_size=hvd.size())
+    feature_spec.check_feature_spec(
+        require_map_channel=args.map_calculation_enabled, world_size=hvd.size()
+    )
     train_dataset = get_dataset(
         feature_spec=feature_spec,
         mapping=TRAIN_MAPPING,
         batch_size=train_batch_size,
         shuffle=True,
-        map_channel_enabled=False
+        map_channel_enabled=False,
     )
 
     eval_dataset = get_dataset(
@@ -141,7 +144,7 @@ def create_config(args):
         mapping=TEST_MAPPING,
         batch_size=eval_batch_size,
         shuffle=False,
-        map_channel_enabled=args.map_calculation_enabled
+        map_channel_enabled=args.map_calculation_enabled,
     )
 
     with open(args.embedding_sizes_file) as opened:
@@ -151,7 +154,7 @@ def create_config(args):
         "train_dataset": train_dataset,
         "eval_dataset": eval_dataset,
         "feature_spec": feature_spec,
-        "embedding_dimensions": embedding_sizes
+        "embedding_dimensions": embedding_sizes,
     }
 
     return config

@@ -13,24 +13,27 @@
 # limitations under the License.
 
 
-from dataclasses import asdict, dataclass, field
 import json
+from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Optional
 
 from rdkit import Chem
 
-
-_VALID_IDX_FILE = 'valid_idx_{}.json'
-_CSV_FILE = '{}.csv'
-_DATASET_FILE = '{}_relgcn_kekulized_ggnp.npz'
+_VALID_IDX_FILE = "valid_idx_{}.json"
+_CSV_FILE = "{}.csv"
+_DATASET_FILE = "{}_relgcn_kekulized_ggnp.npz"
 
 DUMMY_CODE = 0
-CODE_TO_BOND = dict(enumerate([
-    'DUMMY',
-    Chem.rdchem.BondType.SINGLE,
-    Chem.rdchem.BondType.DOUBLE,
-    Chem.rdchem.BondType.TRIPLE,
-]))
+CODE_TO_BOND = dict(
+    enumerate(
+        [
+            "DUMMY",
+            Chem.rdchem.BondType.SINGLE,
+            Chem.rdchem.BondType.DOUBLE,
+            Chem.rdchem.BondType.TRIPLE,
+        ]
+    )
+)
 BOND_TO_CODE = {v: k for k, v in CODE_TO_BOND.items()}
 ATOM_VALENCY = {6: 4, 7: 3, 8: 2, 9: 1, 15: 3, 16: 2, 17: 1, 35: 1, 53: 1}
 
@@ -53,7 +56,9 @@ class DatasetConfig:
         self.csv_file = _CSV_FILE.format(self.dataset_name)
         self.dataset_file = _DATASET_FILE.format(self.dataset_name)
 
-        self.code_to_atomic = dict(enumerate(sorted([DUMMY_CODE] + self.atomic_num_list)))
+        self.code_to_atomic = dict(
+            enumerate(sorted([DUMMY_CODE] + self.atomic_num_list))
+        )
         self.atomic_to_code = {v: k for k, v in self.code_to_atomic.items()}
 
 
@@ -65,6 +70,7 @@ class AtomFlowConfig:
     n_block: int = 1
     mask_row_size_list: List[int] = field(default_factory=lambda: [1])
     mask_row_stride_list: List[int] = field(default_factory=lambda: [1])
+
 
 @dataclass
 class BondFlowConfig:
@@ -81,6 +87,7 @@ class ModelConfig:
     bond_config: BondFlowConfig
     noise_scale: float = 0.6
     learn_dist: bool = True
+
 
 @dataclass
 class Config:
@@ -100,30 +107,29 @@ class Config:
         atoms_dim = self.max_num_nodes * self.num_node_features
         self.z_dim = bonds_dim + atoms_dim
 
-
     def save(self, path):
         self.path = path
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             json.dump(asdict(self), f, indent=4, sort_keys=True)
 
     @classmethod
     def load(cls, path):
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             data = json.load(f)
         return cls(**data)
 
     def __repr__(self) -> str:
-        return json.dumps(asdict(self), indent=4, separators=(',', ': '))
+        return json.dumps(asdict(self), indent=4, separators=(",", ": "))
 
 
 ZINC250K_CONFIG = Config(
     max_num_nodes=40,
     dataset_config=DatasetConfig(
-        dataset_name='zinc250k',
+        dataset_name="zinc250k",
         atomic_num_list=[6, 7, 8, 9, 15, 16, 17, 35, 53],
         max_num_atoms=38,
-        labels=['logP', 'qed', 'SAS'],
-        smiles_col='smiles',
+        labels=["logP", "qed", "SAS"],
+        smiles_col="smiles",
     ),
     model_config=ModelConfig(
         AtomFlowConfig(
@@ -131,12 +137,8 @@ ZINC250K_CONFIG = Config(
             hidden_gnn=[256],
             hidden_lin=[512, 64],
         ),
-        BondFlowConfig(
-            n_squeeze=20,
-            hidden_ch=[512, 512],
-            conv_lu=2
-        ),
-    )
+        BondFlowConfig(n_squeeze=20, hidden_ch=[512, 512], conv_lu=2),
+    ),
 )
 
-CONFIGS = {'zinc250k': ZINC250K_CONFIG}
+CONFIGS = {"zinc250k": ZINC250K_CONFIG}

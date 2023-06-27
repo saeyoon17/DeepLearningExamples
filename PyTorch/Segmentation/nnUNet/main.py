@@ -18,12 +18,14 @@ import torch
 from data_loading.data_module import DataModule
 from nnunet.nn_unet import NNUnet
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.callbacks import ModelCheckpoint, ModelSummary, RichProgressBar
+from pytorch_lightning.callbacks import (ModelCheckpoint, ModelSummary,
+                                         RichProgressBar)
 from pytorch_lightning.plugins.io import AsyncCheckpointIO
 from pytorch_lightning.strategies import DDPStrategy
 from utils.args import get_main_args
 from utils.logger import LoggingCallback
-from utils.utils import make_empty_dir, set_cuda_devices, set_granularity, verify_ckpt_path
+from utils.utils import (make_empty_dir, set_cuda_devices, set_granularity,
+                         verify_ckpt_path)
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -72,7 +74,9 @@ def main():
         model = NNUnet(args)
     callbacks = [RichProgressBar(), ModelSummary(max_depth=2)]
     if args.benchmark:
-        batch_size = args.batch_size if args.exec_mode == "train" else args.val_batch_size
+        batch_size = (
+            args.batch_size if args.exec_mode == "train" else args.val_batch_size
+        )
         filnename = args.logname if args.logname is not None else "perf.json"
         callbacks.append(
             LoggingCallback(
@@ -102,10 +106,14 @@ def main():
             trainer.fit(model, train_dataloaders=data_module.train_dataloader())
         else:
             # warmup
-            trainer.test(model, dataloaders=data_module.test_dataloader(), verbose=False)
+            trainer.test(
+                model, dataloaders=data_module.test_dataloader(), verbose=False
+            )
             # benchmark run
             model.start_benchmark = 1
-            trainer.test(model, dataloaders=data_module.test_dataloader(), verbose=False)
+            trainer.test(
+                model, dataloaders=data_module.test_dataloader(), verbose=False
+            )
     elif args.exec_mode == "train":
         trainer.fit(model, datamodule=data_module)
     elif args.exec_mode == "evaluate":

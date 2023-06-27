@@ -15,13 +15,14 @@
 import ctypes
 import os
 from dataclasses import dataclass
-from cuda import cudart
-import paddle
+
 import numpy as np
-from nvidia.dali.backend import TensorListCPU
-import nvidia.dali.ops as ops
 import nvidia.dali.fn as fn
+import nvidia.dali.ops as ops
 import nvidia.dali.types as types
+import paddle
+from cuda import cudart
+from nvidia.dali.backend import TensorListCPU
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali.plugin.paddle import DALIGenericIterator
 from utils.mode import Mode
@@ -45,17 +46,19 @@ class PipeOpMeta:
 
 
 class HybridPipeBase(Pipeline):
-    def __init__(self,
-                 file_root,
-                 batch_size,
-                 device_id,
-                 ops_meta,
-                 num_threads=4,
-                 seed=42,
-                 shard_id=0,
-                 num_shards=1,
-                 random_shuffle=True,
-                 dont_use_mmap=True):
+    def __init__(
+        self,
+        file_root,
+        batch_size,
+        device_id,
+        ops_meta,
+        num_threads=4,
+        seed=42,
+        shard_id=0,
+        num_shards=1,
+        random_shuffle=True,
+        dont_use_mmap=True,
+    ):
         super().__init__(batch_size, num_threads, device_id, seed=seed)
 
         self.input = ops.readers.File(
@@ -63,7 +66,8 @@ class HybridPipeBase(Pipeline):
             shard_id=shard_id,
             num_shards=num_shards,
             random_shuffle=random_shuffle,
-            dont_use_mmap=dont_use_mmap)
+            dont_use_mmap=dont_use_mmap,
+        )
 
         self.build_ops(ops_meta)
 
@@ -81,18 +85,20 @@ class HybridTrainPipe(HybridPipeBase):
         device_memory_padding = 211025920
         host_memory_padding = 140544512
         self.decode = ops.decoders.ImageRandomCrop(
-            device='mixed',
+            device="mixed",
             output_type=types.DALIImageType.RGB,
             device_memory_padding=device_memory_padding,
             host_memory_padding=host_memory_padding,
             random_aspect_ratio=[ops_meta.lower, ops_meta.upper],
             random_area=[ops_meta.min_area, ops_meta.max_area],
-            num_attempts=100)
+            num_attempts=100,
+        )
         self.res = ops.Resize(
-            device='gpu',
+            device="gpu",
             resize_x=ops_meta.crop,
             resize_y=ops_meta.crop,
-            interp_type=ops_meta.interp)
+            interp_type=ops_meta.interp,
+        )
         self.cmnp = ops.CropMirrorNormalize(
             device="gpu",
             dtype=ops_meta.output_dtype,
@@ -100,7 +106,8 @@ class HybridTrainPipe(HybridPipeBase):
             crop=(ops_meta.crop, ops_meta.crop),
             mean=ops_meta.mean,
             std=ops_meta.std,
-            pad_output=ops_meta.pad_output)
+            pad_output=ops_meta.pad_output,
+        )
         self.coin = ops.random.CoinFlip(probability=0.5)
         self.to_int64 = ops.Cast(dtype=types.DALIDataType.INT64, device="gpu")
 
@@ -119,7 +126,8 @@ class HybridValPipe(HybridPipeBase):
         self.res = ops.Resize(
             device="gpu",
             resize_shorter=ops_meta.resize_shorter,
-            interp_type=ops_meta.interp)
+            interp_type=ops_meta.interp,
+        )
         self.cmnp = ops.CropMirrorNormalize(
             device="gpu",
             dtype=ops_meta.output_dtype,
@@ -127,7 +135,8 @@ class HybridValPipe(HybridPipeBase):
             crop=(ops_meta.crop, ops_meta.crop),
             mean=ops_meta.mean,
             std=ops_meta.std,
-            pad_output=ops_meta.pad_output)
+            pad_output=ops_meta.pad_output,
+        )
         self.to_int64 = ops.Cast(dtype=types.DALIDataType.INT64, device="gpu")
 
     def define_graph(self):
@@ -154,7 +163,7 @@ def dali_dataloader(args, mode, device):
     assert "gpu" in device, "gpu training is required for DALI"
     assert mode in Mode, "Dataset mode should be in supported Modes"
 
-    device_id = int(device.split(':')[1])
+    device_id = int(device.split(":")[1])
 
     seed = args.dali_random_seed
     num_threads = args.dali_num_threads
@@ -169,7 +178,7 @@ def dali_dataloader(args, mode, device):
         # cv2.INTER_CUBIC
         2: types.DALIInterpType.INTERP_CUBIC,
         # LANCZOS3 for cv2.INTER_LANCZOS4
-        3: types.DALIInterpType.INTERP_LANCZOS3
+        3: types.DALIInterpType.INTERP_LANCZOS3,
     }
     assert interp in interp_map, "interpolation method not supported by DALI"
     interp = interp_map[interp]
@@ -202,16 +211,17 @@ def dali_dataloader(args, mode, device):
         std=normalize_std,
         output_dtype=output_dtype,
         output_layout=output_layout,
-        pad_output=pad_output)
+        pad_output=pad_output,
+    )
 
     file_root = args.image_root
     pipe_class = None
 
     if mode == Mode.TRAIN:
-        file_root = os.path.join(file_root, 'train')
+        file_root = os.path.join(file_root, "train")
         pipe_class = HybridTrainPipe
     else:
-        file_root = os.path.join(file_root, 'val')
+        file_root = os.path.join(file_root, "val")
         pipe_class = HybridValPipe
 
     pipe = pipe_class(
@@ -222,9 +232,10 @@ def dali_dataloader(args, mode, device):
         num_threads=num_threads,
         seed=seed + shard_id,
         shard_id=shard_id,
-        num_shards=num_shards)
+        num_shards=num_shards,
+    )
     pipe.build()
-    return DALIGenericIterator([pipe], ['data', 'label'], reader_name='Reader')
+    return DALIGenericIterator([pipe], ["data", "label"], reader_name="Reader")
 
 
 def build_dataloader(args, mode):
@@ -257,7 +268,7 @@ def dali_synthetic_dataloader(args, device):
     """
     assert "gpu" in device, "gpu training is required for DALI"
 
-    device_id = int(device.split(':')[1])
+    device_id = int(device.split(":")[1])
 
     batch_size = args.batch_size
     image_shape = args.image_shape
@@ -270,7 +281,9 @@ def dali_synthetic_dataloader(args, device):
             err, mem = cudart.cudaMallocHost(n_bytes)
             assert err == cudart.cudaError_t.cudaSuccess
             mem_ptr = ctypes.cast(mem, ctypes.POINTER(ctypes.c_float))
-            self.synthetic_data = np.ctypeslib.as_array(mem_ptr, shape=(batch_size, *image_shape))
+            self.synthetic_data = np.ctypeslib.as_array(
+                mem_ptr, shape=(batch_size, *image_shape)
+            )
             self.n = args.benchmark_steps
 
         def __iter__(self):
@@ -291,4 +304,4 @@ def dali_synthetic_dataloader(args, device):
         images = images.gpu()
         pipe.set_outputs(images)
     pipe.build()
-    return DALIGenericIterator([pipe], ['data'])
+    return DALIGenericIterator([pipe], ["data"])

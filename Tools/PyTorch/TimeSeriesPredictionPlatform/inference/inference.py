@@ -16,16 +16,15 @@ import logging
 import os
 from typing import Dict, List, Optional, Tuple
 
+import conf.conf_utils
 import dllogger
 import hydra
 import numpy as np
 import torch
 from apex import amp
-from omegaconf import OmegaConf
-
-import conf.conf_utils
-from loggers.log_helper import setup_logger
 from data.data_utils import Preprocessor
+from loggers.log_helper import setup_logger
+from omegaconf import OmegaConf
 
 
 def run_inference(config):
@@ -33,7 +32,9 @@ def run_inference(config):
     with open(os.path.join(cfg.checkpoint, ".hydra/config.yaml"), "rb") as f:
         config = OmegaConf.load(f)
     if cfg.get("evaluator", None) is not None:
-        config.evaluator.config = OmegaConf.merge(config.evaluator.config, cfg.evaluator.config)
+        config.evaluator.config = OmegaConf.merge(
+            config.evaluator.config, cfg.evaluator.config
+        )
     if cfg.get("dataset_dir", None):
         if not os.path.isdir(config.dataset.config.dest_path):
             raise ValueError("dataset_dir must be a directory")
@@ -55,13 +56,21 @@ def run_inference(config):
     del train, valid
     evaluator = hydra.utils.instantiate(config.evaluator, test_data=test)
     model = hydra.utils.instantiate(config.model)
-    if not (config.dataset.config.get('xgb', False) or config.dataset.config.get('stat', False)):
-        state_dict = torch.load(os.path.join(cfg.checkpoint, "best_checkpoint.zip"))['model_state_dict']
+    if not (
+        config.dataset.config.get("xgb", False)
+        or config.dataset.config.get("stat", False)
+    ):
+        state_dict = torch.load(os.path.join(cfg.checkpoint, "best_checkpoint.zip"))[
+            "model_state_dict"
+        ]
         model.load_state_dict(state_dict)
         device = torch.device(cfg.device)  # maybe change depending on evaluator
         model.to(device=device)
         precision = cfg.precision
-        assert precision in ["fp16", "fp32"], "Precision needs to be either fp32 or fp16"
+        assert precision in [
+            "fp16",
+            "fp32",
+        ], "Precision needs to be either fp32 or fp16"
         if precision == "fp16":
             model = amp.initialize(model, opt_level="O2")
     else:
@@ -69,8 +78,14 @@ def run_inference(config):
     preds_full, labels_full, ids_full, weights_full = evaluator.predict(model)
     eval_metrics = evaluator.evaluate(preds_full, labels_full, ids_full, weights_full)
     logger = setup_logger(cfg)
-    logger.log(step=[], data={k: float(v) for k, v in eval_metrics.items()}, verbosity=dllogger.Verbosity.VERBOSE)
-    logger.log(step='event', data={"String": "Evaluation Metrics: {}".format(eval_metrics)}, verbosity=dllogger.Verbosity.DEFAULT)
+    logger.log(
+        step=[],
+        data={k: float(v) for k, v in eval_metrics.items()},
+        verbosity=dllogger.Verbosity.VERBOSE,
+    )
+    logger.log(
+        step="event",
+        data={"String": "Evaluation Metrics: {}".format(eval_metrics)},
+        verbosity=dllogger.Verbosity.DEFAULT,
+    )
     return eval_metrics
-
-

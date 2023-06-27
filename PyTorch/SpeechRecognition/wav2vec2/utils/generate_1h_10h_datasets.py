@@ -23,11 +23,13 @@ def load_lines(fpath):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('ls_ft', type=Path,
-                    help='Libri-light librispeech_finetuning dir')
-parser.add_argument('ls_filelists', type=Path,
-                    help='Directory with .tsv .wrd etc files for LibriSpeech full 960')
-parser.add_argument('out', type=Path, help='Output directory')
+parser.add_argument("ls_ft", type=Path, help="Libri-light librispeech_finetuning dir")
+parser.add_argument(
+    "ls_filelists",
+    type=Path,
+    help="Directory with .tsv .wrd etc files for LibriSpeech full 960",
+)
+parser.add_argument("out", type=Path, help="Output directory")
 args = parser.parse_args()
 
 # Load LS
@@ -53,12 +55,14 @@ files_9h = list((args.ls_ft / "9h").rglob("*.flac"))
 print(f"Found {len(files_1h)} files in the 1h dataset")
 print(f"Found {len(files_9h)} files in the 9h dataset")
 
-for name, file_iter in [("train-1h", files_1h),
-                        ("train-10h", chain(files_1h, files_9h))]:
+for name, file_iter in [
+    ("train-1h", files_1h),
+    ("train-10h", chain(files_1h, files_9h)),
+]:
 
-    with open(args.out / f"{name}.tsv", "w") as ftsv, \
-            open(args.out / f"{name}.wrd", "w") as fwrd, \
-            open(args.out / f"{name}.ltr", "w") as fltr:
+    with open(args.out / f"{name}.tsv", "w") as ftsv, open(
+        args.out / f"{name}.wrd", "w"
+    ) as fwrd, open(args.out / f"{name}.ltr", "w") as fltr:
         nframes = 0
 
         ftsv.write(tsv[0])

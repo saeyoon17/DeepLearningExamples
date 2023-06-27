@@ -28,22 +28,22 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import os
-import torch
+from functools import partial
+
 import numpy as np
+import torch
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
-from PIL import Image
-from functools import partial
-from torchvision.transforms.functional import InterpolationMode
-
 from image_classification.autoaugment import AutoaugmentImageNetPolicy
+from PIL import Image
+from torchvision.transforms.functional import InterpolationMode
 
 DATA_BACKEND_CHOICES = ["pytorch", "synthetic"]
 try:
-    from nvidia.dali.plugin.pytorch import DALIClassificationIterator
-    from nvidia.dali.pipeline import Pipeline
     import nvidia.dali.ops as ops
     import nvidia.dali.types as types
+    from nvidia.dali.pipeline import Pipeline
+    from nvidia.dali.plugin.pytorch import DALIClassificationIterator
 
     DATA_BACKEND_CHOICES.append("dali-gpu")
     DATA_BACKEND_CHOICES.append("dali-cpu")

@@ -1,10 +1,8 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
+from maskrcnn_benchmark.layers import Conv2d, ConvTranspose2d
 from torch import nn
 from torch.nn import functional as F
-
-from maskrcnn_benchmark.layers import Conv2d
-from maskrcnn_benchmark.layers import ConvTranspose2d
 
 
 class MaskRCNNC4Predictor(nn.Module):

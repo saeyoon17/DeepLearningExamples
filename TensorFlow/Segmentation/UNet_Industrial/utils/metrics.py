@@ -36,6 +36,10 @@ def iou_score(y_pred, y_true, threshold, eps=1e-5):
 
     numerator = 2.0 * intersection + eps
 
-    divisor = tf.reduce_sum(y_true, axis=(1, 2, 3)) + tf.reduce_sum(y_pred, axis=(1, 2, 3)) + eps
+    divisor = (
+        tf.reduce_sum(y_true, axis=(1, 2, 3))
+        + tf.reduce_sum(y_pred, axis=(1, 2, 3))
+        + eps
+    )
 
     return tf.reduce_mean(numerator / divisor)

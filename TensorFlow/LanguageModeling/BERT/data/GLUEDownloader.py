@@ -12,9 +12,9 @@
 # limitations under the License.
 
 import sys
-import wget
-
 from pathlib import Path
+
+import wget
 
 
 def mkdir(path):

@@ -2,10 +2,10 @@
 import torch
 from torch import nn
 
-from .roi_box_feature_extractors import make_roi_box_feature_extractor
-from .roi_box_predictors import make_roi_box_predictor
 from .inference import make_roi_box_post_processor
 from .loss import make_roi_box_loss_evaluator
+from .roi_box_feature_extractors import make_roi_box_feature_extractor
+from .roi_box_predictors import make_roi_box_predictor
 
 
 class ROIBoxHead(torch.nn.Module):

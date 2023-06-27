@@ -110,4 +110,6 @@ class ModelAnalyzerConfig:
         elif key in self._input_to_options:
             self._options[self._input_to_options[key]] = value
         else:
-            raise ModelAnalyzerException(f"The argument '{key}' to the Model Analyzer is not supported.")
+            raise ModelAnalyzerException(
+                f"The argument '{key}' to the Model Analyzer is not supported."
+            )

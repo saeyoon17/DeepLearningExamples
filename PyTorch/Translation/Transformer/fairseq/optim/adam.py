@@ -5,7 +5,7 @@
 # the root directory of this source tree. An additional grant of patent rights
 # can be found in the PATENTS file in the same directory.
 #
-#-------------------------------------------------------------------------
+# -------------------------------------------------------------------------
 #
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,11 +20,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from . import FairseqOptimizer, register_optimizer
 from apex.optimizers.fused_adam import FusedAdam
 
+from . import FairseqOptimizer, register_optimizer
 
-@register_optimizer('adam')
+
+@register_optimizer("adam")
 class FairseqAdam(FairseqOptimizer):
     def __init__(self, args, params):
         super().__init__(args, params)
@@ -33,10 +34,21 @@ class FairseqAdam(FairseqOptimizer):
     @staticmethod
     def add_args(parser):
         """Add optimizer-specific arguments to the parser."""
-        parser.add_argument('--adam-betas', default=(0.9, 0.999), nargs=2, type=float, metavar='B1 B2',
-                            help='betas for Adam optimizer')
-        parser.add_argument('--adam-eps', type=float, default=1e-8, metavar='D',
-                            help='epsilon for Adam optimizer')
+        parser.add_argument(
+            "--adam-betas",
+            default=(0.9, 0.999),
+            nargs=2,
+            type=float,
+            metavar="B1 B2",
+            help="betas for Adam optimizer",
+        )
+        parser.add_argument(
+            "--adam-eps",
+            type=float,
+            default=1e-8,
+            metavar="D",
+            help="epsilon for Adam optimizer",
+        )
 
     @property
     def optimizer_config(self):
@@ -47,8 +59,8 @@ class FairseqAdam(FairseqOptimizer):
         different learning rate.
         """
         return {
-            'lr': self.args.lr[0],
-            'betas': self.args.adam_betas,
-            'eps': self.args.adam_eps,
-            'weight_decay': self.args.weight_decay,
+            "lr": self.args.lr[0],
+            "betas": self.args.adam_betas,
+            "eps": self.args.adam_eps,
+            "weight_decay": self.args.weight_decay,
         }

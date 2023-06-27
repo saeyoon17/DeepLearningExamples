@@ -1,11 +1,12 @@
 import copy
+import warnings
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Optional
+
 import torch
-import warnings
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 
 try:
     from pytorch_quantization import nn as quant_nn
@@ -296,6 +297,7 @@ class StochasticDepthResidual(nn.Module):
                     inplace=False,
                 )
             return torch.addcmul(residual, mask, x)
+
 
 class Flatten(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:

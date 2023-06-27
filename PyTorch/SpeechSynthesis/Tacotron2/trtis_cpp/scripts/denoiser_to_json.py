@@ -23,17 +23,16 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-# 
-
-
+#
 
 
 import json
-import torch
-import sys
 import os
-from scipy.signal import get_window
+import sys
+
 import librosa.util as librosa_util
+import torch
+from scipy.signal import get_window
 
 WAVEGLOW_CONFIG = {
     "n_mel_channels": 80,
@@ -41,23 +40,18 @@ WAVEGLOW_CONFIG = {
     "n_group": 8,
     "n_early_every": 4,
     "n_early_size": 2,
-    "WN_config": {
-        "n_layers": 8,
-        "kernel_size": 3,
-        "n_channels": 256
-    }
+    "WN_config": {"n_layers": 8, "kernel_size": 3, "n_channels": 256},
 }
 
 
-def gen_win_sq(
-        denoiser):
+def gen_win_sq(denoiser):
     window = denoiser.stft.window
     win_length = denoiser.stft.win_length
     n_fft = denoiser.stft.filter_length
 
     # Compute the squared window at the desired length
     win_sq = get_window(window, win_length, fftbins=True)
-    win_sq = librosa_util.normalize(win_sq, norm=None)**2
+    win_sq = librosa_util.normalize(win_sq, norm=None) ** 2
     win_sq = librosa_util.pad_center(win_sq, n_fft)
 
     return win_sq
@@ -66,7 +60,9 @@ def gen_win_sq(
 if len(sys.argv) < 4 or len(sys.argv) > 5:
     print("USAGE:")
     print(
-        "\t%s <tacotron2 directory> <waveglow checkpoint> <json output> [strength, default=0.1]" % sys.argv[0])
+        "\t%s <tacotron2 directory> <waveglow checkpoint> <json output> [strength, default=0.1]"
+        % sys.argv[0]
+    )
     sys.exit(1)
 
 json_path = sys.argv[3]
@@ -90,13 +86,14 @@ denoiser = Denoiser(waveglow).cuda()
 
 statedict = {}
 
-statedict["denoiser.stft.forward_basis"] = denoiser.stft.forward_basis.cpu(
-).numpy().tolist()
-statedict["denoiser.stft.inverse_basis"] = denoiser.stft.inverse_basis.cpu(
-).numpy().tolist()
+statedict["denoiser.stft.forward_basis"] = (
+    denoiser.stft.forward_basis.cpu().numpy().tolist()
+)
+statedict["denoiser.stft.inverse_basis"] = (
+    denoiser.stft.inverse_basis.cpu().numpy().tolist()
+)
 statedict["denoiser.stft.win_sq"] = gen_win_sq(denoiser).tolist()
-statedict["denoiser.bias_spec"] = (
-    denoiser.bias_spec*strength).cpu().numpy().tolist()
+statedict["denoiser.bias_spec"] = (denoiser.bias_spec * strength).cpu().numpy().tolist()
 
 with open(json_path, "w") as fout:
     json.dump(statedict, fout, indent=2)

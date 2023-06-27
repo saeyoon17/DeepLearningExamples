@@ -3,16 +3,17 @@ Unet3+ backbones
 """
 import tensorflow as tf
 import tensorflow.keras as k
+
 from .unet3plus_utils import conv_block
 
 
-def vgg16_backbone(input_layer, ):
-    """ VGG-16 backbone as encoder for UNet3P """
+def vgg16_backbone(
+    input_layer,
+):
+    """VGG-16 backbone as encoder for UNet3P"""
 
     base_model = tf.keras.applications.VGG16(
-        input_tensor=input_layer,
-        weights=None,
-        include_top=False
+        input_tensor=input_layer, weights=None, include_top=False
     )
 
     # block 1
@@ -29,13 +30,13 @@ def vgg16_backbone(input_layer, ):
     return [e1, e2, e3, e4, e5]
 
 
-def vgg19_backbone(input_layer, ):
-    """ VGG-19 backbone as encoder for UNet3P """
+def vgg19_backbone(
+    input_layer,
+):
+    """VGG-19 backbone as encoder for UNet3P"""
 
     base_model = tf.keras.applications.VGG19(
-        input_tensor=input_layer,
-        weights=None,
-        include_top=False
+        input_tensor=input_layer, weights=None, include_top=False
     )
 
     # block 1
@@ -53,7 +54,7 @@ def vgg19_backbone(input_layer, ):
 
 
 def unet3plus_backbone(input_layer, filters):
-    """ UNet3+ own backbone """
+    """UNet3+ own backbone"""
     """ Encoder"""
     # block 1
     e1 = conv_block(input_layer, filters[0])  # 320*320*64

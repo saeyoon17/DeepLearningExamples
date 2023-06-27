@@ -17,7 +17,6 @@ from typing import Optional
 import dgl
 import numpy as np
 import torch
-
 from syngen.utils.types import DataFrameType, MetaData
 
 from .base_dataset import BaseDataset
@@ -67,11 +66,10 @@ class EdgeDS(BaseDataset):
         else:
             node_feature_columns = graph_info[MetaData.NODE_DATA].get(
                 MetaData.CONTINUOUS_COLUMNS, []
-            ) + graph_info[MetaData.NODE_DATA].get(
-                MetaData.CATEGORICAL_COLUMNS, []
+            ) + graph_info[MetaData.NODE_DATA].get(MetaData.CATEGORICAL_COLUMNS, [])
+            node_feature_columns = list(
+                set(node_feature_columns) - set([graph_info[MetaData.NODE_ID]])
             )
-            node_feature_columns = list(set(node_feature_columns) - set(
-                [graph_info[MetaData.NODE_ID]]))
             node_features = node_data[node_feature_columns].values
             node_features = torch.Tensor(node_features)
             g.ndata["feat"] = node_features
@@ -88,8 +86,9 @@ class EdgeDS(BaseDataset):
         num_rows = len(edge_data)
         num_edges = g.num_edges()
         # - extract edge features + labels
-        feature_cols = list(set(edge_data.columns) - set(
-            [src_name, dst_name, self.target_col]))
+        feature_cols = list(
+            set(edge_data.columns) - set([src_name, dst_name, self.target_col])
+        )
         feature_cols = list(feature_cols)
         features = edge_data[feature_cols].values
         labels = edge_data[self.target_col].values

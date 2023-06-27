@@ -34,7 +34,7 @@ from fastspeech.text_norm import symbols
 
 
 class Hparams:
-    """ hyper parameters """
+    """hyper parameters"""
 
     def __init__(self):
         ################################
@@ -50,15 +50,15 @@ class Hparams:
         self.dist_url = "tcp://localhost:54321"
         self.cudnn_enabled = True
         self.cudnn_benchmark = False
-        self.ignore_layers = ['embedding.weight']
+        self.ignore_layers = ["embedding.weight"]
 
         ################################
         # Data Parameters             #
         ################################
         self.load_mel_from_disk = False
-        self.training_files = 'filelists/ljs_audio_text_train_filelist.txt'
-        self.validation_files = 'filelists/ljs_audio_text_val_filelist.txt'
-        self.text_cleaners = ['english_cleaners']
+        self.training_files = "filelists/ljs_audio_text_train_filelist.txt"
+        self.validation_files = "filelists/ljs_audio_text_val_filelist.txt"
+        self.text_cleaners = ["english_cleaners"]
 
         ################################
         # Audio Parameters             #

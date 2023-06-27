@@ -3,9 +3,8 @@
 Simple dataset class that wraps a list of path names
 """
 
-from PIL import Image
-
 from maskrcnn_benchmark.structures.bounding_box import BoxList
+from PIL import Image
 
 
 class ListDataset(object):

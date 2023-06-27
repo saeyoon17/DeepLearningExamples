@@ -19,7 +19,6 @@ import cudf
 import dask_cudf
 import numpy as np
 import pandas as pd
-
 from syngen.preprocessing.base_preprocessing import BasePreprocessing
 from syngen.utils.types import DataFrameType, MetaData
 
@@ -55,9 +54,7 @@ class TabFormerPreprocessing(BasePreprocessing):
             MetaData.UNDIRECTED: True,
         }
 
-        self.graph_info[MetaData.EDGE_DATA][MetaData.CONTINUOUS_COLUMNS] = [
-            "amount"
-        ]
+        self.graph_info[MetaData.EDGE_DATA][MetaData.CONTINUOUS_COLUMNS] = ["amount"]
         self.graph_info[MetaData.EDGE_DATA][MetaData.CATEGORICAL_COLUMNS] = [
             "card_id",
             "merchant_id",
@@ -84,12 +81,8 @@ class TabFormerPreprocessing(BasePreprocessing):
         )
 
     def transform_graph(self, data: DataFrameType) -> DataFrameType:
-        data.columns = [
-            i.lower().replace(" ", "_") for i in data.columns.tolist()
-        ]
-        data = data.rename(
-            columns={"is_fraud?": "is_fraud", "errors?": "errors"}
-        )
+        data.columns = [i.lower().replace(" ", "_") for i in data.columns.tolist()]
+        data = data.rename(columns={"is_fraud?": "is_fraud", "errors?": "errors"})
         data["errors"] = data["errors"].fillna(0)
         data["use_chip"] = self.nanNone(data["use_chip"])
         data["amount"] = self.amountEncoder(data["amount"])
@@ -98,16 +91,12 @@ class TabFormerPreprocessing(BasePreprocessing):
         continuous_columns = [
             c
             for c in data.columns
-            if c
-            in self.graph_info[MetaData.EDGE_DATA][MetaData.CONTINUOUS_COLUMNS]
+            if c in self.graph_info[MetaData.EDGE_DATA][MetaData.CONTINUOUS_COLUMNS]
         ]
         categorical_columns = [
             c
             for c in data.columns
-            if c
-            in self.graph_info[MetaData.EDGE_DATA][
-                MetaData.CATEGORICAL_COLUMNS
-            ]
+            if c in self.graph_info[MetaData.EDGE_DATA][MetaData.CATEGORICAL_COLUMNS]
         ]
         for col in categorical_columns:
             data[col] = data[col].astype("category").cat.codes

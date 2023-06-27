@@ -18,12 +18,12 @@ from pathlib import Path
 import soundfile
 import tqdm
 
-
 parser = argparse.ArgumentParser(description="Write .tsv dataset filelists")
 parser.add_argument("dir", type=Path, help="Dataset directory")
 parser.add_argument("output_tsv", type=Path, help="Output .tsv file path")
-parser.add_argument("--extension", type=str, default="flac",
-                    help="Find files with this extension")
+parser.add_argument(
+    "--extension", type=str, default="flac", help="Find files with this extension"
+)
 args = parser.parse_args()
 
 num_files = 0

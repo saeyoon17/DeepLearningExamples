@@ -22,122 +22,122 @@ import logging
 import os
 from typing import Any, Dict, Tuple
 
-from utils.file_utils import CONFIG_NAME, cached_path, hf_bucket_url, is_remote_url
-
+from utils.file_utils import (CONFIG_NAME, cached_path, hf_bucket_url,
+                              is_remote_url)
 
 logger = logging.getLogger(__name__)
 
 
 class PretrainedConfig(object):
-    r""" Base class for all configuration classes.
-        Handles a few parameters common to all models' configurations as well as methods for loading/downloading/saving
-        configurations.
+    r"""Base class for all configuration classes.
+    Handles a few parameters common to all models' configurations as well as methods for loading/downloading/saving
+    configurations.
 
-        Note:
-            A configuration file can be loaded and saved to disk. Loading the configuration file and using this file to
-            initialize a model does **not** load the model weights.
-            It only affects the model's configuration.
+    Note:
+        A configuration file can be loaded and saved to disk. Loading the configuration file and using this file to
+        initialize a model does **not** load the model weights.
+        It only affects the model's configuration.
 
-        Class attributes (overridden by derived classes)
-            - **model_type** (:obj:`str`): An identifier for the model type, serialized into the JSON file, and used to
-              recreate the correct object in :class:`~transformers.AutoConfig`.
+    Class attributes (overridden by derived classes)
+        - **model_type** (:obj:`str`): An identifier for the model type, serialized into the JSON file, and used to
+          recreate the correct object in :class:`~transformers.AutoConfig`.
 
-        Args:
-            output_hidden_states (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Whether or not the model should return all hidden-states.
-            output_attentions (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Whether or not the model should returns all attentions.
-            use_cache (:obj:`bool`, `optional`, defaults to :obj:`True`):
-                Whether or not the model should return the last key/values attentions (not used by all models).
-            return_dict (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Whether or not the model should return a :class:`~transformers.file_utils.ModelOutput` instead of a
-                plain tuple.
-            is_encoder_decoder (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Whether the model is used as an encoder/decoder or not.
-            is_decoder (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Whether the model is used as decoder or not (in which case it's used as an encoder).
-            add_cross_attention (:obj:`bool`, `optional`, defaults to :obj:`False`):
-                Whether cross-attention layers should be added to the model. Note, this option is only relevant for models that can be used as decoder models within the `:class:~transformers.EncoderDecoderModel` class, which consists of all models in ``AUTO_MODELS_FOR_CAUSAL_LM``.
-            tie_encoder_decoder (:obj:`bool`, `optional`, defaults to :obj:`False`)
-                Whether all encoder weights should be tied to their equivalent decoder weights. This requires the encoder and decoder model to have the exact same parameter names.
-            prune_heads (:obj:`Dict[int, List[int]]`, `optional`, defaults to :obj:`{}`):
-                Pruned heads of the model. The keys are the selected layer indices and the associated values, the list
-                of heads to prune in said layer.
+    Args:
+        output_hidden_states (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            Whether or not the model should return all hidden-states.
+        output_attentions (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            Whether or not the model should returns all attentions.
+        use_cache (:obj:`bool`, `optional`, defaults to :obj:`True`):
+            Whether or not the model should return the last key/values attentions (not used by all models).
+        return_dict (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            Whether or not the model should return a :class:`~transformers.file_utils.ModelOutput` instead of a
+            plain tuple.
+        is_encoder_decoder (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            Whether the model is used as an encoder/decoder or not.
+        is_decoder (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            Whether the model is used as decoder or not (in which case it's used as an encoder).
+        add_cross_attention (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            Whether cross-attention layers should be added to the model. Note, this option is only relevant for models that can be used as decoder models within the `:class:~transformers.EncoderDecoderModel` class, which consists of all models in ``AUTO_MODELS_FOR_CAUSAL_LM``.
+        tie_encoder_decoder (:obj:`bool`, `optional`, defaults to :obj:`False`)
+            Whether all encoder weights should be tied to their equivalent decoder weights. This requires the encoder and decoder model to have the exact same parameter names.
+        prune_heads (:obj:`Dict[int, List[int]]`, `optional`, defaults to :obj:`{}`):
+            Pruned heads of the model. The keys are the selected layer indices and the associated values, the list
+            of heads to prune in said layer.
 
-                For instance ``{1: [0, 2], 2: [2, 3]}`` will prune heads 0 and 2 on layer 1 and heads 2 and 3 on layer
-                2.
-            xla_device (:obj:`bool`, `optional`):
-                A flag to indicate if TPU are available or not.
-            chunk_size_feed_forward (:obj:`int`, `optional`, defaults to :obj:`0`):
-                The chunk size of all feed forward layers in the residual attention blocks.
-                A chunk size of :obj:`0` means that the feed forward layer is not chunked.
-                A chunk size of n means that the feed forward layer processes :obj:`n` < sequence_length embeddings at a time.
-                For more information on feed forward chunking, see `How does Feed Forward Chunking work? <../glossary.html#feed-forward-chunking>`__ .
+            For instance ``{1: [0, 2], 2: [2, 3]}`` will prune heads 0 and 2 on layer 1 and heads 2 and 3 on layer
+            2.
+        xla_device (:obj:`bool`, `optional`):
+            A flag to indicate if TPU are available or not.
+        chunk_size_feed_forward (:obj:`int`, `optional`, defaults to :obj:`0`):
+            The chunk size of all feed forward layers in the residual attention blocks.
+            A chunk size of :obj:`0` means that the feed forward layer is not chunked.
+            A chunk size of n means that the feed forward layer processes :obj:`n` < sequence_length embeddings at a time.
+            For more information on feed forward chunking, see `How does Feed Forward Chunking work? <../glossary.html#feed-forward-chunking>`__ .
 
-        Parameters for sequence generation
-            - **max_length** (:obj:`int`, `optional`, defaults to 20) -- Maximum length that will be used by
-              default in the :obj:`generate` method of the model.
-            - **min_length** (:obj:`int`, `optional`, defaults to 10) -- Minimum length that will be used by
-              default in the :obj:`generate` method of the model.
-            - **do_sample** (:obj:`bool`, `optional`, defaults to :obj:`False`) -- Flag that will be used by default in
-              the :obj:`generate` method of the model. Whether or not to use sampling ; use greedy decoding otherwise.
-            - **early_stopping** (:obj:`bool`, `optional`, defaults to :obj:`False`) -- Flag that will be used by
-              default in the :obj:`generate` method of the model. Whether to stop the beam search when at least
-              ``num_beams`` sentences are finished per batch or not.
-            - **num_beams** (:obj:`int`, `optional`, defaults to 1) -- Number of beams for beam search that will be
-              used by default in the :obj:`generate` method of the model. 1 means no beam search.
-            - **temperature** (:obj:`float`, `optional`, defaults to 1) -- The value used to module the next token
-              probabilities that will be used by default in the :obj:`generate` method of the model. Must be strictly
-              positive.
-            - **top_k** (:obj:`int`, `optional`, defaults to 50) -- Number of highest probability vocabulary tokens to
-              keep for top-k-filtering that will be used by default in the :obj:`generate` method of the model.
-            - **top_p** (:obj:`float`, `optional`, defaults to 1) --  Value that will be used by default in the
-              :obj:`generate` method of the model for ``top_p``. If set to float < 1, only the most probable tokens
-              with probabilities that add up to ``top_p`` or higher are kept for generation.
-            - **repetition_penalty** (:obj:`float`, `optional`, defaults to 1) -- Parameter for repetition penalty
-              that will be used by default in the :obj:`generate` method of the model. 1.0 means no penalty.
-            - **length_penalty** (:obj:`float`, `optional`, defaults to 1) -- Exponential penalty to the length that
-              will be used by default in the :obj:`generate` method of the model.
-            - **no_repeat_ngram_size** (:obj:`int`, `optional`, defaults to 0) -- Value that will be used by default
-              in the :obj:`generate` method of the model for ``no_repeat_ngram_size``. If set to int > 0, all ngrams of
-              that size can only occur once.
-            - **bad_words_ids** (:obj:`List[int]`, `optional`) -- List of token ids that are not allowed to be
-              generated that will be used by default in the :obj:`generate` method of the model. In order to get the
-              tokens of the words that should not appear in the generated text, use
-              :obj:`tokenizer.encode(bad_word, add_prefix_space=True)`.
-            - **num_return_sequences** (:obj:`int`, `optional`, defaults to 1) -- Number of independently computed
-              returned sequences for each element in the batch that will be used by default in the :obj:`generate`
-              method of the model.
+    Parameters for sequence generation
+        - **max_length** (:obj:`int`, `optional`, defaults to 20) -- Maximum length that will be used by
+          default in the :obj:`generate` method of the model.
+        - **min_length** (:obj:`int`, `optional`, defaults to 10) -- Minimum length that will be used by
+          default in the :obj:`generate` method of the model.
+        - **do_sample** (:obj:`bool`, `optional`, defaults to :obj:`False`) -- Flag that will be used by default in
+          the :obj:`generate` method of the model. Whether or not to use sampling ; use greedy decoding otherwise.
+        - **early_stopping** (:obj:`bool`, `optional`, defaults to :obj:`False`) -- Flag that will be used by
+          default in the :obj:`generate` method of the model. Whether to stop the beam search when at least
+          ``num_beams`` sentences are finished per batch or not.
+        - **num_beams** (:obj:`int`, `optional`, defaults to 1) -- Number of beams for beam search that will be
+          used by default in the :obj:`generate` method of the model. 1 means no beam search.
+        - **temperature** (:obj:`float`, `optional`, defaults to 1) -- The value used to module the next token
+          probabilities that will be used by default in the :obj:`generate` method of the model. Must be strictly
+          positive.
+        - **top_k** (:obj:`int`, `optional`, defaults to 50) -- Number of highest probability vocabulary tokens to
+          keep for top-k-filtering that will be used by default in the :obj:`generate` method of the model.
+        - **top_p** (:obj:`float`, `optional`, defaults to 1) --  Value that will be used by default in the
+          :obj:`generate` method of the model for ``top_p``. If set to float < 1, only the most probable tokens
+          with probabilities that add up to ``top_p`` or higher are kept for generation.
+        - **repetition_penalty** (:obj:`float`, `optional`, defaults to 1) -- Parameter for repetition penalty
+          that will be used by default in the :obj:`generate` method of the model. 1.0 means no penalty.
+        - **length_penalty** (:obj:`float`, `optional`, defaults to 1) -- Exponential penalty to the length that
+          will be used by default in the :obj:`generate` method of the model.
+        - **no_repeat_ngram_size** (:obj:`int`, `optional`, defaults to 0) -- Value that will be used by default
+          in the :obj:`generate` method of the model for ``no_repeat_ngram_size``. If set to int > 0, all ngrams of
+          that size can only occur once.
+        - **bad_words_ids** (:obj:`List[int]`, `optional`) -- List of token ids that are not allowed to be
+          generated that will be used by default in the :obj:`generate` method of the model. In order to get the
+          tokens of the words that should not appear in the generated text, use
+          :obj:`tokenizer.encode(bad_word, add_prefix_space=True)`.
+        - **num_return_sequences** (:obj:`int`, `optional`, defaults to 1) -- Number of independently computed
+          returned sequences for each element in the batch that will be used by default in the :obj:`generate`
+          method of the model.
 
-        Parameters for fine-tuning tasks
-            - **architectures** (:obj:`List[str]`, `optional`) -- Model architectures that can be used with the
-              model pretrained weights.
-            - **finetuning_task** (:obj:`str`, `optional`) -- Name of the task used to fine-tune the model. This can be
-              used when converting from an original (TensorFlow or PyTorch) checkpoint.
-            - **id2label** (:obj:`List[str]`, `optional`) -- A map from index (for instance prediction index, or target
-              index) to label.
-            - **label2id** (:obj:`Dict[str, int]`, `optional`) -- A map from label to index for the model.
-            - **num_labels** (:obj:`int`, `optional`) -- Number of labels to use in the last layer added to the model,
-              typically for a classification task.
-            - **task_specific_params** (:obj:`Dict[str, Any]`, `optional`) -- Additional keyword arguments to store for
-              the current task.
+    Parameters for fine-tuning tasks
+        - **architectures** (:obj:`List[str]`, `optional`) -- Model architectures that can be used with the
+          model pretrained weights.
+        - **finetuning_task** (:obj:`str`, `optional`) -- Name of the task used to fine-tune the model. This can be
+          used when converting from an original (TensorFlow or PyTorch) checkpoint.
+        - **id2label** (:obj:`List[str]`, `optional`) -- A map from index (for instance prediction index, or target
+          index) to label.
+        - **label2id** (:obj:`Dict[str, int]`, `optional`) -- A map from label to index for the model.
+        - **num_labels** (:obj:`int`, `optional`) -- Number of labels to use in the last layer added to the model,
+          typically for a classification task.
+        - **task_specific_params** (:obj:`Dict[str, Any]`, `optional`) -- Additional keyword arguments to store for
+          the current task.
 
-        Parameters linked to the tokenizer
-            - **prefix** (:obj:`str`, `optional`) -- A specific prompt that should be added at the beginning of each
-              text before calling the model.
-            - **bos_token_id** (:obj:`int`, `optional`)) -- The id of the `beginning-of-stream` token.
-            - **pad_token_id** (:obj:`int`, `optional`)) -- The id of the `padding` token.
-            - **eos_token_id** (:obj:`int`, `optional`)) -- The id of the `end-of-stream` token.
-            - **decoder_start_token_id** (:obj:`int`, `optional`)) -- If an encoder-decoder model starts decoding with
-              a different token than `bos`, the id of that token.
+    Parameters linked to the tokenizer
+        - **prefix** (:obj:`str`, `optional`) -- A specific prompt that should be added at the beginning of each
+          text before calling the model.
+        - **bos_token_id** (:obj:`int`, `optional`)) -- The id of the `beginning-of-stream` token.
+        - **pad_token_id** (:obj:`int`, `optional`)) -- The id of the `padding` token.
+        - **eos_token_id** (:obj:`int`, `optional`)) -- The id of the `end-of-stream` token.
+        - **decoder_start_token_id** (:obj:`int`, `optional`)) -- If an encoder-decoder model starts decoding with
+          a different token than `bos`, the id of that token.
 
-        PyTorch specific parameters
-            - **torchscript** (:obj:`bool`, `optional`, defaults to :obj:`False`) -- Whether or not the model should be
-              used with Torchscript.
+    PyTorch specific parameters
+        - **torchscript** (:obj:`bool`, `optional`, defaults to :obj:`False`) -- Whether or not the model should be
+          used with Torchscript.
 
-        TensorFlow specific parameters
-            - **use_bfloat16** (:obj:`bool`, `optional`, defaults to :obj:`False`) -- Whether or not the model should
-              use BFloat16 scalars (only used by some TensorFlow models).
+    TensorFlow specific parameters
+        - **use_bfloat16** (:obj:`bool`, `optional`, defaults to :obj:`False`) -- Whether or not the model should
+          use BFloat16 scalars (only used by some TensorFlow models).
     """
     model_type: str = ""
 
@@ -147,7 +147,9 @@ class PretrainedConfig(object):
         self.output_hidden_states = kwargs.pop("output_hidden_states", False)
         self.output_attentions = kwargs.pop("output_attentions", False)
         self.use_cache = kwargs.pop("use_cache", True)  # Not used by all models
-        self.torchscript = kwargs.pop("torchscript", False)  # Only used by PyTorch models
+        self.torchscript = kwargs.pop(
+            "torchscript", False
+        )  # Only used by PyTorch models
         self.use_bfloat16 = kwargs.pop("use_bfloat16", False)
         self.pruned_heads = kwargs.pop("pruned_heads", {})
 
@@ -180,7 +182,9 @@ class PretrainedConfig(object):
         self.label2id = kwargs.pop("label2id", None)
         if self.id2label is not None:
             kwargs.pop("num_labels", None)
-            self.id2label = dict((int(key), value) for key, value in self.id2label.items())
+            self.id2label = dict(
+                (int(key), value) for key, value in self.id2label.items()
+            )
             # Keys are always strings in JSON so convert ids to int here.
         else:
             self.num_labels = kwargs.pop("num_labels", 2)
@@ -204,7 +208,9 @@ class PretrainedConfig(object):
             try:
                 setattr(self, key, value)
             except AttributeError as err:
-                logger.error("Can't set {} with value {} for {}".format(key, value, self))
+                logger.error(
+                    "Can't set {} with value {} for {}".format(key, value, self)
+                )
                 raise err
 
     @property
@@ -237,7 +243,11 @@ class PretrainedConfig(object):
                 Directory where the configuration JSON file will be saved (will be created if it does not exist).
         """
         if os.path.isfile(save_directory):
-            raise AssertionError("Provided path ({}) should be a directory, not a file".format(save_directory))
+            raise AssertionError(
+                "Provided path ({}) should be a directory, not a file".format(
+                    save_directory
+                )
+            )
         os.makedirs(save_directory, exist_ok=True)
         # If we save using the predefined names, we can load using `from_pretrained`
         output_config_file = os.path.join(save_directory, CONFIG_NAME)
@@ -246,7 +256,9 @@ class PretrainedConfig(object):
         logger.info("Configuration saved in {}".format(output_config_file))
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: str, **kwargs) -> "PretrainedConfig":
+    def from_pretrained(
+        cls, pretrained_model_name_or_path: str, **kwargs
+    ) -> "PretrainedConfig":
         r"""
         Instantiate a :class:`~transformers.PretrainedConfig` (or a derived class) from a pretrained model
         configuration.
@@ -305,11 +317,15 @@ class PretrainedConfig(object):
             assert unused_kwargs == {'foo': False}
 
         """
-        config_dict, kwargs = cls.get_config_dict(pretrained_model_name_or_path, **kwargs)
+        config_dict, kwargs = cls.get_config_dict(
+            pretrained_model_name_or_path, **kwargs
+        )
         return cls.from_dict(config_dict, **kwargs)
 
     @classmethod
-    def get_config_dict(cls, pretrained_model_name_or_path: str, **kwargs) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def get_config_dict(
+        cls, pretrained_model_name_or_path: str, **kwargs
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
         From a ``pretrained_model_name_or_path``, resolve to a dictionary of parameters, to be used
         for instantiating a :class:`~transformers.PretrainedConfig` using ``from_dict``.
@@ -330,10 +346,14 @@ class PretrainedConfig(object):
 
         if os.path.isdir(pretrained_model_name_or_path):
             config_file = os.path.join(pretrained_model_name_or_path, CONFIG_NAME)
-        elif os.path.isfile(pretrained_model_name_or_path) or is_remote_url(pretrained_model_name_or_path):
+        elif os.path.isfile(pretrained_model_name_or_path) or is_remote_url(
+            pretrained_model_name_or_path
+        ):
             config_file = pretrained_model_name_or_path
         else:
-            config_file = hf_bucket_url(pretrained_model_name_or_path, filename=CONFIG_NAME, use_cdn=False)
+            config_file = hf_bucket_url(
+                pretrained_model_name_or_path, filename=CONFIG_NAME, use_cdn=False
+            )
 
         try:
             # Load from URL or cache if already cached
@@ -362,14 +382,20 @@ class PretrainedConfig(object):
             msg = (
                 "Couldn't reach server at '{}' to download configuration file or "
                 "configuration file is not a valid JSON file. "
-                "Please check network or file content here: {}.".format(config_file, resolved_config_file)
+                "Please check network or file content here: {}.".format(
+                    config_file, resolved_config_file
+                )
             )
             raise EnvironmentError(msg)
 
         if resolved_config_file == config_file:
             logger.info("loading configuration file {}".format(config_file))
         else:
-            logger.info("loading configuration file {} from cache at {}".format(config_file, resolved_config_file))
+            logger.info(
+                "loading configuration file {} from cache at {}".format(
+                    config_file, resolved_config_file
+                )
+            )
 
         return config_dict, kwargs
 
@@ -394,7 +420,9 @@ class PretrainedConfig(object):
         config = cls(**config_dict)
 
         if hasattr(config, "pruned_heads"):
-            config.pruned_heads = dict((int(key), value) for key, value in config.pruned_heads.items())
+            config.pruned_heads = dict(
+                (int(key), value) for key, value in config.pruned_heads.items()
+            )
 
         # Update config with kwargs if needed
         to_remove = []

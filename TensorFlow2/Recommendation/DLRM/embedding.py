@@ -15,12 +15,11 @@
 # author: Tomasz Grel (tgrel@nvidia.com)
 
 
-import tensorflow as tf
-import numpy as np
 import math
 
+import numpy as np
+import tensorflow as tf
 from utils import get_variable_path
-
 
 # write embedding checkpoints of 1M rows at a time
 _embedding_checkpoint_batch = 1024 * 1024
@@ -29,12 +28,14 @@ _embedding_checkpoint_batch = 1024 * 1024
 @tf.keras.utils.register_keras_serializable()
 class EmbeddingInitializer(tf.keras.initializers.Initializer):
     def __call__(self, shape, dtype=tf.float32):
-        with tf.device('/CPU:0'):
-            maxval = tf.sqrt(tf.constant(1.) / tf.cast(shape[0], tf.float32))
+        with tf.device("/CPU:0"):
+            maxval = tf.sqrt(tf.constant(1.0) / tf.cast(shape[0], tf.float32))
             maxval = tf.cast(maxval, dtype=dtype)
             minval = -maxval
 
-            weights = tf.random.uniform(shape, minval=minval, maxval=maxval, dtype=dtype)
+            weights = tf.random.uniform(
+                shape, minval=minval, maxval=maxval, dtype=dtype
+            )
             weights = tf.cast(weights, dtype=dtype)
         return weights
 
@@ -43,7 +44,9 @@ class EmbeddingInitializer(tf.keras.initializers.Initializer):
 
 
 class Embedding(tf.keras.layers.Layer):
-    def __init__(self, input_dim, output_dim, trainable=True, dtype=tf.float32, feature_name=None):
+    def __init__(
+        self, input_dim, output_dim, trainable=True, dtype=tf.float32, feature_name=None
+    ):
         super(Embedding, self).__init__(dtype=dtype)
         self.input_dim = input_dim
         self.output_dim = output_dim
@@ -52,14 +55,16 @@ class Embedding(tf.keras.layers.Layer):
 
         self.feature_name = feature_name
         if not self.feature_name:
-            self.feature_name = ''
+            self.feature_name = ""
 
     def build(self, input_shape):
-        self.embedding_table = self.add_weight("embedding_table",
-                                               shape=[self.input_dim, self.output_dim],
-                                               dtype=self.dtype,
-                                               initializer=EmbeddingInitializer(),
-                                               trainable=self.trainable)
+        self.embedding_table = self.add_weight(
+            "embedding_table",
+            shape=[self.input_dim, self.output_dim],
+            dtype=self.dtype,
+            initializer=EmbeddingInitializer(),
+            trainable=self.trainable,
+        )
 
     def call(self, indices):
         return tf.gather(params=self.embedding_table, indices=indices)
@@ -75,23 +80,39 @@ class Embedding(tf.keras.layers.Layer):
         filename = get_variable_path(checkpoint_path, self.feature_name)
         numpy_arr = np.load(file=filename)
         indices = tf.range(start=0, limit=numpy_arr.shape[0], dtype=tf.int32)
-        update = tf.IndexedSlices(values=numpy_arr, indices=indices, dense_shape=self.embedding_table.shape)
+        update = tf.IndexedSlices(
+            values=numpy_arr, indices=indices, dense_shape=self.embedding_table.shape
+        )
         self.embedding_table.scatter_update(sparse_delta=update)
 
 
 class EmbeddingGroup(tf.keras.layers.Layer):
-    def __init__(self, table_sizes, output_dim, dtype=tf.float32, feature_names=None, trainable=True):
+    def __init__(
+        self,
+        table_sizes,
+        output_dim,
+        dtype=tf.float32,
+        feature_names=None,
+        trainable=True,
+    ):
         super(EmbeddingGroup, self).__init__(dtype=dtype)
         self.table_sizes = table_sizes
         self.output_dim = output_dim
         self.feature_names = feature_names
         if not self.feature_names:
-            self.feature_names = ['feature_{i}' for i in range(len(table_sizes))]
+            self.feature_names = ["feature_{i}" for i in range(len(table_sizes))]
 
         self.embedding_layers = []
         for fname, ts in zip(self.feature_names, self.table_sizes):
-            self.embedding_layers.append(Embedding(ts, output_dim, dtype=self.dtype,
-                                                   feature_name=fname, trainable=trainable))
+            self.embedding_layers.append(
+                Embedding(
+                    ts,
+                    output_dim,
+                    dtype=self.dtype,
+                    feature_name=fname,
+                    trainable=trainable,
+                )
+            )
 
     def call(self, indices):
         outputs = []
@@ -118,10 +139,12 @@ class JointEmbeddingInitializer(tf.keras.initializers.Initializer):
         self.embedding_dim = embedding_dim
 
     def __call__(self, shape, dtype=tf.float32):
-        with tf.device('/CPU:0'):
+        with tf.device("/CPU:0"):
             subtables = []
             for table_size in self.table_sizes:
-                subtable = self.wrapped()(shape=[table_size, self.embedding_dim], dtype=dtype)
+                subtable = self.wrapped()(
+                    shape=[table_size, self.embedding_dim], dtype=dtype
+                )
                 subtables.append(subtable)
             weights = tf.concat(subtables, axis=0)
         return weights
@@ -131,7 +154,9 @@ class JointEmbeddingInitializer(tf.keras.initializers.Initializer):
 
 
 class JointEmbedding(tf.keras.layers.Layer):
-    def __init__(self, table_sizes, output_dim, dtype, feature_names=None, trainable=True):
+    def __init__(
+        self, table_sizes, output_dim, dtype, feature_names=None, trainable=True
+    ):
         super(JointEmbedding, self).__init__(dtype=dtype)
         self.table_sizes = table_sizes
         self.output_dim = output_dim
@@ -141,19 +166,23 @@ class JointEmbedding(tf.keras.layers.Layer):
         self.offsets = tf.constant(self.offsets, dtype=tf.int32)
         self.feature_names = feature_names
         if not self.feature_names:
-            self.feature_names = ['feature_{i}' for i in range(len(table_sizes))]
+            self.feature_names = ["feature_{i}" for i in range(len(table_sizes))]
         self.trainable = trainable
 
     def build(self, input_shape):
-        initializer = JointEmbeddingInitializer(table_sizes=self.table_sizes,
-                                                embedding_dim=self.output_dim,
-                                                wrapped=EmbeddingInitializer)
+        initializer = JointEmbeddingInitializer(
+            table_sizes=self.table_sizes,
+            embedding_dim=self.output_dim,
+            wrapped=EmbeddingInitializer,
+        )
 
-        self.embedding_table = self.add_weight("embedding_table",
-                                               shape=[self.offsets[-1], self.output_dim],
-                                               dtype=self.dtype,
-                                               initializer=initializer,
-                                               trainable=self.trainable)
+        self.embedding_table = self.add_weight(
+            "embedding_table",
+            shape=[self.offsets[-1], self.output_dim],
+            dtype=self.dtype,
+            initializer=initializer,
+            trainable=self.trainable,
+        )
 
     def call(self, indices):
         indices = indices + self.offsets[:-1]
@@ -161,11 +190,13 @@ class JointEmbedding(tf.keras.layers.Layer):
 
     def save_checkpoint(self, checkpoint_path):
         for j in range(len(self.offsets) - 1):
-            nrows = self.offsets[j+1] - self.offsets[j]
+            nrows = self.offsets[j + 1] - self.offsets[j]
             name = self.feature_names[j]
             filename = get_variable_path(checkpoint_path, name)
 
-            indices = tf.range(start=self.offsets[j], limit=self.offsets[j] + nrows, dtype=tf.int32)
+            indices = tf.range(
+                start=self.offsets[j], limit=self.offsets[j] + nrows, dtype=tf.int32
+            )
             arr = tf.gather(params=self.embedding_table, indices=indices, axis=0)
             arr = arr.numpy()
             np.save(arr=arr, file=filename)
@@ -177,8 +208,16 @@ class JointEmbedding(tf.keras.layers.Layer):
             filename = get_variable_path(checkpoint_path, name)
             numpy_arr = np.load(file=filename)
 
-            indices = tf.range(start=self.offsets[j], limit=self.offsets[j] + numpy_arr.shape[0], dtype=tf.int32)
-            update = tf.IndexedSlices(values=numpy_arr, indices=indices, dense_shape=self.embedding_table.shape)
+            indices = tf.range(
+                start=self.offsets[j],
+                limit=self.offsets[j] + numpy_arr.shape[0],
+                dtype=tf.int32,
+            )
+            update = tf.IndexedSlices(
+                values=numpy_arr,
+                indices=indices,
+                dense_shape=self.embedding_table.shape,
+            )
             self.embedding_table.scatter_update(sparse_delta=update)
 
 
@@ -188,19 +227,33 @@ class DualEmbeddingGroup(tf.keras.layers.Layer):
     If it runs out of GPU memory it will use CPU memory for the largest tables.
     """
 
-    def __init__(self, cardinalities, output_dim, memory_threshold,
-                 cpu_embedding='multitable', gpu_embedding='fused', dtype=tf.float32,
-                 feature_names=None, trainable=True):
+    def __init__(
+        self,
+        cardinalities,
+        output_dim,
+        memory_threshold,
+        cpu_embedding="multitable",
+        gpu_embedding="fused",
+        dtype=tf.float32,
+        feature_names=None,
+        trainable=True,
+    ):
 
         # TODO: throw an exception if the features are not sorted by cardinality in reversed order
 
         super(DualEmbeddingGroup, self).__init__(dtype=dtype)
 
         if dtype not in [tf.float32, tf.float16]:
-            raise ValueError(f'Only float32 and float16 embedding dtypes are currently supported. Got {dtype}.')
+            raise ValueError(
+                f"Only float32 and float16 embedding dtypes are currently supported. Got {dtype}."
+            )
 
-        cpu_embedding_class = EmbeddingGroup if cpu_embedding == 'multitable' else JointEmbedding
-        gpu_embedding_class = EmbeddingGroup if gpu_embedding == 'multitable' else JointEmbedding
+        cpu_embedding_class = (
+            EmbeddingGroup if cpu_embedding == "multitable" else JointEmbedding
+        )
+        gpu_embedding_class = (
+            EmbeddingGroup if gpu_embedding == "multitable" else JointEmbedding
+        )
 
         cardinalities = np.array(cardinalities)
 
@@ -210,30 +263,38 @@ class DualEmbeddingGroup(tf.keras.layers.Layer):
 
         self.table_sizes = cardinalities * output_dim * self.bytes_per_element
         self._find_first_gpu_index()
-        self.cpu_cardinalities = cardinalities[:self.first_gpu_index]
-        self.gpu_cardinalities = cardinalities[self.first_gpu_index:]
+        self.cpu_cardinalities = cardinalities[: self.first_gpu_index]
+        self.gpu_cardinalities = cardinalities[self.first_gpu_index :]
 
         if not feature_names:
-            feature_names = [f'feature_{i}' for i in range(len(self.table_sizes))]
+            feature_names = [f"feature_{i}" for i in range(len(self.table_sizes))]
 
         self.feature_names = feature_names
 
-        self.gpu_embedding = gpu_embedding_class(table_sizes=self.gpu_cardinalities.tolist(),
-                                                 output_dim=output_dim, dtype=self.dtype,
-                                                 feature_names=feature_names[self.first_gpu_index:],
-                                                 trainable=trainable)
+        self.gpu_embedding = gpu_embedding_class(
+            table_sizes=self.gpu_cardinalities.tolist(),
+            output_dim=output_dim,
+            dtype=self.dtype,
+            feature_names=feature_names[self.first_gpu_index :],
+            trainable=trainable,
+        )
 
         # Force using FP32 for CPU embeddings, FP16 performance is much worse
-        self.cpu_embeddings = cpu_embedding_class(table_sizes=self.cpu_cardinalities,
-                                                  output_dim=output_dim, dtype=tf.float32,
-                                                  feature_names=feature_names[:self.first_gpu_index],
-                                                  trainable=trainable)
+        self.cpu_embeddings = cpu_embedding_class(
+            table_sizes=self.cpu_cardinalities,
+            output_dim=output_dim,
+            dtype=tf.float32,
+            feature_names=feature_names[: self.first_gpu_index],
+            trainable=trainable,
+        )
 
     def _find_first_gpu_index(self):
         # order from smallest to largest
         reversed_sizes = np.flip(self.table_sizes)
         cumulative_size = np.cumsum(reversed_sizes)
-        cumulative_indicators = (cumulative_size > self.memory_threshold * 2 ** 30).tolist()
+        cumulative_indicators = (
+            cumulative_size > self.memory_threshold * 2**30
+        ).tolist()
         if True in cumulative_indicators:
             reversed_index = cumulative_indicators.index(True)
         else:
@@ -249,15 +310,15 @@ class DualEmbeddingGroup(tf.keras.layers.Layer):
         to_concat = []
         if self.first_gpu_index > 0:
             # at least one cpu-based embedding
-            cpu_indices = indices[:, :self.first_gpu_index]
-            with tf.device('/CPU:0'):
+            cpu_indices = indices[:, : self.first_gpu_index]
+            with tf.device("/CPU:0"):
                 cpu_results = self.cpu_embeddings(cpu_indices)
                 cpu_results = tf.cast(cpu_results, dtype=self.dtype)
                 to_concat.append(cpu_results)
 
         if self.first_gpu_index < len(self.table_sizes):
             # at least one gpu-based embedding
-            gpu_indices = indices[:, self.first_gpu_index:]
+            gpu_indices = indices[:, self.first_gpu_index :]
             gpu_results = self.gpu_embedding(gpu_indices)
             to_concat.append(gpu_results)
 

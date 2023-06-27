@@ -18,13 +18,11 @@ import os
 import re
 from pathlib import Path
 
+import dllogger
 import numpy as np
 import torch
+from dllogger import JSONStreamBackend, StdOutBackend, Verbosity
 from torch.utils.tensorboard import SummaryWriter
-
-import dllogger
-from dllogger import StdOutBackend, JSONStreamBackend, Verbosity
-
 
 tb_loggers = {}
 
@@ -34,24 +32,25 @@ class TBLogger:
     xyz_dummies: stretch the screen with empty plots so the legend would
                  always fit for other plots
     """
+
     def __init__(self, enabled, log_dir, name, interval=1, dummies=True):
         self.enabled = enabled
         self.interval = interval
         self.cache = {}
         if self.enabled:
             self.summary_writer = SummaryWriter(
-                log_dir=os.path.join(log_dir, name),
-                flush_secs=120, max_queue=200)
+                log_dir=os.path.join(log_dir, name), flush_secs=120, max_queue=200
+            )
             atexit.register(self.summary_writer.close)
             if dummies:
-                for key in ('aaa', 'zzz'):
+                for key in ("aaa", "zzz"):
                     self.summary_writer.add_scalar(key, 0.0, 1)
 
     def log(self, step, data):
         for k, v in data.items():
             self.log_value(step, k, v.item() if type(v) is torch.Tensor else v)
 
-    def log_value(self, step, key, val, stat='mean'):
+    def log_value(self, step, key, val, stat="mean"):
         if self.enabled:
             if key not in self.cache:
                 self.cache[key] = []
@@ -63,17 +62,24 @@ class TBLogger:
 
     def log_grads(self, step, model):
         if self.enabled:
-            norms = [p.grad.norm().item() for p in model.parameters()
-                     if p.grad is not None]
-            for stat in ('max', 'min', 'mean'):
-                self.log_value(step, f'grad_{stat}', getattr(np, stat)(norms),
-                               stat=stat)
+            norms = [
+                p.grad.norm().item() for p in model.parameters() if p.grad is not None
+            ]
+            for stat in ("max", "min", "mean"):
+                self.log_value(
+                    step, f"grad_{stat}", getattr(np, stat)(norms), stat=stat
+                )
 
 
 def unique_log_fpath(fpath):
     """Have a unique log filename for every separate run"""
-    log_num = max([0] + [int(re.search("\.(\d+)", Path(f).suffix).group(1))
-                         for f in glob.glob(f"{fpath}.*")])
+    log_num = max(
+        [0]
+        + [
+            int(re.search("\.(\d+)", Path(f).suffix).group(1))
+            for f in glob.glob(f"{fpath}.*")
+        ]
+    )
     return f"{fpath}.{log_num + 1}"
 
 
@@ -100,55 +106,68 @@ def stdout_metric_format(metric, metadata, value):
 
 
 def init_log(args):
-    enabled = (args.local_rank == 0)
+    enabled = args.local_rank == 0
     if enabled:
-        fpath = args.log_file or os.path.join(args.output_dir, 'nvlog.json')
+        fpath = args.log_file or os.path.join(args.output_dir, "nvlog.json")
         backends = [
             JSONStreamBackend(Verbosity.DEFAULT, fpath, append=True),
             JSONStreamBackend(Verbosity.DEFAULT, unique_log_fpath(fpath)),
-            StdOutBackend(Verbosity.VERBOSE, step_format=stdout_step_format,
-                          metric_format=stdout_metric_format)
+            StdOutBackend(
+                Verbosity.VERBOSE,
+                step_format=stdout_step_format,
+                metric_format=stdout_metric_format,
+            ),
         ]
     else:
         backends = []
 
     dllogger.init(backends=backends)
-    dllogger.metadata("train_lrate", {"name": "lrate", "unit": None, "format": ":>3.2e"})
+    dllogger.metadata(
+        "train_lrate", {"name": "lrate", "unit": None, "format": ":>3.2e"}
+    )
 
-    for id_, pref in [('train', ''), ('train_avg', 'avg train '),
-                      ('dev', '  avg dev '), ('dev_ema', '  EMA dev ')]:
+    for id_, pref in [
+        ("train", ""),
+        ("train_avg", "avg train "),
+        ("dev", "  avg dev "),
+        ("dev_ema", "  EMA dev "),
+    ]:
 
-        dllogger.metadata(f"{id_}_loss",
-                          {"name": f"{pref}loss", "unit": None, "format": ":>7.2f"})
+        dllogger.metadata(
+            f"{id_}_loss", {"name": f"{pref}loss", "unit": None, "format": ":>7.2f"}
+        )
 
-        dllogger.metadata(f"{id_}_wer",
-                          {"name": f"{pref}wer", "unit": "%", "format": ":>6.2f"})
+        dllogger.metadata(
+            f"{id_}_wer", {"name": f"{pref}wer", "unit": "%", "format": ":>6.2f"}
+        )
 
-        dllogger.metadata(f"{id_}_throughput",
-                          {"name": f"{pref}utts/s", "unit": "samples/s", "format": ":>5.0f"})
+        dllogger.metadata(
+            f"{id_}_throughput",
+            {"name": f"{pref}utts/s", "unit": "samples/s", "format": ":>5.0f"},
+        )
 
-        dllogger.metadata(f"{id_}_took",
-                          {"name": "took", "unit": "s", "format": ":>5.2f"})
+        dllogger.metadata(
+            f"{id_}_took", {"name": "took", "unit": "s", "format": ":>5.2f"}
+        )
 
-    tb_subsets = ['train', 'dev', 'dev_ema'] if args.ema else ['train', 'dev']
+    tb_subsets = ["train", "dev", "dev_ema"] if args.ema else ["train", "dev"]
     global tb_loggers
-    tb_loggers = {s: TBLogger(enabled, args.output_dir, name=s)
-                  for s in tb_subsets}
+    tb_loggers = {s: TBLogger(enabled, args.output_dir, name=s) for s in tb_subsets}
 
-    log_parameters(vars(args), tb_subset='train')
+    log_parameters(vars(args), tb_subset="train")
 
 
-def log(step, tb_total_steps=None, subset='train', data={}):
+def log(step, tb_total_steps=None, subset="train", data={}):
 
     if tb_total_steps is not None:
         tb_loggers[subset].log(tb_total_steps, data)
 
-    if subset != '':
-        data = {f'{subset}_{key}': val for key, val in data.items()}
+    if subset != "":
+        data = {f"{subset}_{key}": val for key, val in data.items()}
     dllogger.log(step, data=data)
 
 
-def log_grads_tb(tb_total_steps, grads, tb_subset='train'):
+def log_grads_tb(tb_total_steps, grads, tb_subset="train"):
     tb_loggers[tb_subset].log_grads(tb_total_steps, grads)
 
 
@@ -157,8 +176,7 @@ def log_parameters(data, verbosity=0, tb_subset=None):
         dllogger.log(step="PARAMETER", data={k: v}, verbosity=verbosity)
 
     if tb_subset is not None and tb_loggers[tb_subset].enabled:
-        tb_data = {k: v for k, v in data.items()
-                   if type(v) in (str, bool, int, float)}
+        tb_data = {k: v for k, v in data.items() if type(v) in (str, bool, int, float)}
         tb_loggers[tb_subset].summary_writer.add_hparams(tb_data, {})
 
 

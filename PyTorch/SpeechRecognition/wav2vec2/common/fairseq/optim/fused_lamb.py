@@ -17,13 +17,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import Any, List
 
-from collections.abc import Collection
 from fairseq.dataclass import FairseqDataclass
 from fairseq.optim import FairseqOptimizer, register_optimizer
 from omegaconf import II, OmegaConf
+
 
 @dataclass
 class FairseqLambConfig(FairseqDataclass):
@@ -59,9 +60,12 @@ class FairseqLAMB(FairseqOptimizer):
         different learning rate.
         """
         return {
-            "lr": self.cfg.lr[0] if isinstance(self.cfg.lr, Collection) else self.cfg.lr,
-            "betas": eval(self.cfg.lamb_betas) if isinstance(self.cfg.lamb_betas, str)
-                else OmegaConf.to_container(self.cfg.lamb_betas),
+            "lr": self.cfg.lr[0]
+            if isinstance(self.cfg.lr, Collection)
+            else self.cfg.lr,
+            "betas": eval(self.cfg.lamb_betas)
+            if isinstance(self.cfg.lamb_betas, str)
+            else OmegaConf.to_container(self.cfg.lamb_betas),
             "eps": self.cfg.lamb_eps,
             "weight_decay": self.cfg.weight_decay,
         }

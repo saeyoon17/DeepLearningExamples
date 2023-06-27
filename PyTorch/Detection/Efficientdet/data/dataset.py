@@ -17,19 +17,17 @@ Hacked together by Ross Wightman
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
-import torch.utils.data as data
+from __future__ import absolute_import, division, print_function
 
 import os
-import torch
+
 import numpy as np
+import torch
+import torch.utils.data as data
+from effdet.anchors import AnchorLabeler, Anchors
 from PIL import Image
 from pycocotools.coco import COCO
 
-from effdet.anchors import Anchors, AnchorLabeler
 
 class CocoDetection(data.Dataset):
     """`MS Coco Detection <http://mscoco.org/dataset/#detections-challenge2016>`_ Dataset.
@@ -47,10 +45,10 @@ class CocoDetection(data.Dataset):
             root = os.path.expanduser(root)
         self.root = root
         self.transform = transform
-        self.yxyx = True   # expected for TF model, most PT are xyxy
+        self.yxyx = True  # expected for TF model, most PT are xyxy
         self.include_masks = False
         self.include_bboxes_ignore = False
-        self.has_annotations = 'image_info' not in ann_file
+        self.has_annotations = "image_info" not in ann_file
         self.coco = None
         self.cat_ids = []
         self.cat_to_label = dict()
@@ -59,20 +57,26 @@ class CocoDetection(data.Dataset):
         self.img_infos = []
         self._load_annotations(ann_file)
         self.anchors = Anchors(
-            config.min_level, config.max_level,
-            config.num_scales, config.aspect_ratios,
-            config.anchor_scale, config.image_size)
-        self.anchor_labeler = AnchorLabeler(self.anchors, config.num_classes, match_threshold=0.5)
+            config.min_level,
+            config.max_level,
+            config.num_scales,
+            config.aspect_ratios,
+            config.anchor_scale,
+            config.image_size,
+        )
+        self.anchor_labeler = AnchorLabeler(
+            self.anchors, config.num_classes, match_threshold=0.5
+        )
 
     def _load_annotations(self, ann_file):
         assert self.coco is None
         self.coco = COCO(ann_file)
         self.cat_ids = self.coco.getCatIds()
-        img_ids_with_ann = set(_['image_id'] for _ in self.coco.anns.values())
+        img_ids_with_ann = set(_["image_id"] for _ in self.coco.anns.values())
         for img_id in sorted(self.coco.imgs.keys()):
             info = self.coco.loadImgs([img_id])[0]
             valid_annotation = not self.has_annotations or img_id in img_ids_with_ann
-            if valid_annotation and min(info['width'], info['height']) >= 32:
+            if valid_annotation and min(info["width"], info["height"]) >= 32:
                 self.img_ids.append(img_id)
                 self.img_infos.append(info)
             else:
@@ -86,28 +90,32 @@ class CocoDetection(data.Dataset):
         cls = []
 
         for i, ann in enumerate(ann_info):
-            if ann.get('ignore', False):
+            if ann.get("ignore", False):
                 continue
-            x1, y1, w, h = ann['bbox']
-            if self.include_masks and ann['area'] <= 0:
+            x1, y1, w, h = ann["bbox"]
+            if self.include_masks and ann["area"] <= 0:
                 continue
             if w < 1 or h < 1:
                 continue
 
             # To subtract 1 or not, TF doesn't appear to do this so will keep it out for now.
             if self.yxyx:
-                #bbox = [y1, x1, y1 + h - 1, x1 + w - 1]
+                # bbox = [y1, x1, y1 + h - 1, x1 + w - 1]
                 bbox = [y1, x1, y1 + h, x1 + w]
             else:
-                #bbox = [x1, y1, x1 + w - 1, y1 + h - 1]
+                # bbox = [x1, y1, x1 + w - 1, y1 + h - 1]
                 bbox = [x1, y1, x1 + w, y1 + h]
 
-            if ann.get('iscrowd', False):
+            if ann.get("iscrowd", False):
                 if self.include_bboxes_ignore:
                     bboxes_ignore.append(bbox)
             else:
                 bboxes.append(bbox)
-                cls.append(self.cat_to_label[ann['category_id']] if self.cat_to_label else ann['category_id'])
+                cls.append(
+                    self.cat_to_label[ann["category_id"]]
+                    if self.cat_to_label
+                    else ann["category_id"]
+                )
 
         if bboxes:
             bboxes = np.array(bboxes, dtype=np.float32)
@@ -122,10 +130,15 @@ class CocoDetection(data.Dataset):
             else:
                 bboxes_ignore = np.zeros((0, 4), dtype=np.float32)
 
-        ann = dict(img_id=img_id, bbox=bboxes, cls=cls, img_size=(img_info['width'], img_info['height']))
+        ann = dict(
+            img_id=img_id,
+            bbox=bboxes,
+            cls=cls,
+            img_size=(img_info["width"], img_info["height"]),
+        )
 
         if self.include_bboxes_ignore:
-            ann['bbox_ignore'] = bboxes_ignore
+            ann["bbox_ignore"] = bboxes_ignore
 
         return ann
 
@@ -141,18 +154,19 @@ class CocoDetection(data.Dataset):
         if self.has_annotations:
             ann = self._parse_img_ann(img_id, img_info)
         else:
-            ann = dict(img_id=img_id, img_size=(img_info['width'], img_info['height']))
+            ann = dict(img_id=img_id, img_size=(img_info["width"], img_info["height"]))
 
-        path = img_info['file_name']
-        img = Image.open(os.path.join(self.root, path)).convert('RGB')
+        path = img_info["file_name"]
+        img = Image.open(os.path.join(self.root, path)).convert("RGB")
         if self.transform is not None:
             img, ann = self.transform(img, ann)
 
         cls_targets, box_targets, num_positives = self.anchor_labeler.label_anchors(
-            ann['bbox'], ann['cls'])
-        ann.pop('bbox')
-        ann.pop('cls')
-        ann['num_positives'] = num_positives
+            ann["bbox"], ann["cls"]
+        )
+        ann.pop("bbox")
+        ann.pop("cls")
+        ann["num_positives"] = num_positives
         ann.update(cls_targets)
         ann.update(box_targets)
 

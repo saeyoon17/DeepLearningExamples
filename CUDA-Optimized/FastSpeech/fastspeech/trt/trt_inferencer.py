@@ -35,17 +35,26 @@ import tensorrt as trt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from tensorrt import Dims, ElementWiseOperation, MatrixOperation, Weights
-
 from fastspeech.text_norm.symbols import symbols
 from fastspeech.trt import TRT_LOGGER
 from fastspeech.utils.logging import tprint
 from fastspeech.utils.pytorch import remove_module_in_state_dict, to_cpu_numpy
+from tensorrt import Dims, ElementWiseOperation, MatrixOperation, Weights
 
 
 class TRTInferencer(object):
-
-    def __init__(self, model_name, model, data_loader, ckpt_path=None, ckpt_file=None, trt_max_ws_size=1, trt_file_path=None, trt_force_build=False, use_fp16=False):
+    def __init__(
+        self,
+        model_name,
+        model,
+        data_loader,
+        ckpt_path=None,
+        ckpt_file=None,
+        trt_max_ws_size=1,
+        trt_file_path=None,
+        trt_force_build=False,
+        use_fp16=False,
+    ):
         self.model_name = model_name
         self.model = model
         self.data_loader = data_loader
@@ -82,27 +91,25 @@ class TRTInferencer(object):
     def load(self, ckpt_file):
         # load latest checkpoint file if not defined.
         if not ckpt_file:
-            files_exist = glob.glob(os.path.join(self.ckpt_path, '*'))
+            files_exist = glob.glob(os.path.join(self.ckpt_path, "*"))
             if files_exist:
                 ckpt_file = max(files_exist, key=os.path.getctime)
 
         if ckpt_file:
-            state_dict = torch.load(ckpt_file, map_location='cpu')
+            state_dict = torch.load(ckpt_file, map_location="cpu")
 
-            self.step = state_dict['step']
-            self.model.load_state_dict(
-                remove_module_in_state_dict(state_dict['model']))
+            self.step = state_dict["step"]
+            self.model.load_state_dict(remove_module_in_state_dict(state_dict["model"]))
 
-            tprint('[Load] Checkpoint \'{}\'. Step={}'.format(
-                ckpt_file, self.step))
+            tprint("[Load] Checkpoint '{}'. Step={}".format(ckpt_file, self.step))
         else:
-            tprint('No checkpoints in {}. Load skipped.'.format(self.ckpt_path))
+            tprint("No checkpoints in {}. Load skipped.".format(self.ckpt_path))
 
     def load_plugin(self, path):
         ctypes.cdll.LoadLibrary(path)
 
     def get_plugin_creator(self, plugin_name):
-        trt.init_libnvinfer_plugins(TRT_LOGGER, '')
+        trt.init_libnvinfer_plugins(TRT_LOGGER, "")
         plugin_creator_list = trt.get_plugin_registry().plugin_creator_list
         plugin_creator = None
         for c in plugin_creator_list:

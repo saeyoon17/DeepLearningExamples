@@ -58,7 +58,9 @@ def set_tf_flags(args):
         tf.config.optimizer.set_jit(True)
 
     if hvd.size() > 1:
-        tf.config.threading.set_inter_op_parallelism_threads(max(2, (multiprocessing.cpu_count() // hvd.size()) - 2))
+        tf.config.threading.set_inter_op_parallelism_threads(
+            max(2, (multiprocessing.cpu_count() // hvd.size()) - 2)
+        )
     else:
         tf.config.threading.set_inter_op_parallelism_threads(8)
 
@@ -112,11 +114,16 @@ def make_empty_dir(path, force=False):
     path = Path(path)
     if path.exists():
         if not path.is_dir():
-            print(f"Output path {path} exists and is not a directory." "Please remove it and try again.")
+            print(
+                f"Output path {path} exists and is not a directory."
+                "Please remove it and try again."
+            )
             sys.exit(1)
         else:
             if not force:
-                decision = input(f"Output path {path} exists. Continue and replace it? [Y/n]: ")
+                decision = input(
+                    f"Output path {path} exists. Continue and replace it? [Y/n]: "
+                )
                 if decision.strip().lower() not in ["", "y"]:
                     sys.exit(1)
             shutil.rmtree(path, ignore_errors=True)

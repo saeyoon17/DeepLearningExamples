@@ -20,7 +20,6 @@ from typing import Dict
 
 import cudf
 import pandas as pd
-
 from syngen.utils import write_csv
 from syngen.utils.types import DataFrameType, MetaData
 
@@ -31,15 +30,18 @@ log = logger
 class BasePreprocessing(ABC):
     """Base class for all preprocessing transforms.
 
-       Args:
-            cached (bool): skip preprocessing and use cached files
-            data_path (str): path to file containing data
-            nrows (int): number of rows to load from dataframe
-            drop_cols (list): columns to drop from loaded data
+    Args:
+         cached (bool): skip preprocessing and use cached files
+         data_path (str): path to file containing data
+         nrows (int): number of rows to load from dataframe
+         drop_cols (list): columns to drop from loaded data
     """
 
     def __init__(
-        self, cached: bool = True, nrows: int = None, drop_cols: list = [],
+        self,
+        cached: bool = True,
+        nrows: int = None,
+        drop_cols: list = [],
     ):
 
         self.graph_info = {
@@ -68,15 +70,15 @@ class BasePreprocessing(ABC):
 
     def load_data(self, data_path: str, **kwargs):
         """
-            loads either the raw data or preprocessed data
-            assumes preprocessed data is stored in `data_dir/preprocessed`
-            of original data csv file as provided in `data_path`
+        loads either the raw data or preprocessed data
+        assumes preprocessed data is stored in `data_dir/preprocessed`
+        of original data csv file as provided in `data_path`
 
-            Args:
-                data_path (str): path to csv file
-            Returns:
-                data (DataFrameType): pre-processed data
-                flag (bool): determining if pre-cached data was loaded
+        Args:
+            data_path (str): path to csv file
+        Returns:
+            data (DataFrameType): pre-processed data
+            flag (bool): determining if pre-cached data was loaded
         """
         files = os.listdir(self.preprocessed_dirname)
         fname = f"{self.fname}.encoded.csv"
@@ -101,9 +103,7 @@ class BasePreprocessing(ABC):
                 elif key == MetaData.NODE_DATA.value:
                     data_dict[MetaData.NODE_DATA] = data
                 else:
-                    raise ValueError(
-                        f"Unrecgonized cached files, cannot load data"
-                    )
+                    raise ValueError(f"Unrecgonized cached files, cannot load data")
             return data_dict, True
         data = self.get_csv(data_path, reader=reader)
         log.info(f"droping column: {self.drop_cols}")
@@ -140,11 +140,11 @@ class BasePreprocessing(ABC):
 
     def add_graph_edge_cols(self, data: DataFrameType) -> DataFrameType:
         """Defines generic function for creating `src` and
-            `dst`graph edge columns using a subset of the
-            columns in the dataset.
-            Assumes the `graph_info[MetaData.EDGE_DATA][MetaData.SRC_COLUMNS]` and
-            `graph_info[MetaData.EDGE_DATA][MetaData.DST_COLUMNS]` provides a list of
-            columns that are concatenated to create a unique node id.
+        `dst`graph edge columns using a subset of the
+        columns in the dataset.
+        Assumes the `graph_info[MetaData.EDGE_DATA][MetaData.SRC_COLUMNS]` and
+        `graph_info[MetaData.EDGE_DATA][MetaData.DST_COLUMNS]` provides a list of
+        columns that are concatenated to create a unique node id.
         """
         edge_info = self.graph_info[MetaData.EDGE_DATA]
 
@@ -178,10 +178,10 @@ class BasePreprocessing(ABC):
 
     def add_graph_node_cols(self, data: DataFrameType) -> DataFrameType:
         """
-            defines generic function for creating graph node `id`columns using a
-            subset of the columns in `data`.
-            Assumes the `graph_info[MetaData.NODE_DATA][MetaData.ID_COLUMNS]` provides a list of
-            categorical columns that are concatenated to create a unique node id.
+        defines generic function for creating graph node `id`columns using a
+        subset of the columns in `data`.
+        Assumes the `graph_info[MetaData.NODE_DATA][MetaData.ID_COLUMNS]` provides a list of
+        categorical columns that are concatenated to create a unique node id.
         """
         node_info = self.graph_info[MetaData.NODE_DATA]
         id_col = node_info[MetaData.NODE_NAME]
@@ -202,14 +202,14 @@ class BasePreprocessing(ABC):
         self, data_path: str, gpu: bool = False, cast_to_pd=True
     ) -> DataFrameType:
         """
-            Generic wrapper for graph transform. 
-            Preprocessed data will be cached in the parent directory of `data_path`
-            
-            Args:
-                data_path (str): data path
-            
-            Returns:
-                Dict containing graph data
+        Generic wrapper for graph transform.
+        Preprocessed data will be cached in the parent directory of `data_path`
+
+        Args:
+            data_path (str): data path
+
+        Returns:
+            Dict containing graph data
         """
         data_path = Path(data_path)
         self.data_dir = str(data_path.parent)
@@ -248,9 +248,7 @@ class BasePreprocessing(ABC):
         Returns:
             Transformed graph data.
         """
-        raise NotImplementedError(
-            "`transform_graph` function must be implemented"
-        )
+        raise NotImplementedError("`transform_graph` function must be implemented")
 
     def inverse_transform_graph(self, data):
         """Optional inverse transform to reverse preproc steps"""

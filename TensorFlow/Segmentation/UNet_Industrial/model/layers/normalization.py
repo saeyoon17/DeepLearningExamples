@@ -22,10 +22,9 @@
 import inspect
 
 import tensorflow as tf
-
 from model.layers import _log_hparams
 
-__all__ = ['batch_norm']
+__all__ = ["batch_norm"]
 
 
 def batch_norm(
@@ -35,27 +34,31 @@ def batch_norm(
     scale=False,
     center=True,
     is_training=True,
-    data_format='NHWC',
-    param_initializers=None
+    data_format="NHWC",
+    param_initializers=None,
 ):
     """Adds a Batch Normalization layer."""
 
-    if data_format not in ['NHWC', 'NCHW']:
-        raise ValueError("Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format)
+    if data_format not in ["NHWC", "NCHW"]:
+        raise ValueError(
+            "Unknown data format: `%s` (accepted: ['NHWC', 'NCHW'])" % data_format
+        )
 
     if param_initializers is not None:
 
         for key, initializer in param_initializers.items():
 
-            if key not in ['beta', 'gamma', 'moving_mean', 'moving_variance']:
+            if key not in ["beta", "gamma", "moving_mean", "moving_variance"]:
                 raise ValueError("Unknown key received: `%s`" % key)
 
             if inspect.isclass(initializer):
                 initializer = initializer()
                 setattr(param_initializers, key, initializer)
 
-            if initializer.__class__.__module__ != 'tensorflow.python.ops.init_ops':
-                raise ValueError("The object `%s` is not a Tensor initializer" % str(initializer))
+            if initializer.__class__.__module__ != "tensorflow.python.ops.init_ops":
+                raise ValueError(
+                    "The object `%s` is not a Tensor initializer" % str(initializer)
+                )
 
     input_shape = inputs.get_shape()
     input_rank = input_shape.ndims
@@ -63,7 +66,7 @@ def batch_norm(
 
     if input_rank == 2:
 
-        if data_format == 'NCHW':
+        if data_format == "NCHW":
             new_shape = [-1, input_channels, 1, 1]
         else:
             new_shape = [-1, 1, 1, input_channels]
@@ -80,14 +83,14 @@ def batch_norm(
         fused=True,
         data_format=data_format,
         center=center,
-        param_initializers=param_initializers
+        param_initializers=param_initializers,
     )
 
     if input_rank == 2:
         net = tf.reshape(net, [-1, input_channels])
 
     _log_hparams(
-        classname='BatchNorm',
+        classname="BatchNorm",
         layername=net.name,
         data_format=data_format,
         is_training=is_training,
@@ -97,7 +100,7 @@ def batch_norm(
         center=center,
         fused=True,
         out_shape=str(net.get_shape()),
-        out_dtype=net.dtype
+        out_dtype=net.dtype,
     )
 
     return net

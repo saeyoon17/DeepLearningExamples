@@ -15,9 +15,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
 from common import filter_warnings
-
 
 activations = {
     "hardtanh": nn.Hardtanh,
@@ -26,15 +24,15 @@ activations = {
 }
 
 
-def init_weights(m, mode='xavier_uniform'):
+def init_weights(m, mode="xavier_uniform"):
     if type(m) == nn.Conv1d or type(m) == MaskedConv1d:
-        if mode == 'xavier_uniform':
+        if mode == "xavier_uniform":
             nn.init.xavier_uniform_(m.weight, gain=1.0)
-        elif mode == 'xavier_normal':
+        elif mode == "xavier_normal":
             nn.init.xavier_normal_(m.weight, gain=1.0)
-        elif mode == 'kaiming_uniform':
+        elif mode == "kaiming_uniform":
             nn.init.kaiming_uniform_(m.weight, nonlinearity="relu")
-        elif mode == 'kaiming_normal':
+        elif mode == "kaiming_normal":
             nn.init.kaiming_normal_(m.weight, nonlinearity="relu")
         else:
             raise ValueError("Unknown Initialization mode: {0}".format(mode))
@@ -78,28 +76,51 @@ class GroupShuffle(nn.Module):
 
 
 class MaskedConv1d(nn.Conv1d):
-    """1D convolution with sequence masking
-    """
+    """1D convolution with sequence masking"""
+
     __constants__ = ["masked"]
 
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1,
-                 padding=0, dilation=1, groups=1, bias=False, use_mask=True,
-                 heads=-1):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride=1,
+        padding=0,
+        dilation=1,
+        groups=1,
+        bias=False,
+        use_mask=True,
+        heads=-1,
+    ):
 
         # Jasper refactor compat
         assert heads == -1  # Unsupported
         masked = use_mask
 
         super(MaskedConv1d, self).__init__(
-            in_channels, out_channels, kernel_size, stride=stride,
-            padding=padding, dilation=dilation, groups=groups, bias=bias)
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            bias=bias,
+        )
 
         self.masked = masked
 
     def get_seq_len(self, lens):
         pad, ks = self.padding[0], self.kernel_size[0]
-        return torch.div(lens + 2 * pad - self.dilation[0] * (ks - 1) - 1,
-                         self.stride[0], rounding_mode='trunc') + 1
+        return (
+            torch.div(
+                lens + 2 * pad - self.dilation[0] * (ks - 1) - 1,
+                self.stride[0],
+                rounding_mode="trunc",
+            )
+            + 1
+        )
 
     def forward(self, x, x_lens=None):
         if self.masked:
@@ -115,11 +136,27 @@ class MaskedConv1d(nn.Conv1d):
 class JasperBlock(nn.Module):
     __constants__ = ["conv_mask", "separable", "res", "mconv"]
 
-    def __init__(self, infilters, filters, repeat=3, kernel_size=11,
-                 kernel_size_factor=1, stride=1, dilation=1, padding='same',
-                 dropout=0.2, activation=None, residual=True, groups=1,
-                 separable=False, heads=-1, normalization="batch",
-                 norm_groups=1, residual_panes=[], use_conv_masks=False):
+    def __init__(
+        self,
+        infilters,
+        filters,
+        repeat=3,
+        kernel_size=11,
+        kernel_size_factor=1,
+        stride=1,
+        dilation=1,
+        padding="same",
+        dropout=0.2,
+        activation=None,
+        residual=True,
+        groups=1,
+        separable=False,
+        heads=-1,
+        normalization="batch",
+        norm_groups=1,
+        residual_panes=[],
+        use_conv_masks=False,
+    ):
         super(JasperBlock, self).__init__()
 
         # Fix params being passed as list, but default to ints
@@ -134,11 +171,11 @@ class JasperBlock(nn.Module):
 
         kernel_size_factor = float(kernel_size_factor)
         if type(kernel_size) in (list, tuple):
-            kernel_size = [compute_new_kernel_size(k, kernel_size_factor)
-                           for k in kernel_size]
+            kernel_size = [
+                compute_new_kernel_size(k, kernel_size_factor) for k in kernel_size
+            ]
         else:
-            kernel_size = compute_new_kernel_size(kernel_size,
-                                                  kernel_size_factor)
+            kernel_size = compute_new_kernel_size(kernel_size, kernel_size_factor)
 
         padding_val = get_same_padding(kernel_size[0], stride[0], dilation[0])
         self.conv_mask = use_conv_masks
@@ -150,21 +187,38 @@ class JasperBlock(nn.Module):
         for _ in range(repeat - 1):
             conv.extend(
                 self._get_conv_bn_layer(
-                    infilters_loop, filters, kernel_size=kernel_size,
-                    stride=stride, dilation=dilation, padding=padding_val,
-                    groups=groups, heads=heads, separable=separable,
-                    normalization=normalization, norm_groups=norm_groups)
+                    infilters_loop,
+                    filters,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    dilation=dilation,
+                    padding=padding_val,
+                    groups=groups,
+                    heads=heads,
+                    separable=separable,
+                    normalization=normalization,
+                    norm_groups=norm_groups,
+                )
             )
-            conv.extend(self._get_act_dropout_layer(drop_prob=dropout,
-                                                    activation=activation))
+            conv.extend(
+                self._get_act_dropout_layer(drop_prob=dropout, activation=activation)
+            )
             infilters_loop = filters
 
         conv.extend(
             self._get_conv_bn_layer(
-                infilters_loop, filters, kernel_size=kernel_size, stride=stride,
-                dilation=dilation, padding=padding_val, groups=groups,
-                heads=heads, separable=separable, normalization=normalization,
-                norm_groups=norm_groups)
+                infilters_loop,
+                filters,
+                kernel_size=kernel_size,
+                stride=stride,
+                dilation=dilation,
+                padding=padding_val,
+                groups=groups,
+                heads=heads,
+                separable=separable,
+                normalization=normalization,
+                norm_groups=norm_groups,
+            )
         )
         self.mconv = conv
 
@@ -178,61 +232,121 @@ class JasperBlock(nn.Module):
                 res_panes = [infilters]
                 self.dense_residual = False
             for ip in res_panes:
-                res_list.append(nn.ModuleList(
-                    self._get_conv_bn_layer(ip, filters, kernel_size=1,
-                                            normalization=normalization,
-                                            norm_groups=norm_groups, stride=[1])
-                ))
+                res_list.append(
+                    nn.ModuleList(
+                        self._get_conv_bn_layer(
+                            ip,
+                            filters,
+                            kernel_size=1,
+                            normalization=normalization,
+                            norm_groups=norm_groups,
+                            stride=[1],
+                        )
+                    )
+                )
 
             self.res = res_list
         else:
             self.res = None
 
-        self.mout = nn.Sequential(*self._get_act_dropout_layer(
-            drop_prob=dropout, activation=activation))
+        self.mout = nn.Sequential(
+            *self._get_act_dropout_layer(drop_prob=dropout, activation=activation)
+        )
 
-    def _get_conv(self, in_channels, out_channels, kernel_size=11, stride=1,
-                  dilation=1, padding=0, bias=False, groups=1, heads=-1,
-                  separable=False):
+    def _get_conv(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=11,
+        stride=1,
+        dilation=1,
+        padding=0,
+        bias=False,
+        groups=1,
+        heads=-1,
+        separable=False,
+    ):
 
-        kw = {'in_channels': in_channels, 'out_channels': out_channels,
-              'kernel_size': kernel_size, 'stride': stride, 'dilation': dilation,
-              'padding': padding, 'bias': bias, 'groups': groups}
+        kw = {
+            "in_channels": in_channels,
+            "out_channels": out_channels,
+            "kernel_size": kernel_size,
+            "stride": stride,
+            "dilation": dilation,
+            "padding": padding,
+            "bias": bias,
+            "groups": groups,
+        }
 
         if self.conv_mask:
             return MaskedConv1d(**kw, heads=heads, use_mask=self.conv_mask)
         else:
             return nn.Conv1d(**kw)
 
-    def _get_conv_bn_layer(self, in_channels, out_channels, kernel_size=11,
-                           stride=1, dilation=1, padding=0, bias=False,
-                           groups=1, heads=-1, separable=False,
-                           normalization="batch", norm_groups=1):
+    def _get_conv_bn_layer(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=11,
+        stride=1,
+        dilation=1,
+        padding=0,
+        bias=False,
+        groups=1,
+        heads=-1,
+        separable=False,
+        normalization="batch",
+        norm_groups=1,
+    ):
         if norm_groups == -1:
             norm_groups = out_channels
 
         if separable:
             layers = [
-                self._get_conv(in_channels, in_channels, kernel_size,
-                               stride=stride, dilation=dilation, padding=padding,
-                               bias=bias, groups=in_channels, heads=heads),
-                self._get_conv(in_channels, out_channels, kernel_size=1,
-                               stride=1, dilation=1, padding=0, bias=bias,
-                               groups=groups),
+                self._get_conv(
+                    in_channels,
+                    in_channels,
+                    kernel_size,
+                    stride=stride,
+                    dilation=dilation,
+                    padding=padding,
+                    bias=bias,
+                    groups=in_channels,
+                    heads=heads,
+                ),
+                self._get_conv(
+                    in_channels,
+                    out_channels,
+                    kernel_size=1,
+                    stride=1,
+                    dilation=1,
+                    padding=0,
+                    bias=bias,
+                    groups=groups,
+                ),
             ]
         else:
             layers = [
-                self._get_conv(in_channels, out_channels, kernel_size,
-                               stride=stride, dilation=dilation,
-                               padding=padding, bias=bias, groups=groups)
+                self._get_conv(
+                    in_channels,
+                    out_channels,
+                    kernel_size,
+                    stride=stride,
+                    dilation=dilation,
+                    padding=padding,
+                    bias=bias,
+                    groups=groups,
+                )
             ]
 
         if normalization == "group":
-            layers.append(nn.GroupNorm(num_groups=norm_groups,
-                                       num_channels=out_channels))
+            layers.append(
+                nn.GroupNorm(num_groups=norm_groups, num_channels=out_channels)
+            )
         elif normalization == "instance":
-            layers.append(nn.GroupNorm(num_groups=out_channels,
-                                       num_channels=out_channels))
+            layers.append(
+                nn.GroupNorm(num_groups=out_channels, num_channels=out_channels)
+            )
         elif normalization == "layer":
             layers.append(nn.GroupNorm(num_groups=1, num_channels=out_channels))
 
@@ -295,8 +409,15 @@ class JasperBlock(nn.Module):
 class JasperEncoder(nn.Module):
     __constants__ = ["use_conv_masks"]
 
-    def __init__(self, in_feats, activation, frame_splicing=1,
-                 init='xavier_uniform', use_conv_masks=False, blocks=[]):
+    def __init__(
+        self,
+        in_feats,
+        activation,
+        frame_splicing=1,
+        init="xavier_uniform",
+        use_conv_masks=False,
+        blocks=[],
+    ):
         super(JasperEncoder, self).__init__()
 
         self.use_conv_masks = use_conv_masks
@@ -306,19 +427,20 @@ class JasperEncoder(nn.Module):
         all_residual_panes = []
         for i, blk in enumerate(blocks):
 
-            blk['activation'] = activations[activation]()
+            blk["activation"] = activations[activation]()
 
-            has_residual_dense = blk.pop('residual_dense', False)
+            has_residual_dense = blk.pop("residual_dense", False)
             if has_residual_dense:
                 all_residual_panes += [in_feats]
-                blk['residual_panes'] = all_residual_panes
+                blk["residual_panes"] = all_residual_panes
             else:
-                blk['residual_panes'] = []
+                blk["residual_panes"] = []
 
             self.layers.append(
-                JasperBlock(in_feats, use_conv_masks=use_conv_masks, **blk))
+                JasperBlock(in_feats, use_conv_masks=use_conv_masks, **blk)
+            )
 
-            in_feats = blk['filters']
+            in_feats = blk["filters"]
 
         self.apply(lambda x: init_weights(x, mode=init))
 
@@ -331,11 +453,12 @@ class JasperEncoder(nn.Module):
 
 
 class JasperDecoderForCTC(nn.Module):
-    def __init__(self, in_feats, n_classes, init='xavier_uniform'):
+    def __init__(self, in_feats, n_classes, init="xavier_uniform"):
         super(JasperDecoderForCTC, self).__init__()
 
         self.layers = nn.Sequential(
-            nn.Conv1d(in_feats, n_classes, kernel_size=1, bias=True),)
+            nn.Conv1d(in_feats, n_classes, kernel_size=1, bias=True),
+        )
         self.apply(lambda x: init_weights(x, mode=init))
 
     def forward(self, enc_out):
@@ -380,14 +503,15 @@ class QuartzNet(nn.Module):
 
 class CTCLossNM:
     def __init__(self, n_classes):
-        self._criterion = nn.CTCLoss(blank=n_classes-1, reduction='none')
+        self._criterion = nn.CTCLoss(blank=n_classes - 1, reduction="none")
 
     def __call__(self, log_probs, targets, input_length, target_length):
         input_length = input_length.long()
         target_length = target_length.long()
         targets = targets.long()
-        loss = self._criterion(log_probs.transpose(1, 0), targets,
-                               input_length, target_length)
+        loss = self._criterion(
+            log_probs.transpose(1, 0), targets, input_length, target_length
+        )
         # note that this is different from reduction = 'mean'
         # because we are not dividing by target lengths
         return torch.mean(loss)

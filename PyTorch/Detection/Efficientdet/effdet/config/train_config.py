@@ -41,7 +41,7 @@ def default_detection_train_config():
     # regularization l2 loss.
     h.weight_decay = 4e-5
 
-    h.lr_decay_method = 'cosine'
+    h.lr_decay_method = "cosine"
     h.moving_average_decay = 0.9998
     h.ckpt_var_scope = None
 

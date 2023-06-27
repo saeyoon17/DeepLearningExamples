@@ -13,37 +13,32 @@
 # limitations under the License.
 
 import gc
+import json
 import logging
 import os
-import json
 import warnings
-from typing import Optional, Union, Tuple
+from typing import Optional, Tuple, Union
 
 import cudf
+import dask.dataframe as dd
 import dask_cudf
 import numpy as np
 import pandas as pd
-import dask.dataframe as dd
-
-
-from syngen.utils import LocalCudaClusterManager
-from syngen.generator.graph import RandomGraph, RandomBipartite
+from syngen.generator.graph import RandomBipartite, RandomGraph
 from syngen.generator.tabular.random import RandomMVGenerator
 from syngen.synthesizer.base_synthesizer import BaseSynthesizer
-from syngen.utils.gen_utils import (
-    chunk_sample_generation,
-    dump_generated_graph_to_txt,
-    merge_csv_files,
-    read_edge_list
-)
+from syngen.utils import LocalCudaClusterManager
 from syngen.utils.df_reader import DFReader
+from syngen.utils.gen_utils import (chunk_sample_generation,
+                                    dump_generated_graph_to_txt,
+                                    merge_csv_files, read_edge_list)
 from syngen.utils.types import MetaData
 from syngen.utils.utils import CustomTimer, df_to_pandas, get_object_path
 
 logger = logging.getLogger(__name__)
 log = logger
 
-warnings.filterwarnings('ignore')
+warnings.filterwarnings("ignore")
 
 
 class RandomSynthesizer(BaseSynthesizer):
@@ -153,7 +148,7 @@ class RandomSynthesizer(BaseSynthesizer):
         *args,
         **kwargs,
     ):
-        """ Generate a graph with `num_nodes` and `num_edges`,
+        """Generate a graph with `num_nodes` and `num_edges`,
 
         Args:
             If `bipartite` is set to false:
@@ -201,9 +196,7 @@ class RandomSynthesizer(BaseSynthesizer):
             graph = np.asarray(list(map(list, graph)))
 
         # - dump edge list
-        generated_graph_path = os.path.join(
-            self.save_path, self.edge_list_save_name
-        )
+        generated_graph_path = os.path.join(self.save_path, self.edge_list_save_name)
         nodes = set(list(graph[:, 0]) + list(graph[:, 1]))
         nodes_map = dict(zip(nodes, list(range(len(nodes)))))
         graph = np.asarray(
@@ -256,15 +249,11 @@ class RandomSynthesizer(BaseSynthesizer):
             DFReader.get_dask_reader() if self.use_dask else DFReader.get_df_reader()
         )
         if os.path.exists(os.path.join(self.save_path, edge_features_save_name)):
-            generated_table_path = os.path.join(
-                self.save_path, edge_features_save_name
-            )
+            generated_table_path = os.path.join(self.save_path, edge_features_save_name)
             edge_generated_df = reader.read_csv(generated_table_path)
 
         if os.path.exists(os.path.join(self.save_path, node_features_save_name)):
-            generated_table_path = os.path.join(
-                self.save_path, node_features_save_name
-            )
+            generated_table_path = os.path.join(self.save_path, node_features_save_name)
             node_generated_df = reader.read_csv(generated_table_path)
 
         generated_graph_el_df = read_edge_list(
@@ -316,20 +305,19 @@ class RandomSynthesizer(BaseSynthesizer):
         parser.add_argument(
             "--g-bipartite",
             default=False,
-            action='store_true',
+            action="store_true",
             help="Generates bipartite graph, flag used in RandomSynthesizer.",
         )
         parser.add_argument(
             "--g-directed",
             default=False,
-            action='store_true',
+            action="store_true",
             help="Generates directed graph, flag used in RandomSynthesizer.",
         )
         return parser
 
     def cleanup_session(self):
-        """clean up session and free up resources
-        """
+        """clean up session and free up resources"""
         if self.use_dask:
             self.dask_cluster.destroy_local_cluster()
 
@@ -339,10 +327,14 @@ class RandomSynthesizer(BaseSynthesizer):
             meta_data = json.load(fp)
         instance = cls(**meta_data)
         instance.graph_generator.fit(is_directed=instance.is_directed)
-        if os.path.exists(os.path.join(path, 'node_feature_generator')):
-            instance.node_feature_generator = RandomMVGenerator.load(os.path.join(path, 'node_feature_generator'))
-        if os.path.exists(os.path.join(path, 'edge_feature_generator')):
-            instance.edge_feature_generator = RandomMVGenerator.load(os.path.join(path, 'edge_feature_generator'))
+        if os.path.exists(os.path.join(path, "node_feature_generator")):
+            instance.node_feature_generator = RandomMVGenerator.load(
+                os.path.join(path, "node_feature_generator")
+            )
+        if os.path.exists(os.path.join(path, "edge_feature_generator")):
+            instance.edge_feature_generator = RandomMVGenerator.load(
+                os.path.join(path, "edge_feature_generator")
+            )
         return instance
 
     def save(self, path):
@@ -363,8 +355,12 @@ class RandomSynthesizer(BaseSynthesizer):
             os.makedirs(path)
 
         if self.edge_feature_generator is not None:
-            self.edge_feature_generator.save(os.path.join(path, 'edge_feature_generator'))
+            self.edge_feature_generator.save(
+                os.path.join(path, "edge_feature_generator")
+            )
         if self.node_feature_generator is not None:
-            self.node_feature_generator.save(os.path.join(path, 'node_feature_generator'))
+            self.node_feature_generator.save(
+                os.path.join(path, "node_feature_generator")
+            )
         with open(os.path.join(path, "synthesizer_metadata.json"), "w") as fp:
             json.dump(meta_data, fp)

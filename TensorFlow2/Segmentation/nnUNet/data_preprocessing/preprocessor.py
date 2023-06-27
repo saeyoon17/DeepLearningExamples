@@ -21,11 +21,10 @@ from pathlib import Path
 
 import nibabel
 import numpy as np
+from data_preprocessing import configs, transforms
 from joblib import Parallel, delayed
 from runtime.utils import get_task_code, make_empty_dir
 from skimage.transform import resize
-
-from data_preprocessing import configs, transforms
 
 
 class Preprocessor:
@@ -77,7 +76,9 @@ class Preprocessor:
                 self.collect_intensities()
             _mean = round(self.ct_mean, 2)
             _std = round(self.ct_std, 2)
-            print(f"[CT] min: {self.ct_min}, max: {self.ct_max}, mean: {_mean}, std: {_std}")
+            print(
+                f"[CT] min: {self.ct_min}, max: {self.ct_max}, mean: {_mean}, std: {_std}"
+            )
 
         self.run_parallel(self.preprocess_pair, self.args.exec_mode)
 
@@ -106,7 +107,9 @@ class Preprocessor:
         image = self.normalize(image)
         if self.training:
             image, label = self.standardize(image, label)
-        image, label = np.transpose(image, (1, 2, 3, 0)), np.transpose(label, (1, 2, 3, 0))
+        image, label = np.transpose(image, (1, 2, 3, 0)), np.transpose(
+            label, (1, 2, 3, 0)
+        )
         self.save(image, label, fname, test_metadata)
 
     def resample(self, image, label, image_spacings):
@@ -118,15 +121,28 @@ class Preprocessor:
         pad_shape = self.calculate_pad_shape(image)
         image_shape = image.shape[1:]
         if pad_shape != image_shape:
-            paddings = [(pad_sh - image_sh) / 2 for (pad_sh, image_sh) in zip(pad_shape, image_shape)]
+            paddings = [
+                (pad_sh - image_sh) / 2
+                for (pad_sh, image_sh) in zip(pad_shape, image_shape)
+            ]
             image = self.pad(image, paddings)
             label = self.pad(label, paddings)
         if self.args.dim == 2:  # Center cropping 2D images.
             _, _, height, weight = image.shape
             start_h = (height - self.patch_size[0]) // 2
             start_w = (weight - self.patch_size[1]) // 2
-            image = image[:, :, start_h : start_h + self.patch_size[0], start_w : start_w + self.patch_size[1]]
-            label = label[:, :, start_h : start_h + self.patch_size[0], start_w : start_w + self.patch_size[1]]
+            image = image[
+                :,
+                :,
+                start_h : start_h + self.patch_size[0],
+                start_w : start_w + self.patch_size[1],
+            ]
+            label = label[
+                :,
+                :,
+                start_h : start_h + self.patch_size[0],
+                start_w : start_w + self.patch_size[1],
+            ]
         return image, label
 
     def normalize(self, image):
@@ -135,7 +151,9 @@ class Preprocessor:
         return transforms.normalize_intensity(image, nonzero=True, channel_wise=True)
 
     def save(self, image, label, fname, test_metadata):
-        mean, std = np.round(np.mean(image, (0, 1, 2)), 2), np.round(np.std(image, (0, 1, 2)), 2)
+        mean, std = np.round(np.mean(image, (0, 1, 2)), 2), np.round(
+            np.std(image, (0, 1, 2)), 2
+        )
         print(f"Saving {fname} shape {image.shape} mean {mean} std {std}")
         self.save_npy(image, fname, "_x.npy")
         if label is not None:
@@ -177,7 +195,9 @@ class Preprocessor:
         image_shape = image.shape[1:]
         if len(min_shape) == 2:  # In 2D case we don't want to pad depth axis.
             min_shape.insert(0, image_shape[0])
-        pad_shape = [max(mshape, ishape) for mshape, ishape in zip(min_shape, image_shape)]
+        pad_shape = [
+            max(mshape, ishape) for mshape, ishape in zip(min_shape, image_shape)
+        ]
         return pad_shape
 
     def get_intensities(self, pair):
@@ -219,10 +239,16 @@ class Preprocessor:
         return new_shape
 
     def save_npy(self, image, fname, suffix):
-        np.save(os.path.join(self.results, fname.replace(".nii.gz", suffix)), image, allow_pickle=False)
+        np.save(
+            os.path.join(self.results, fname.replace(".nii.gz", suffix)),
+            image,
+            allow_pickle=False,
+        )
 
     def run_parallel(self, func, exec_mode):
-        return Parallel(n_jobs=self.args.n_jobs)(delayed(func)(pair) for pair in self.metadata[exec_mode])
+        return Parallel(n_jobs=self.args.n_jobs)(
+            delayed(func)(pair) for pair in self.metadata[exec_mode]
+        )
 
     def load_nifty(self, fname):
         return nibabel.load(os.path.join(self.data_path, fname))
@@ -252,7 +278,9 @@ class Preprocessor:
 
     @staticmethod
     def resize_fn(image, shape, order, mode):
-        return resize(image, shape, order=order, mode=mode, cval=0, clip=True, anti_aliasing=False)
+        return resize(
+            image, shape, order=order, mode=mode, cval=0, clip=True, anti_aliasing=False
+        )
 
     def resample_anisotrophic_image(self, image, shape):
         resized_channels = []

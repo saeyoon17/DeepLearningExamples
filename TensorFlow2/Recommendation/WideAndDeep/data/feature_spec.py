@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import yaml
 import os
 from typing import Dict, List
-from data.outbrain.defaults import TRAIN_MAPPING, TEST_MAPPING, ONEHOT_CHANNEL, MULTIHOT_CHANNEL, NUMERICAL_CHANNEL, LABEL_CHANNEL, MAP_FEATURE_CHANNEL, PARQUET_TYPE
+
+import yaml
+from data.outbrain.defaults import (LABEL_CHANNEL, MAP_FEATURE_CHANNEL,
+                                    MULTIHOT_CHANNEL, NUMERICAL_CHANNEL,
+                                    ONEHOT_CHANNEL, PARQUET_TYPE, TEST_MAPPING,
+                                    TRAIN_MAPPING)
 
 TYPE_SELECTOR = "type"
 FEATURES_SELECTOR = "features"
@@ -24,8 +28,16 @@ DTYPE_SELECTOR = "dtype"
 CARDINALITY_SELECTOR = "cardinality"
 MAX_HOTNESS_SELECTOR = "max_hotness"
 
+
 class FeatureSpec:
-    def __init__(self, feature_spec=None, source_spec=None, channel_spec=None, metadata=None, base_directory=None):
+    def __init__(
+        self,
+        feature_spec=None,
+        source_spec=None,
+        channel_spec=None,
+        metadata=None,
+        base_directory=None,
+    ):
         self.feature_spec: Dict = feature_spec if feature_spec is not None else {}
         self.source_spec: Dict = source_spec if source_spec is not None else {}
         self.channel_spec: Dict = channel_spec if channel_spec is not None else {}
@@ -34,7 +46,7 @@ class FeatureSpec:
 
     @classmethod
     def from_yaml(cls, path):
-        with open(path, 'r') as feature_spec_file:
+        with open(path, "r") as feature_spec_file:
             base_directory = os.path.dirname(path)
             feature_spec = yaml.safe_load(feature_spec_file)
             return cls.from_dict(feature_spec, base_directory=base_directory)
@@ -44,7 +56,7 @@ class FeatureSpec:
         return cls(base_directory=base_directory, **source_dict)
 
     def to_dict(self) -> Dict:
-        attributes_to_dump = ['feature_spec', 'source_spec', 'channel_spec', 'metadata']
+        attributes_to_dump = ["feature_spec", "source_spec", "channel_spec", "metadata"]
         return {attr: self.__dict__[attr] for attr in attributes_to_dump}
 
     def to_string(self):
@@ -52,8 +64,8 @@ class FeatureSpec:
 
     def to_yaml(self, output_path=None):
         if not output_path:
-            output_path = self.base_directory + '/feature_spec.yaml'
-        with open(output_path, 'w') as output_file:
+            output_path = self.base_directory + "/feature_spec.yaml"
+        with open(output_path, "w") as output_file:
             print(yaml.dump(self.to_dict()), file=output_file)
 
     def _check_one_label_feature(self):
@@ -62,7 +74,13 @@ class FeatureSpec:
     def _check_all_required_channels_present(self):
         # check that channels are the ones expected
         present_channels = list(self.channel_spec.keys())
-        required_channels = [ONEHOT_CHANNEL, MULTIHOT_CHANNEL, NUMERICAL_CHANNEL, LABEL_CHANNEL, MAP_FEATURE_CHANNEL]
+        required_channels = [
+            ONEHOT_CHANNEL,
+            MULTIHOT_CHANNEL,
+            NUMERICAL_CHANNEL,
+            LABEL_CHANNEL,
+            MAP_FEATURE_CHANNEL,
+        ]
         assert sorted(present_channels) == sorted(required_channels)
 
     def _check_all_used_features_are_defined(self):
@@ -72,7 +90,9 @@ class FeatureSpec:
                 assert feature in self.feature_spec
 
     def _check_categoricals_have_cardinality(self):
-        all_categoricals = self.get_names_by_channel(ONEHOT_CHANNEL) + self.get_names_by_channel(MULTIHOT_CHANNEL)
+        all_categoricals = self.get_names_by_channel(
+            ONEHOT_CHANNEL
+        ) + self.get_names_by_channel(MULTIHOT_CHANNEL)
         for feature_name in all_categoricals:
             feature_dict = self.feature_spec[feature_name]
             assert CARDINALITY_SELECTOR in feature_dict
@@ -99,7 +119,9 @@ class FeatureSpec:
             if channel_name != MAP_FEATURE_CHANNEL:
                 for mapping_name in [TRAIN_MAPPING, TEST_MAPPING]:
                     # This uses the fact that we require that mappings only have one chunk here
-                    features_in_mapping = set(self.source_spec[mapping_name][0][FEATURES_SELECTOR])
+                    features_in_mapping = set(
+                        self.source_spec[mapping_name][0][FEATURES_SELECTOR]
+                    )
                     for feature in channel_features:
                         assert feature in features_in_mapping
             else:
@@ -107,7 +129,9 @@ class FeatureSpec:
                 if len(map_channel_features) == 1:
                     # This uses the fact that we require that mappings only have one chunk here
                     map_feature_name = map_channel_features[0]
-                    test_mapping_features = set(self.source_spec[TEST_MAPPING][0][FEATURES_SELECTOR])
+                    test_mapping_features = set(
+                        self.source_spec[TEST_MAPPING][0][FEATURES_SELECTOR]
+                    )
                     assert map_feature_name in test_mapping_features
 
     def _check_map_feature_selected_if_enabled(self, is_map_feature_required):
@@ -116,11 +140,12 @@ class FeatureSpec:
         if is_map_feature_required:
             assert len(map_channel_features) == 1
 
-
     def _check_dtype_correct_if_specified(self):
         # make sure that if dtype is specified, it is convertible to float32 for numerical and convertible to int64 for categorical
         # these are the requirements specified by tf.feature_column.categorical_column_with_identity and tf.feature_column.numeric_column
-        categorical_features = self.get_names_by_channel(ONEHOT_CHANNEL) + self.get_names_by_channel(MULTIHOT_CHANNEL)
+        categorical_features = self.get_names_by_channel(
+            ONEHOT_CHANNEL
+        ) + self.get_names_by_channel(MULTIHOT_CHANNEL)
         categorical_allowed_types = {"int64", "int32"}
         for feature in categorical_features:
             feature_dict = self.feature_spec[feature]
@@ -146,7 +171,9 @@ class FeatureSpec:
             for mapping in self.source_spec.values():
                 only_chunk = mapping[0]
                 files_number = len(only_chunk[FILES_SELECTOR])
-                assert files_number >= world_size, "NVTabular dataloader requires parquet to have at least as many partitions as there are workers"
+                assert (
+                    files_number >= world_size
+                ), "NVTabular dataloader requires parquet to have at least as many partitions as there are workers"
 
     def check_feature_spec(self, require_map_channel, world_size=None):
         self._check_required_mappings_present()
@@ -175,9 +202,14 @@ class FeatureSpec:
         return self.channel_spec[channel_name]
 
     def get_multihot_hotnesses(self, multihot_features: List[str]) -> Dict[str, int]:
-        return {feature_name:self.feature_spec[feature_name][MAX_HOTNESS_SELECTOR] for feature_name in multihot_features}
+        return {
+            feature_name: self.feature_spec[feature_name][MAX_HOTNESS_SELECTOR]
+            for feature_name in multihot_features
+        }
 
     def get_cardinalities(self, features: List[str]) -> Dict[str, int]:
-        cardinalities = {feature_name: self.feature_spec[feature_name][CARDINALITY_SELECTOR]
-                         for feature_name in features}
+        cardinalities = {
+            feature_name: self.feature_spec[feature_name][CARDINALITY_SELECTOR]
+            for feature_name in features
+        }
         return cardinalities

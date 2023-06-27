@@ -16,9 +16,10 @@
 import cupy
 import horovod.tensorflow as hvd
 import tensorflow as tf
+from data.outbrain.defaults import (LABEL_CHANNEL, MAP_FEATURE_CHANNEL,
+                                    MULTIHOT_CHANNEL, NUMERICAL_CHANNEL,
+                                    ONEHOT_CHANNEL)
 from nvtabular.loader.tensorflow import KerasSequenceLoader
-from data.outbrain.defaults import LABEL_CHANNEL, MAP_FEATURE_CHANNEL, NUMERICAL_CHANNEL, ONEHOT_CHANNEL, \
-    MULTIHOT_CHANNEL
 
 cupy.random.seed(None)
 
@@ -37,12 +38,21 @@ def seed_fn():
     return reduced_seed % max_rand
 
 
-def get_dataset(feature_spec, mapping, batch_size, buffer_size=0.1, parts_per_chunk=1,
-                map_channel_enabled=False, shuffle=True):
+def get_dataset(
+    feature_spec,
+    mapping,
+    batch_size,
+    buffer_size=0.1,
+    parts_per_chunk=1,
+    map_channel_enabled=False,
+    shuffle=True,
+):
 
     data_paths = feature_spec.get_paths_by_mapping(mapping)
     label_names = feature_spec.get_names_by_channel(LABEL_CHANNEL)
-    cat_names = feature_spec.get_names_by_channel(ONEHOT_CHANNEL) + feature_spec.get_names_by_channel(MULTIHOT_CHANNEL)
+    cat_names = feature_spec.get_names_by_channel(
+        ONEHOT_CHANNEL
+    ) + feature_spec.get_names_by_channel(MULTIHOT_CHANNEL)
     cont_names = feature_spec.get_names_by_channel(NUMERICAL_CHANNEL)
     if map_channel_enabled:
         cat_names += feature_spec.get_names_by_channel(MAP_FEATURE_CHANNEL)
@@ -63,6 +73,7 @@ def get_dataset(feature_spec, mapping, batch_size, buffer_size=0.1, parts_per_ch
     )
 
     return tf_dataset
+
 
 def make_padding_function(multihot_hotness_dict):
     @tf.function(experimental_relax_shapes=True)

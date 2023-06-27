@@ -21,7 +21,7 @@ import tensorflow as tf
 
 
 def _crop_and_concat(inputs, residual_input):
-    """ Perform a central crop of ``residual_input`` and concatenate to ``inputs``
+    """Perform a central crop of ``residual_input`` and concatenate to ``inputs``
 
     Args:
         inputs (tf.Tensor): Tensor with input
@@ -37,7 +37,7 @@ def _crop_and_concat(inputs, residual_input):
 
 
 def downsample_block(inputs, filters, idx):
-    """ UNet downsample block
+    """UNet downsample block
 
     Perform 2 unpadded convolutions with a specified number of filters and downsample
     through max-pooling
@@ -53,20 +53,18 @@ def downsample_block(inputs, filters, idx):
 
     out = inputs
 
-    with tf.name_scope('downsample_block_{}'.format(idx)):
-        out = tf.layers.conv2d(inputs=out,
-                               filters=filters,
-                               kernel_size=(3, 3),
-                               activation=tf.nn.relu)
-        out = tf.layers.conv2d(inputs=out,
-                               filters=filters,
-                               kernel_size=(3, 3),
-                               activation=tf.nn.relu)
+    with tf.name_scope("downsample_block_{}".format(idx)):
+        out = tf.layers.conv2d(
+            inputs=out, filters=filters, kernel_size=(3, 3), activation=tf.nn.relu
+        )
+        out = tf.layers.conv2d(
+            inputs=out, filters=filters, kernel_size=(3, 3), activation=tf.nn.relu
+        )
         return tf.layers.max_pooling2d(inputs=out, pool_size=(2, 2), strides=2), out
 
 
 def upsample_block(inputs, residual_input, filters, idx):
-    """ UNet upsample block
+    """UNet upsample block
 
     Perform 2 unpadded convolutions with a specified number of filters and upsample
 
@@ -81,25 +79,25 @@ def upsample_block(inputs, residual_input, filters, idx):
     """
     out = _crop_and_concat(inputs, residual_input)
 
-    with tf.name_scope('upsample_block_{}'.format(idx)):
-        out = tf.layers.conv2d(inputs=out,
-                               filters=filters,
-                               kernel_size=(3, 3),
-                               activation=tf.nn.relu)
-        out = tf.layers.conv2d(inputs=out,
-                               filters=int(filters),
-                               kernel_size=(3, 3),
-                               activation=tf.nn.relu)
-        return tf.layers.conv2d_transpose(inputs=out,
-                                          filters=int(filters // 2),
-                                          kernel_size=(3, 3),
-                                          strides=(2, 2),
-                                          padding='same',
-                                          activation=tf.nn.relu)
+    with tf.name_scope("upsample_block_{}".format(idx)):
+        out = tf.layers.conv2d(
+            inputs=out, filters=filters, kernel_size=(3, 3), activation=tf.nn.relu
+        )
+        out = tf.layers.conv2d(
+            inputs=out, filters=int(filters), kernel_size=(3, 3), activation=tf.nn.relu
+        )
+        return tf.layers.conv2d_transpose(
+            inputs=out,
+            filters=int(filters // 2),
+            kernel_size=(3, 3),
+            strides=(2, 2),
+            padding="same",
+            activation=tf.nn.relu,
+        )
 
 
 def bottleneck(inputs, filters, mode):
-    """ UNet central block
+    """UNet central block
 
     Perform 2 unpadded convolutions with a specified number of filters and upsample
     including dropout before upsampling for training
@@ -114,30 +112,30 @@ def bottleneck(inputs, filters, mode):
     """
     out = inputs
 
-    with tf.name_scope('bottleneck'):
-        out = tf.layers.conv2d(inputs=out,
-                               filters=filters,
-                               kernel_size=(3, 3),
-                               activation=tf.nn.relu)
-        out = tf.layers.conv2d(inputs=out,
-                               filters=filters,
-                               kernel_size=(3, 3),
-                               activation=tf.nn.relu)
+    with tf.name_scope("bottleneck"):
+        out = tf.layers.conv2d(
+            inputs=out, filters=filters, kernel_size=(3, 3), activation=tf.nn.relu
+        )
+        out = tf.layers.conv2d(
+            inputs=out, filters=filters, kernel_size=(3, 3), activation=tf.nn.relu
+        )
 
-        training = (mode == tf.estimator.ModeKeys.TRAIN)
+        training = mode == tf.estimator.ModeKeys.TRAIN
 
         out = tf.layers.dropout(out, rate=0.5, training=training)
 
-        return tf.layers.conv2d_transpose(inputs=out,
-                                          filters=filters // 2,
-                                          kernel_size=(3, 3),
-                                          strides=(2, 2),
-                                          padding='same',
-                                          activation=tf.nn.relu)
+        return tf.layers.conv2d_transpose(
+            inputs=out,
+            filters=filters // 2,
+            kernel_size=(3, 3),
+            strides=(2, 2),
+            padding="same",
+            activation=tf.nn.relu,
+        )
 
 
 def output_block(inputs, residual_input, filters, n_classes):
-    """ UNet output
+    """UNet output
 
     Perform 3 unpadded convolutions, the last one with the same number
     of channels as classes we want to classify
@@ -155,24 +153,21 @@ def output_block(inputs, residual_input, filters, n_classes):
 
     out = _crop_and_concat(inputs, residual_input)
 
-    with tf.name_scope('output'):
-        out = tf.layers.conv2d(inputs=out,
-                               filters=filters,
-                               kernel_size=(3, 3),
-                               activation=tf.nn.relu)
-        out = tf.layers.conv2d(inputs=out,
-                               filters=filters,
-                               kernel_size=(3, 3),
-                               activation=tf.nn.relu)
+    with tf.name_scope("output"):
+        out = tf.layers.conv2d(
+            inputs=out, filters=filters, kernel_size=(3, 3), activation=tf.nn.relu
+        )
+        out = tf.layers.conv2d(
+            inputs=out, filters=filters, kernel_size=(3, 3), activation=tf.nn.relu
+        )
 
-        return tf.layers.conv2d(inputs=out,
-                                filters=n_classes,
-                                kernel_size=(1, 1),
-                                activation=None)
+        return tf.layers.conv2d(
+            inputs=out, filters=n_classes, kernel_size=(1, 1), activation=None
+        )
 
 
 def input_block(inputs, filters):
-    """ UNet input block
+    """UNet input block
 
     Perform 2 unpadded convolutions with a specified number of filters and downsample
     through max-pooling. First convolution
@@ -188,13 +183,11 @@ def input_block(inputs, filters):
 
     out = inputs
 
-    with tf.name_scope('input'):
-        out = tf.layers.conv2d(inputs=out,
-                               filters=filters,
-                               kernel_size=(3, 3),
-                               activation=tf.nn.relu)
-        out = tf.layers.conv2d(inputs=out,
-                               filters=filters,
-                               kernel_size=(3, 3),
-                               activation=tf.nn.relu)
+    with tf.name_scope("input"):
+        out = tf.layers.conv2d(
+            inputs=out, filters=filters, kernel_size=(3, 3), activation=tf.nn.relu
+        )
+        out = tf.layers.conv2d(
+            inputs=out, filters=filters, kernel_size=(3, 3), activation=tf.nn.relu
+        )
         return tf.layers.max_pooling2d(inputs=out, pool_size=(2, 2), strides=2), out

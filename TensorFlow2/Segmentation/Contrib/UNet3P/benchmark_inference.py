@@ -2,18 +2,18 @@
 Script to benchmark model throughput and latency
 """
 import os
-import numpy as np
-from tqdm import tqdm
 from timeit import default_timer as timer
-import hydra
-from omegaconf import DictConfig
-import tensorflow as tf
-from tensorflow.keras import mixed_precision
 
+import hydra
+import numpy as np
+import tensorflow as tf
 from data_generators import tf_data_generator
+from models.model import prepare_model
+from omegaconf import DictConfig
+from tensorflow.keras import mixed_precision
+from tqdm import tqdm
 from utils.general_utils import join_paths, suppress_warnings
 from utils.images_utils import postprocess_mask
-from models.model import prepare_model
 
 
 def benchmark_time(cfg: DictConfig):
@@ -26,7 +26,7 @@ def benchmark_time(cfg: DictConfig):
 
     if cfg.OPTIMIZATION.AMP:
         print("Enabling Automatic Mixed Precision(AMP)")
-        policy = mixed_precision.Policy('mixed_float16')
+        policy = mixed_precision.Policy("mixed_float16")
         mixed_precision.set_global_policy(policy)
 
     if cfg.OPTIMIZATION.XLA:
@@ -53,11 +53,12 @@ def benchmark_time(cfg: DictConfig):
     checkpoint_path = join_paths(
         cfg.WORK_DIR,
         cfg.CALLBACKS.MODEL_CHECKPOINT.PATH,
-        f"{cfg.MODEL.WEIGHTS_FILE_NAME}.hdf5"
+        f"{cfg.MODEL.WEIGHTS_FILE_NAME}.hdf5",
     )
 
-    assert os.path.exists(checkpoint_path), \
-        f"Model weight's file does not exist at \n{checkpoint_path}"
+    assert os.path.exists(
+        checkpoint_path
+    ), f"Model weight's file does not exist at \n{checkpoint_path}"
 
     # load model weights
     model.load_weights(checkpoint_path, by_name=True, skip_mismatch=True)
@@ -84,7 +85,7 @@ def benchmark_time(cfg: DictConfig):
     progress_bar.close()
 
     mean_time = np.mean(time_taken[warmup_steps:])  # skipping warmup_steps
-    throughput = (cfg.HYPER_PARAMETERS.BATCH_SIZE / mean_time)
+    throughput = cfg.HYPER_PARAMETERS.BATCH_SIZE / mean_time
     print(f"Latency: {round(mean_time * 1e3, 2)} msec")
     print(f"Throughput/FPS: {round(throughput, 2)} samples/sec")
 

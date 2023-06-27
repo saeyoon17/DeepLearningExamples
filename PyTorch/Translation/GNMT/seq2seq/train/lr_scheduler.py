@@ -34,9 +34,18 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
     """
     Learning rate scheduler with exponential warmup and step decay.
     """
-    def __init__(self, optimizer, iterations, warmup_steps=0,
-                 remain_steps=1.0, decay_interval=None, decay_steps=4,
-                 decay_factor=0.5, last_epoch=-1):
+
+    def __init__(
+        self,
+        optimizer,
+        iterations,
+        warmup_steps=0,
+        remain_steps=1.0,
+        decay_interval=None,
+        decay_steps=4,
+        decay_factor=0.5,
+        last_epoch=-1,
+    ):
         """
         Constructor of WarmupMultiStepLR.
 
@@ -61,11 +70,11 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
 
         # iterations before learning rate reaches base LR
         self.warmup_steps = perhaps_convert_float(warmup_steps, iterations)
-        logging.info(f'Scheduler warmup steps: {self.warmup_steps}')
+        logging.info(f"Scheduler warmup steps: {self.warmup_steps}")
 
         # iteration at which decay starts
         self.remain_steps = perhaps_convert_float(remain_steps, iterations)
-        logging.info(f'Scheduler remain steps: {self.remain_steps}')
+        logging.info(f"Scheduler remain steps: {self.remain_steps}")
 
         # number of steps between each decay
         if decay_interval is None:
@@ -74,21 +83,22 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
             self.decay_interval = decay_iterations // (decay_steps)
             self.decay_interval = max(self.decay_interval, 1)
         else:
-            self.decay_interval = perhaps_convert_float(decay_interval,
-                                                        iterations)
-        logging.info(f'Scheduler decay interval: {self.decay_interval}')
+            self.decay_interval = perhaps_convert_float(decay_interval, iterations)
+        logging.info(f"Scheduler decay interval: {self.decay_interval}")
 
         # multiplicative decay factor
         self.decay_factor = decay_factor
-        logging.info(f'Scheduler decay factor: {self.decay_factor}')
+        logging.info(f"Scheduler decay factor: {self.decay_factor}")
 
         # max number of decay steps
         self.decay_steps = decay_steps
-        logging.info(f'Scheduler max decay steps: {self.decay_steps}')
+        logging.info(f"Scheduler max decay steps: {self.decay_steps}")
 
         if self.warmup_steps > self.remain_steps:
-            logging.warn(f'warmup_steps should not be larger than '
-                         f'remain_steps, setting warmup_steps=remain_steps')
+            logging.warn(
+                f"warmup_steps should not be larger than "
+                f"remain_steps, setting warmup_steps=remain_steps"
+            )
             self.warmup_steps = self.remain_steps
 
         super(WarmupMultiStepLR, self).__init__(optimizer, last_epoch)
@@ -109,9 +119,9 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
             num_decay_steps = decay_iter // self.decay_interval + 1
             num_decay_steps = min(num_decay_steps, self.decay_steps)
             lr = [
-                base_lr * (self.decay_factor ** num_decay_steps)
+                base_lr * (self.decay_factor**num_decay_steps)
                 for base_lr in self.base_lrs
-                ]
+            ]
         else:
             # base lr
             lr = [base_lr for base_lr in self.base_lrs]

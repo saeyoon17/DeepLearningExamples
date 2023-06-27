@@ -17,10 +17,10 @@
 
 import tensorflow as tf
 
-__all__ = ['relu', 'softmax', 'tanh', 'sigmoid']
+__all__ = ["relu", "softmax", "tanh", "sigmoid"]
 
 
-def relu(inputs, name='relu'):
+def relu(inputs, name="relu"):
 
     net = tf.nn.relu(inputs, name=name)
 
@@ -38,14 +38,15 @@ def softmax(inputs, axis=None, name="softmax"):
     return net
 
 
-def tanh(inputs, name='tanh'):
+def tanh(inputs, name="tanh"):
 
     net = tf.math.tanh(inputs, name=name)
 
     return net
 
-def sigmoid(inputs, name='sigmoid'):
-    
+
+def sigmoid(inputs, name="sigmoid"):
+
     net = tf.math.sigmoid(inputs, name=name)
-    
+
     return net

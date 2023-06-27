@@ -69,9 +69,9 @@ class Match(object):
             ValueError: if match_results does not have rank 1 or is not an integer int32 scalar tensor
         """
         if len(match_results.shape) != 1:
-            raise ValueError('match_results should have rank 1')
+            raise ValueError("match_results should have rank 1")
         if match_results.dtype not in (torch.int32, torch.int64):
-            raise ValueError('match_results should be an int32 or int64 scalar tensor')
+            raise ValueError("match_results should be an int32 or int64 scalar tensor")
         self.match_results = match_results
 
     def matched_column_indices(self):
@@ -161,7 +161,11 @@ class Match(object):
         Returns:
             row_indices: int32 tensor of shape [K] with row indices.
         """
-        return torch.gather(self.match_results, 0, self.matched_column_indices()).flatten().long()
+        return (
+            torch.gather(self.match_results, 0, self.matched_column_indices())
+            .flatten()
+            .long()
+        )
 
     def gather_based_on_match(self, input_tensor, unmatched_value, ignored_value):
         """Gathers elements from `input_tensor` based on match results.

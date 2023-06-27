@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import yaml
 import os
-from typing import Dict
-from typing import List
+from typing import Dict, List
+
 import numpy as np
-from defaults import CATEGORICAL_CHANNEL, NUMERICAL_CHANNEL, LABEL_CHANNEL, \
-    TRAIN_MAPPING, TEST_MAPPING, \
-    CARDINALITY_SELECTOR, DTYPE_SELECTOR, \
-    SPLIT_BINARY
+import yaml
+from defaults import (CARDINALITY_SELECTOR, CATEGORICAL_CHANNEL,
+                      DTYPE_SELECTOR, LABEL_CHANNEL, NUMERICAL_CHANNEL,
+                      SPLIT_BINARY, TEST_MAPPING, TRAIN_MAPPING)
 
 """ For performance reasons, numerical features are required to appear in the same order
     in both source_spec and channel_spec.
@@ -42,7 +41,14 @@ class FeatureSpec:
     base_directory is the path relative to which all paths contained in FeatureSpec are interpreted
     """
 
-    def __init__(self, feature_spec=None, source_spec=None, channel_spec=None, metadata=None, base_directory=None):
+    def __init__(
+        self,
+        feature_spec=None,
+        source_spec=None,
+        channel_spec=None,
+        metadata=None,
+        base_directory=None,
+    ):
         self.feature_spec: Dict = feature_spec if feature_spec is not None else {}
         self.source_spec: Dict = source_spec if source_spec is not None else {}
         self.channel_spec: Dict = channel_spec if channel_spec is not None else {}
@@ -51,7 +57,7 @@ class FeatureSpec:
 
     @classmethod
     def from_yaml(cls, path):
-        with open(path, 'r') as feature_spec_file:
+        with open(path, "r") as feature_spec_file:
             base_directory = os.path.dirname(path)
             feature_spec = yaml.safe_load(feature_spec_file)
             return cls.from_dict(feature_spec, base_directory=base_directory)
@@ -61,7 +67,7 @@ class FeatureSpec:
         return cls(base_directory=base_directory, **source_dict)
 
     def to_dict(self) -> Dict:
-        attributes_to_dump = ['feature_spec', 'source_spec', 'channel_spec', 'metadata']
+        attributes_to_dump = ["feature_spec", "source_spec", "channel_spec", "metadata"]
         return {attr: self.__dict__[attr] for attr in attributes_to_dump}
 
     def to_string(self):
@@ -69,8 +75,8 @@ class FeatureSpec:
 
     def to_yaml(self, output_path=None):
         if not output_path:
-            output_path = self.base_directory + '/feature_spec.yaml'
-        with open(output_path, 'w') as output_file:
+            output_path = self.base_directory + "/feature_spec.yaml"
+        with open(output_path, "w") as output_file:
             print(yaml.dump(self.to_dict()), file=output_file)
 
     def get_number_of_numerical_features(self) -> int:
@@ -83,15 +89,17 @@ class FeatureSpec:
         return [feature_names[i] for i in positions]
 
     def get_categorical_feature_names(self):
-        """ Provides the categorical feature names. The returned order should me maintained."""
+        """Provides the categorical feature names. The returned order should me maintained."""
         return self.channel_spec[CATEGORICAL_CHANNEL]
 
     def get_categorical_sizes(self) -> List[int]:
         """For a given feature spec, this function is expected to return the sizes in the order corresponding to the
-        order in the channel_spec section """
+        order in the channel_spec section"""
         categorical_features = self.get_categorical_feature_names()
-        cardinalities = [self.feature_spec[feature_name][CARDINALITY_SELECTOR] for feature_name in
-                         categorical_features]
+        cardinalities = [
+            self.feature_spec[feature_name][CARDINALITY_SELECTOR]
+            for feature_name in categorical_features
+        ]
 
         return cardinalities
 
@@ -145,7 +153,11 @@ class FeatureSpec:
                     assert len(contained_features) == 1
 
                     # check that the type is one of the supported
-                    assert self.feature_spec[first_feature][DTYPE_SELECTOR] in {'int8', 'int16', 'int32'}
+                    assert self.feature_spec[first_feature][DTYPE_SELECTOR] in {
+                        "int8",
+                        "int16",
+                        "int32",
+                    }
 
                 elif first_feature in set_of_numerical_features:
                     # check that numerical features are all in one chunk
@@ -156,14 +168,20 @@ class FeatureSpec:
 
                     # check numerical dtype
                     for feature in contained_features:
-                        assert np.dtype(self.feature_spec[feature][DTYPE_SELECTOR]) == np.float16
+                        assert (
+                            np.dtype(self.feature_spec[feature][DTYPE_SELECTOR])
+                            == np.float16
+                        )
 
                 elif first_feature in set_of_label_features:
                     # check that label feature is in a separate chunk
                     assert len(contained_features) == 1
 
                     # check label dtype
-                    assert np.dtype(self.feature_spec[first_feature][DTYPE_SELECTOR]) == np.bool
+                    assert (
+                        np.dtype(self.feature_spec[first_feature][DTYPE_SELECTOR])
+                        == np.bool
+                    )
 
                 else:
                     assert False, "Feature of unknown type"
@@ -184,18 +202,28 @@ class FeatureSpec:
 
         # check that channels are the ones expected
         channel_name_list = list(self.channel_spec.keys())
-        assert sorted(channel_name_list) == sorted([CATEGORICAL_CHANNEL, NUMERICAL_CHANNEL, LABEL_CHANNEL])
+        assert sorted(channel_name_list) == sorted(
+            [CATEGORICAL_CHANNEL, NUMERICAL_CHANNEL, LABEL_CHANNEL]
+        )
 
         # check that all features used in channel spec are exactly ones defined in feature_spec
         feature_spec_features = list(self.feature_spec.keys())
-        channel_spec_features = list(set.union(set_of_categorical_features,
-                                               set_of_numerical_features,
-                                               {label_feature_name}))
+        channel_spec_features = list(
+            set.union(
+                set_of_categorical_features,
+                set_of_numerical_features,
+                {label_feature_name},
+            )
+        )
         assert sorted(feature_spec_features) == sorted(channel_spec_features)
 
         # check that lists in channel spec contain unique names
-        assert sorted(list(set_of_categorical_features)) == sorted(categorical_features_list)
-        assert sorted(list(set_of_numerical_features)) == sorted(numerical_features_list)
+        assert sorted(list(set_of_categorical_features)) == sorted(
+            categorical_features_list
+        )
+        assert sorted(list(set_of_numerical_features)) == sorted(
+            numerical_features_list
+        )
 
     def _check_feature_spec_section_model_specific(self):
         # check that categorical features have cardinality provided
@@ -216,32 +244,53 @@ class FeatureSpec:
         # TODO check if cardinality fits in dtype, check if base directory is set
 
     @staticmethod
-    def get_default_feature_spec(number_of_numerical_features, categorical_feature_cardinalities):
+    def get_default_feature_spec(
+        number_of_numerical_features, categorical_feature_cardinalities
+    ):
         numerical_feature_fstring = "num_{}"
         categorical_feature_fstring = "cat_{}.bin"
         label_feature_name = "label"
 
         numerical_file_name = "numerical.bin"
-        categorical_file_fstring = "{}"  # TODO remove .bin from feature name, add to file name
+        categorical_file_fstring = (
+            "{}"  # TODO remove .bin from feature name, add to file name
+        )
         label_file_name = "label.bin"
 
         number_of_categorical_features = len(categorical_feature_cardinalities)
-        numerical_feature_names = [numerical_feature_fstring.format(i) for i in range(number_of_numerical_features)]
-        categorical_feature_names = [categorical_feature_fstring.format(i) for i in
-                                     range(number_of_categorical_features)]
-        cat_feature_types = [get_categorical_feature_type(int(cat_size)) for cat_size in
-                             categorical_feature_cardinalities]
+        numerical_feature_names = [
+            numerical_feature_fstring.format(i)
+            for i in range(number_of_numerical_features)
+        ]
+        categorical_feature_names = [
+            categorical_feature_fstring.format(i)
+            for i in range(number_of_categorical_features)
+        ]
+        cat_feature_types = [
+            get_categorical_feature_type(int(cat_size))
+            for cat_size in categorical_feature_cardinalities
+        ]
 
-        feature_dict = {f_name: {DTYPE_SELECTOR: str(np.dtype(f_type)), CARDINALITY_SELECTOR: f_size}
-                        for f_name, f_type, f_size in
-                        zip(categorical_feature_names, cat_feature_types, categorical_feature_cardinalities)}
+        feature_dict = {
+            f_name: {
+                DTYPE_SELECTOR: str(np.dtype(f_type)),
+                CARDINALITY_SELECTOR: f_size,
+            }
+            for f_name, f_type, f_size in zip(
+                categorical_feature_names,
+                cat_feature_types,
+                categorical_feature_cardinalities,
+            )
+        }
         for f_name in numerical_feature_names:
             feature_dict[f_name] = {DTYPE_SELECTOR: str(np.dtype(np.float16))}
         feature_dict[label_feature_name] = {DTYPE_SELECTOR: str(np.dtype(np.bool))}
 
-        channel_spec = {CATEGORICAL_CHANNEL: categorical_feature_names,
-                        NUMERICAL_CHANNEL: numerical_feature_names,
-                        LABEL_CHANNEL: [label_feature_name]}
+        channel_spec = {
+            CATEGORICAL_CHANNEL: categorical_feature_names,
+            NUMERICAL_CHANNEL: numerical_feature_names,
+            LABEL_CHANNEL: [label_feature_name],
+        }
         source_spec = {}
 
         for filename in (TRAIN_MAPPING, TEST_MAPPING):
@@ -249,23 +298,40 @@ class FeatureSpec:
             dst_folder = filename
 
             numerical_file_path = os.path.join(dst_folder, numerical_file_name)
-            source_spec[filename].append({TYPE_SELECTOR: SPLIT_BINARY,
-                                          FEATURES_SELECTOR: numerical_feature_names,
-                                          FILES_SELECTOR: [numerical_file_path]})
+            source_spec[filename].append(
+                {
+                    TYPE_SELECTOR: SPLIT_BINARY,
+                    FEATURES_SELECTOR: numerical_feature_names,
+                    FILES_SELECTOR: [numerical_file_path],
+                }
+            )
 
             label_file_path = os.path.join(dst_folder, label_file_name)
-            source_spec[filename].append({TYPE_SELECTOR: SPLIT_BINARY,
-                                          FEATURES_SELECTOR: [label_feature_name],
-                                          FILES_SELECTOR: [label_file_path]})
+            source_spec[filename].append(
+                {
+                    TYPE_SELECTOR: SPLIT_BINARY,
+                    FEATURES_SELECTOR: [label_feature_name],
+                    FILES_SELECTOR: [label_file_path],
+                }
+            )
 
             for feature_name in categorical_feature_names:
                 categorical_file_name = categorical_file_fstring.format(feature_name)
                 categorical_file_path = os.path.join(dst_folder, categorical_file_name)
-                source_spec[filename].append({TYPE_SELECTOR: SPLIT_BINARY,
-                                              FEATURES_SELECTOR: [feature_name],
-                                              FILES_SELECTOR: [categorical_file_path]})
+                source_spec[filename].append(
+                    {
+                        TYPE_SELECTOR: SPLIT_BINARY,
+                        FEATURES_SELECTOR: [feature_name],
+                        FILES_SELECTOR: [categorical_file_path],
+                    }
+                )
 
-        return FeatureSpec(feature_spec=feature_dict, source_spec=source_spec, channel_spec=channel_spec, metadata={})
+        return FeatureSpec(
+            feature_spec=feature_dict,
+            source_spec=source_spec,
+            channel_spec=channel_spec,
+            metadata={},
+        )
 
     def get_mapping_paths(self, mapping_name: str):
         label_feature_name = self.channel_spec[LABEL_CHANNEL][0]
@@ -290,11 +356,13 @@ class FeatureSpec:
 
 def get_categorical_feature_type(size: int):
     """This function works both when max value and cardinality is passed.
-        Consistency by the user is required"""
+    Consistency by the user is required"""
     types = (np.int8, np.int16, np.int32)
 
     for numpy_type in types:
         if size < np.iinfo(numpy_type).max:
             return numpy_type
 
-    raise RuntimeError(f"Categorical feature of size {size} is too big for defined types")
+    raise RuntimeError(
+        f"Categorical feature of size {size} is too big for defined types"
+    )

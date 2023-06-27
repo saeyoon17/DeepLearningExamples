@@ -33,77 +33,156 @@ import sys
 import time
 from argparse import ArgumentParser
 
-import tensorflow as tf
-import pandas as pd
-import numpy as np
 import cupy as cp
-import horovod.tensorflow as hvd
-
-from mpi4py import MPI
-
-from neumf import ncf_model_ops
-from input_pipeline import DataGenerator
-
 import dllogger
+import horovod.tensorflow as hvd
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from input_pipeline import DataGenerator
+from mpi4py import MPI
+from neumf import ncf_model_ops
 
 
 def parse_args():
     """
     Parse command line arguments.
     """
-    parser = ArgumentParser(description="Train a Neural Collaborative"
-                                        " Filtering model")
-    parser.add_argument('--data', type=str,
-                        help='path to test and training data files')
-    parser.add_argument('-e', '--epochs', type=int, default=30,
-                        help='number of epochs to train for')
-    parser.add_argument('-b', '--batch-size', type=int, default=1048576,
-                        help='number of examples for each iteration')
-    parser.add_argument('--valid-users-per-batch', type=int, default=5000,
-                        help='Number of users tested in each evaluation batch')
-    parser.add_argument('-f', '--factors', type=int, default=64,
-                        help='number of predictive factors')
-    parser.add_argument('--layers', nargs='+', type=int,
-                        default=[256, 256, 128, 64],
-                        help='size of hidden layers for MLP')
-    parser.add_argument('-n', '--negative-samples', type=int, default=4,
-                        help='number of negative examples per interaction')
-    parser.add_argument('-l', '--learning-rate', type=float, default=0.0045,
-                        help='learning rate for optimizer')
-    parser.add_argument('-k', '--topk', type=int, default=10,
-                        help='rank for test examples to be considered a hit')
-    parser.add_argument('--seed', '-s', type=int, default=None,
-                        help='manually set random seed for random number generation')
-    parser.add_argument('--target', '-t', type=float, default=0.9562,
-                        help='stop training early at target')
-    parser.add_argument('--amp', action='store_true', dest='amp', default=False,
-                        help='enable half-precision computations using automatic mixed precision \
-                              (only available in supported containers)')
-    parser.add_argument('--xla', action='store_true',
-                        help='enable TensorFlow XLA (Accelerated Linear Algebra)')
-    parser.add_argument('--valid-negative', type=int, default=100,
-                        help='Number of negative samples for each positive test example')
-    parser.add_argument('--beta1', '-b1', type=float, default=0.25,
-                        help='beta1 for Adam')
-    parser.add_argument('--beta2', '-b2', type=float, default=0.5,
-                        help='beta2 for Adam')
-    parser.add_argument('--eps', type=float, default=1e-8,
-                        help='epsilon for Adam')
-    parser.add_argument('--dropout', type=float, default=0.5,
-                        help='Dropout probability, if equal to 0 will not use dropout at all')
-    parser.add_argument('--loss-scale', default=8192, type=int,
-                        help='Loss scale value to use when manually enabling mixed precision')
-    parser.add_argument('--checkpoint-dir', default=None, type=str,
-                        help='Path to the store the result checkpoint file for training')
-    parser.add_argument('--load-checkpoint-path', default=None, type=str,
-                        help='Path to the checkpoint for initialization. If None will initialize with random weights')
-    parser.add_argument('--mode', choices=['train', 'test'], default='train', type=str,
-                        help='Passing "test" will only run a single evaluation, \
-                              otherwise full training will be performed')
-    parser.add_argument('--eval-after', type=int, default=8,
-                        help='Perform evaluations only after this many epochs')
-    parser.add_argument('--log-path', default='log.json', type=str,
-                        help='Path for the JSON training log')
+    parser = ArgumentParser(
+        description="Train a Neural Collaborative" " Filtering model"
+    )
+    parser.add_argument("--data", type=str, help="path to test and training data files")
+    parser.add_argument(
+        "-e", "--epochs", type=int, default=30, help="number of epochs to train for"
+    )
+    parser.add_argument(
+        "-b",
+        "--batch-size",
+        type=int,
+        default=1048576,
+        help="number of examples for each iteration",
+    )
+    parser.add_argument(
+        "--valid-users-per-batch",
+        type=int,
+        default=5000,
+        help="Number of users tested in each evaluation batch",
+    )
+    parser.add_argument(
+        "-f", "--factors", type=int, default=64, help="number of predictive factors"
+    )
+    parser.add_argument(
+        "--layers",
+        nargs="+",
+        type=int,
+        default=[256, 256, 128, 64],
+        help="size of hidden layers for MLP",
+    )
+    parser.add_argument(
+        "-n",
+        "--negative-samples",
+        type=int,
+        default=4,
+        help="number of negative examples per interaction",
+    )
+    parser.add_argument(
+        "-l",
+        "--learning-rate",
+        type=float,
+        default=0.0045,
+        help="learning rate for optimizer",
+    )
+    parser.add_argument(
+        "-k",
+        "--topk",
+        type=int,
+        default=10,
+        help="rank for test examples to be considered a hit",
+    )
+    parser.add_argument(
+        "--seed",
+        "-s",
+        type=int,
+        default=None,
+        help="manually set random seed for random number generation",
+    )
+    parser.add_argument(
+        "--target",
+        "-t",
+        type=float,
+        default=0.9562,
+        help="stop training early at target",
+    )
+    parser.add_argument(
+        "--amp",
+        action="store_true",
+        dest="amp",
+        default=False,
+        help="enable half-precision computations using automatic mixed precision \
+                              (only available in supported containers)",
+    )
+    parser.add_argument(
+        "--xla",
+        action="store_true",
+        help="enable TensorFlow XLA (Accelerated Linear Algebra)",
+    )
+    parser.add_argument(
+        "--valid-negative",
+        type=int,
+        default=100,
+        help="Number of negative samples for each positive test example",
+    )
+    parser.add_argument(
+        "--beta1", "-b1", type=float, default=0.25, help="beta1 for Adam"
+    )
+    parser.add_argument(
+        "--beta2", "-b2", type=float, default=0.5, help="beta2 for Adam"
+    )
+    parser.add_argument("--eps", type=float, default=1e-8, help="epsilon for Adam")
+    parser.add_argument(
+        "--dropout",
+        type=float,
+        default=0.5,
+        help="Dropout probability, if equal to 0 will not use dropout at all",
+    )
+    parser.add_argument(
+        "--loss-scale",
+        default=8192,
+        type=int,
+        help="Loss scale value to use when manually enabling mixed precision",
+    )
+    parser.add_argument(
+        "--checkpoint-dir",
+        default=None,
+        type=str,
+        help="Path to the store the result checkpoint file for training",
+    )
+    parser.add_argument(
+        "--load-checkpoint-path",
+        default=None,
+        type=str,
+        help="Path to the checkpoint for initialization. If None will initialize with random weights",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["train", "test"],
+        default="train",
+        type=str,
+        help='Passing "test" will only run a single evaluation, \
+                              otherwise full training will be performed',
+    )
+    parser.add_argument(
+        "--eval-after",
+        type=int,
+        default=8,
+        help="Perform evaluations only after this many epochs",
+    )
+    parser.add_argument(
+        "--log-path",
+        default="log.json",
+        type=str,
+        help="Path for the JSON training log",
+    )
 
     return parser.parse_args()
 
@@ -113,14 +192,14 @@ def hvd_init():
     Initialize Horovod
     """
     # Reduce logging
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
     tf.logging.set_verbosity(tf.logging.ERROR)
     # Initialize horovod
     hvd.init()
 
     if hvd.rank() == 0:
-        print('PY', sys.version)
-        print('TF', tf.__version__)
+        print("PY", sys.version)
+        print("TF", tf.__version__)
 
 
 def get_local_train_data(pos_train_users, pos_train_items, negative_samples):
@@ -129,8 +208,8 @@ def get_local_train_data(pos_train_users, pos_train_items, negative_samples):
     """
     num_pos_samples = pos_train_users.shape[0]
     # Create the entire train set
-    all_train_users = np.tile(pos_train_users, negative_samples+1)
-    all_train_items = np.tile(pos_train_items, negative_samples+1)
+    all_train_users = np.tile(pos_train_users, negative_samples + 1)
+    all_train_items = np.tile(pos_train_items, negative_samples + 1)
     all_train_labels = np.zeros_like(all_train_users, dtype=np.float32)
     all_train_labels[:num_pos_samples] = 1.0
 
@@ -170,9 +249,14 @@ def main():
     args = parse_args()
 
     if hvd.rank() == 0:
-        dllogger.init(backends=[dllogger.JSONStreamBackend(verbosity=dllogger.Verbosity.VERBOSE,
-                                                           filename=args.log_path),
-                                dllogger.StdOutBackend(verbosity=dllogger.Verbosity.VERBOSE)])
+        dllogger.init(
+            backends=[
+                dllogger.JSONStreamBackend(
+                    verbosity=dllogger.Verbosity.VERBOSE, filename=args.log_path
+                ),
+                dllogger.StdOutBackend(verbosity=dllogger.Verbosity.VERBOSE),
+            ]
+        )
     else:
         dllogger.init(backends=[])
 
@@ -185,7 +269,7 @@ def main():
     dllogger.metadata("average_eval_throughput", {"unit": "samples/s"})
 
     args.world_size = hvd.size()
-    dllogger.log(data=vars(args), step='PARAMETER')
+    dllogger.log(data=vars(args), step="PARAMETER")
 
     if args.seed is None:
         if hvd.rank() == 0:
@@ -206,13 +290,13 @@ def main():
 
     if args.checkpoint_dir is not None:
         os.makedirs(args.checkpoint_dir, exist_ok=True)
-        final_checkpoint_path = os.path.join(args.checkpoint_dir, 'model.ckpt')
+        final_checkpoint_path = os.path.join(args.checkpoint_dir, "model.ckpt")
     else:
         final_checkpoint_path = None
 
     # Load converted data and get statistics
-    train_df = pd.read_pickle(args.data+'/train_ratings.pickle')
-    test_df = pd.read_pickle(args.data+'/test_ratings.pickle')
+    train_df = pd.read_pickle(args.data + "/train_ratings.pickle")
+    test_df = pd.read_pickle(args.data + "/test_ratings.pickle")
     nb_users, nb_items = train_df.max() + 1
 
     # Extract train and test feature tensors from dataframe
@@ -228,9 +312,7 @@ def main():
     train_users, train_items, train_labels = get_local_train_data(
         pos_train_users, pos_train_items, args.negative_samples
     )
-    test_users, test_items = get_local_test_data(
-        pos_test_users, pos_test_items
-    )
+    test_users, test_items = get_local_test_data(pos_test_users, pos_test_items)
 
     # Create and run Data Generator in a separate thread
     data_generator = DataGenerator(
@@ -248,14 +330,16 @@ def main():
         test_items,
         args.valid_users_per_batch,
         args.valid_negative,
-        )
+    )
 
     # Create tensorflow session and saver
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     config.gpu_options.visible_device_list = str(hvd.local_rank())
     if args.xla:
-        config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+        config.graph_options.optimizer_options.global_jit_level = (
+            tf.OptimizerOptions.ON_1
+        )
     sess = tf.Session(config=config)
 
     # Input tensors
@@ -271,31 +355,31 @@ def main():
         labels,
         is_dup,
         params={
-            'val_batch_size': args.valid_negative+1,
-            'top_k': args.topk,
-            'learning_rate': args.learning_rate,
-            'beta_1': args.beta1,
-            'beta_2': args.beta2,
-            'epsilon': args.eps,
-            'num_users': nb_users,
-            'num_items': nb_items,
-            'num_factors': args.factors,
-            'mf_reg': 0,
-            'layer_sizes': args.layers,
-            'layer_regs': [0. for i in args.layers],
-            'dropout': dropout,
-            'sigmoid': True,
-            'loss_scale': args.loss_scale
+            "val_batch_size": args.valid_negative + 1,
+            "top_k": args.topk,
+            "learning_rate": args.learning_rate,
+            "beta_1": args.beta1,
+            "beta_2": args.beta2,
+            "epsilon": args.eps,
+            "num_users": nb_users,
+            "num_items": nb_items,
+            "num_factors": args.factors,
+            "mf_reg": 0,
+            "layer_sizes": args.layers,
+            "layer_regs": [0.0 for i in args.layers],
+            "dropout": dropout,
+            "sigmoid": True,
+            "loss_scale": args.loss_scale,
         },
-        mode='TRAIN' if args.mode == 'train' else 'EVAL'
+        mode="TRAIN" if args.mode == "train" else "EVAL",
     )
     saver = tf.train.Saver()
 
     # Accuracy metric tensors
-    hr_sum = tf.get_default_graph().get_tensor_by_name('neumf/hit_rate/total:0')
-    hr_cnt = tf.get_default_graph().get_tensor_by_name('neumf/hit_rate/count:0')
-    ndcg_sum = tf.get_default_graph().get_tensor_by_name('neumf/ndcg/total:0')
-    ndcg_cnt = tf.get_default_graph().get_tensor_by_name('neumf/ndcg/count:0')
+    hr_sum = tf.get_default_graph().get_tensor_by_name("neumf/hit_rate/total:0")
+    hr_cnt = tf.get_default_graph().get_tensor_by_name("neumf/hit_rate/count:0")
+    ndcg_sum = tf.get_default_graph().get_tensor_by_name("neumf/ndcg/total:0")
+    ndcg_cnt = tf.get_default_graph().get_tensor_by_name("neumf/ndcg/count:0")
 
     # Prepare evaluation data
     data_generator.prepare_eval_data()
@@ -307,18 +391,22 @@ def main():
         sess.run(tf.global_variables_initializer())
 
     # If test mode, run one eval
-    if args.mode == 'test':
+    if args.mode == "test":
         sess.run(tf.local_variables_initializer())
         eval_start = time.time()
-        for user_batch, item_batch, dup_batch \
-            in zip(data_generator.eval_users, data_generator.eval_items, data_generator.dup_mask):
+        for user_batch, item_batch, dup_batch in zip(
+            data_generator.eval_users,
+            data_generator.eval_items,
+            data_generator.dup_mask,
+        ):
             sess.run(
                 eval_op,
                 feed_dict={
                     users: user_batch,
                     items: item_batch,
-                    is_dup:dup_batch, dropout: 0.0
-                }
+                    is_dup: dup_batch,
+                    dropout: 0.0,
+                },
             )
         eval_duration = time.time() - eval_start
 
@@ -332,11 +420,18 @@ def main():
         ndcg = ndcg_sum / ndcg_cnt
 
         if hvd.rank() == 0:
-            eval_throughput = pos_test_users.shape[0] * (args.valid_negative + 1) / eval_duration
-            dllogger.log(step=tuple(), data={'eval_throughput': eval_throughput,
-                                             'eval_time': eval_duration,
-                                             'hr@10': float(hit_rate),
-                                             'ndcg': float(ndcg)})
+            eval_throughput = (
+                pos_test_users.shape[0] * (args.valid_negative + 1) / eval_duration
+            )
+            dllogger.log(
+                step=tuple(),
+                data={
+                    "eval_throughput": eval_throughput,
+                    "eval_time": eval_duration,
+                    "hr@10": float(hit_rate),
+                    "ndcg": float(ndcg),
+                },
+            )
         return
 
     # Performance Metrics
@@ -362,17 +457,18 @@ def main():
         # Train for one epoch
         train_start = time.time()
         data_generator.prepare_train_data()
-        for user_batch, item_batch, label_batch \
-            in zip(data_generator.train_users_batches,
-                   data_generator.train_items_batches,
-                   data_generator.train_labels_batches):
+        for user_batch, item_batch, label_batch in zip(
+            data_generator.train_users_batches,
+            data_generator.train_items_batches,
+            data_generator.train_labels_batches,
+        ):
             sess.run(
                 train_op,
                 feed_dict={
                     users: user_batch.get(),
                     items: item_batch.get(),
-                    labels: label_batch.get()
-                }
+                    labels: label_batch.get(),
+                },
             )
         train_duration = time.time() - train_start
         # Only log "warm" epochs
@@ -382,18 +478,19 @@ def main():
         if epoch > args.eval_after:
             eval_start = time.time()
             sess.run(tf.local_variables_initializer())
-            for user_batch, item_batch, dup_batch \
-                in zip(data_generator.eval_users,
-                       data_generator.eval_items,
-                       data_generator.dup_mask):
+            for user_batch, item_batch, dup_batch in zip(
+                data_generator.eval_users,
+                data_generator.eval_items,
+                data_generator.dup_mask,
+            ):
                 sess.run(
                     eval_op,
                     feed_dict={
                         users: user_batch,
                         items: item_batch,
                         is_dup: dup_batch,
-                        dropout: 0.0
-                    }
+                        dropout: 0.0,
+                    },
                 )
             # Compute local metrics
             local_hr_sum[0] = sess.run(hr_sum)
@@ -417,11 +514,15 @@ def main():
                 eval_times.append(eval_duration)
 
             if hvd.rank() == 0:
-                dllogger.log(step=(epoch,), data={
-                                'train_time': train_duration,
-                                'eval_time': eval_duration,
-                                'hr@10': hit_rate,
-                                'ndcg': ndcg})
+                dllogger.log(
+                    step=(epoch,),
+                    data={
+                        "train_time": train_duration,
+                        "eval_time": eval_duration,
+                        "hr@10": hit_rate,
+                        "ndcg": ndcg,
+                    },
+                )
 
                 # Update summary metrics
                 if hit_rate > args.target and first_to_target is None:
@@ -435,23 +536,31 @@ def main():
     # Final Summary
     if hvd.rank() == 0:
         train_times = np.array(train_times)
-        train_throughputs = pos_train_users.shape[0]*(args.negative_samples+1) / train_times
+        train_throughputs = (
+            pos_train_users.shape[0] * (args.negative_samples + 1) / train_times
+        )
         eval_times = np.array(eval_times)
-        eval_throughputs = pos_test_users.shape[0]*(args.valid_negative+1) / eval_times
+        eval_throughputs = (
+            pos_test_users.shape[0] * (args.valid_negative + 1) / eval_times
+        )
 
-        dllogger.log(step=tuple(), data={
-            'average_train_time_per_epoch': np.mean(train_times),
-            'average_train_throughput': np.mean(train_throughputs),
-            'average_eval_time_per_epoch': np.mean(eval_times),
-            'average_eval_throughput': np.mean(eval_throughputs),
-            'first_epoch_to_hit': first_to_target,
-            'best_hr': best_hr,
-            'best_epoch': best_epoch})
+        dllogger.log(
+            step=tuple(),
+            data={
+                "average_train_time_per_epoch": np.mean(train_times),
+                "average_train_throughput": np.mean(train_throughputs),
+                "average_eval_time_per_epoch": np.mean(eval_times),
+                "average_eval_throughput": np.mean(eval_throughputs),
+                "first_epoch_to_hit": first_to_target,
+                "best_hr": best_hr,
+                "best_epoch": best_epoch,
+            },
+        )
         dllogger.flush()
 
     sess.close()
     return
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

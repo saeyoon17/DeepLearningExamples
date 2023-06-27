@@ -74,14 +74,20 @@ class PerformanceCalculator:
         return results
 
     def _calculate_latency(self):
-        latency_stats = {"latency_mean": 1000 * np.mean(self.step_latencies)}  # in milliseconds
+        latency_stats = {
+            "latency_mean": 1000 * np.mean(self.step_latencies)
+        }  # in milliseconds
         for p in self.latency_percentiles:
-            latency_stats[f"latency_p{p}"] = 1000 * np.percentile(self.step_latencies, p)
+            latency_stats[f"latency_p{p}"] = 1000 * np.percentile(
+                self.step_latencies, p
+            )
         return latency_stats
 
     def _calculate_throughput(self):
         time_elapsed = perf_counter() - self.benchmark_start_time
-        time_elapsed_after_warmup = perf_counter() - self.benchmark_after_warmup_start_time
+        time_elapsed_after_warmup = (
+            perf_counter() - self.benchmark_after_warmup_start_time
+        )
         all_samples = hvd.allreduce(self.samples, op=Sum)
         benchmark_throughput = all_samples.numpy() / time_elapsed_after_warmup
         return {"throughput": benchmark_throughput, "time": time_elapsed}

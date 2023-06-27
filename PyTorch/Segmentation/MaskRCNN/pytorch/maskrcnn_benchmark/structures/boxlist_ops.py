@@ -1,10 +1,9 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 import torch
+from maskrcnn_benchmark import _C
+from maskrcnn_benchmark.layers import nms as _box_nms
 
 from .bounding_box import BoxList
-
-from maskrcnn_benchmark.layers import nms as _box_nms
-from maskrcnn_benchmark import _C
 
 
 def boxlist_nms(boxlist, nms_thresh, max_proposals=-1, score_field="score"):
@@ -27,7 +26,7 @@ def boxlist_nms(boxlist, nms_thresh, max_proposals=-1, score_field="score"):
     score = boxlist.get_field(score_field)
     keep = _box_nms(boxes, score, nms_thresh)
     if max_proposals > 0:
-        keep = keep[: max_proposals]
+        keep = keep[:max_proposals]
     boxlist = boxlist[keep]
     return boxlist.convert(mode)
 
@@ -43,9 +42,7 @@ def remove_small_boxes(boxlist, min_size):
     # TODO maybe add an API for querying the ws / hs
     xywh_boxes = boxlist.convert("xywh").bbox
     _, _, ws, hs = xywh_boxes.unbind(dim=1)
-    keep = (
-        (ws >= min_size) & (hs >= min_size)
-    ).nonzero().squeeze(1)
+    keep = ((ws >= min_size) & (hs >= min_size)).nonzero().squeeze(1)
     return boxlist[keep]
 
 
@@ -67,10 +64,13 @@ def boxlist_iou(boxlist1, boxlist2):
     """
     if boxlist1.size != boxlist2.size:
         raise RuntimeError(
-                "boxlists should have same image size, got {}, {}".format(boxlist1, boxlist2))
+            "boxlists should have same image size, got {}, {}".format(
+                boxlist1, boxlist2
+            )
+        )
     box1, box2 = boxlist1.bbox, boxlist2.bbox
-    if (box1.is_cuda and box2.is_cuda):
-        iou = _C.box_iou(box1,box2)
+    if box1.is_cuda and box2.is_cuda:
+        iou = _C.box_iou(box1, box2)
     else:
         N = len(boxlist1)
         M = len(boxlist2)

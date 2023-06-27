@@ -23,7 +23,6 @@ import time
 
 import dllogger
 import torch.utils.collect_env
-
 import utils
 
 
@@ -31,6 +30,7 @@ class AverageMeter:
     """
     Computes and stores the average and current value
     """
+
     def __init__(self, warmup=0, keep=False):
         self.reset()
         self.warmup = warmup
@@ -68,7 +68,7 @@ class TimeoutHandler:
         def handler(signum, frame):
             self.release()
             self.interrupted = True
-            logging.info(f'Received SIGTERM')
+            logging.info(f"Received SIGTERM")
 
         signal.signal(self.sig, handler)
         return self
@@ -87,7 +87,8 @@ class TimeoutHandler:
 
 def register_ignoring_timeout_handler(sig=signal.SIGTERM):
     def handler(signum, frame):
-        logging.info('Received SIGTERM, ignoring')
+        logging.info("Received SIGTERM, ignoring")
+
     signal.signal(sig, handler)
 
 
@@ -95,37 +96,40 @@ def log_env_info():
     """
     Prints information about execution environment.
     """
-    logging.info('Collecting environment information...')
+    logging.info("Collecting environment information...")
     env_info = torch.utils.collect_env.get_pretty_env_info()
-    logging.info(f'{env_info}')
+    logging.info(f"{env_info}")
 
 
-def benchmark(test_perplexity=None, target_perplexity=None,
-              test_throughput=None, target_throughput=None):
+def benchmark(
+    test_perplexity=None,
+    target_perplexity=None,
+    test_throughput=None,
+    target_throughput=None,
+):
     def test(achieved, target, name, higher_better=True):
         passed = True
         if target is not None and achieved is not None:
-            logging.info(f'{name} achieved: {achieved:.2f} '
-                         f'target: {target:.2f}')
+            logging.info(f"{name} achieved: {achieved:.2f} " f"target: {target:.2f}")
             if higher_better:
-                result = (achieved >= target)
+                result = achieved >= target
             else:
-                result = (achieved <= target)
+                result = achieved <= target
 
             if result:
-                logging.info(f'{name} test passed')
+                logging.info(f"{name} test passed")
             else:
-                logging.info(f'{name} test failed')
+                logging.info(f"{name} test failed")
                 passed = False
         return passed
 
     passed = True
-    passed &= test(test_perplexity, target_perplexity, 'Perplexity', False)
-    passed &= test(test_throughput, target_throughput, 'Throughput')
+    passed &= test(test_perplexity, target_perplexity, "Perplexity", False)
+    passed &= test(test_throughput, target_throughput, "Throughput")
     return passed
 
 
-def setup_logging(log_all_ranks=True, filename=os.devnull, filemode='w'):
+def setup_logging(log_all_ranks=True, filename=os.devnull, filemode="w"):
     """
     Configures logging.
     By default logs from all workers are printed to the console, entries are
@@ -133,6 +137,7 @@ def setup_logging(log_all_ranks=True, filename=os.devnull, filemode='w'):
     console don't include timestaps.
     Full logs with timestamps are saved to the log_file file.
     """
+
     class RankFilter(logging.Filter):
         def __init__(self, rank, log_all_ranks):
             self.rank = rank
@@ -143,7 +148,7 @@ def setup_logging(log_all_ranks=True, filename=os.devnull, filemode='w'):
             if self.log_all_ranks:
                 return True
             else:
-                return (self.rank == 0)
+                return self.rank == 0
 
     rank = utils.distributed.get_rank()
     rank_filter = RankFilter(rank, log_all_ranks)
@@ -159,20 +164,22 @@ def setup_logging(log_all_ranks=True, filename=os.devnull, filemode='w'):
         logging.root.removeHandler(handler)
         handler.close()
 
-    logging.basicConfig(level=logging.DEBUG,
-                        format=logging_format,
-                        datefmt="%Y-%m-%d %H:%M:%S",
-                        filename=filename,
-                        filemode=filemode)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format=logging_format,
+        datefmt="%Y-%m-%d %H:%M:%S",
+        filename=filename,
+        filemode=filemode,
+    )
     console = logging.StreamHandler(sys.stdout)
     console.setLevel(logging.INFO)
     if log_all_ranks:
-        formatter = logging.Formatter('%(rank)s: %(message)s')
+        formatter = logging.Formatter("%(rank)s: %(message)s")
     else:
-        formatter = logging.Formatter('%(message)s')
+        formatter = logging.Formatter("%(message)s")
     console.setFormatter(formatter)
-    logging.getLogger('').addHandler(console)
-    logging.getLogger('').addFilter(rank_filter)
+    logging.getLogger("").addHandler(console)
+    logging.getLogger("").addFilter(rank_filter)
 
 
 def setup_dllogger(enabled=True, filename=os.devnull):
@@ -183,8 +190,8 @@ def setup_dllogger(enabled=True, filename=os.devnull):
             dllogger.JSONStreamBackend(
                 dllogger.Verbosity.VERBOSE,
                 filename,
-                ),
-            ]
+            ),
+        ]
         dllogger.init(backends)
     else:
         dllogger.init([])
@@ -196,33 +203,33 @@ def create_exp_dir(dir_path, scripts_to_save=None, debug=False):
 
     os.makedirs(dir_path, exist_ok=True)
 
-    print('Experiment dir : {}'.format(dir_path))
+    print("Experiment dir : {}".format(dir_path))
     if scripts_to_save is not None:
-        script_path = os.path.join(dir_path, 'scripts')
+        script_path = os.path.join(dir_path, "scripts")
         os.makedirs(script_path, exist_ok=True)
         for script in scripts_to_save:
-            dst_file = os.path.join(dir_path, 'scripts', os.path.basename(script))
+            dst_file = os.path.join(dir_path, "scripts", os.path.basename(script))
             shutil.copyfile(script, dst_file)
 
 
 def build_work_dir_name(work_dir, dataset, append_dataset, append_time):
     if append_dataset:
-        work_dir = '{}-{}'.format(work_dir, dataset)
+        work_dir = "{}-{}".format(work_dir, dataset)
 
     if append_time:
         now = int(time.time())
-        now_max = utils.distributed.all_reduce_item(now, op='max')
-        now_str = datetime.datetime.fromtimestamp(now_max).strftime('%Y%m%d-%H%M%S')
+        now_max = utils.distributed.all_reduce_item(now, op="max")
+        now_str = datetime.datetime.fromtimestamp(now_max).strftime("%Y%m%d-%H%M%S")
 
         work_dir = os.path.join(work_dir, now_str)
     return work_dir
 
 
 def l2_promote():
-    _libcudart = ctypes.CDLL('libcudart.so')
+    _libcudart = ctypes.CDLL("libcudart.so")
     # Set device limit on the current device
     # cudaLimitMaxL2FetchGranularity = 0x05
-    pValue = ctypes.cast((ctypes.c_int*1)(), ctypes.POINTER(ctypes.c_int))
+    pValue = ctypes.cast((ctypes.c_int * 1)(), ctypes.POINTER(ctypes.c_int))
     _libcudart.cudaDeviceSetLimit(ctypes.c_int(0x05), ctypes.c_int(128))
     _libcudart.cudaDeviceGetLimit(pValue, ctypes.c_int(0x05))
     assert pValue.contents.value == 128
@@ -239,15 +246,15 @@ def get_default_rng_states(device):
     Returns a list of random states indexed with a distributed rank. All
     generator states are in host memory.
     """
-    if device == torch.device('cuda'):
+    if device == torch.device("cuda"):
         state = torch.cuda.get_rng_state()
-    elif device == torch.device('cpu'):
+    elif device == torch.device("cpu"):
         state = torch.random.get_rng_state()
     else:
-        raise RuntimeError('Unknown device')
+        raise RuntimeError("Unknown device")
 
     states = utils.distributed.all_gather_tensors(state, device)
-    states = [state.to(torch.device('cpu')) for state in states]
+    states = [state.to(torch.device("cpu")) for state in states]
     return states
 
 
@@ -257,9 +264,9 @@ def set_default_rng_states(rng_states, device):
     distributed training.
     """
     rank = utils.distributed.get_rank()
-    rng_states = [s.to(torch.device('cpu')) for s in rng_states]
+    rng_states = [s.to(torch.device("cpu")) for s in rng_states]
 
-    if device == torch.device('cuda'):
+    if device == torch.device("cuda"):
         torch.cuda.set_rng_state(rng_states[rank])
-    elif device.type == 'cpu':
+    elif device.type == "cpu":
         torch.random.set_rng_state(rng_states[rank])

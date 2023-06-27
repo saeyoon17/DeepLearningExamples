@@ -35,11 +35,12 @@
 
 
 import math
+
 import torch
 import torch.nn as nn
-
 from moflow.config import Config
 from moflow.model.glow import Glow, GlowOnGraph
+
 
 def gaussian_nll(x, mean, ln_var):
     """Computes the negative log-likelihood of a Gaussian distribution.
@@ -88,7 +89,7 @@ class MoFlowLoss(nn.Module):
         if config.model_config.learn_dist:
             self.ln_var = nn.Parameter(torch.zeros(1))
         else:
-            self.register_buffer('ln_var', torch.zeros(1))
+            self.register_buffer("ln_var", torch.zeros(1))
 
     def forward(self, h, adj_h, sum_log_det_jacs_x, sum_log_det_jacs_adj):
         z = [h, adj_h]
@@ -96,22 +97,40 @@ class MoFlowLoss(nn.Module):
 
         device = z[0].device
         dtype = z[0].dtype
-        z[0] = z[0].reshape(z[0].shape[0],-1)
+        z[0] = z[0].reshape(z[0].shape[0], -1)
         z[1] = z[1].reshape(z[1].shape[0], -1)
 
-        logdet[0] = logdet[0] - self.a_size * math.log(2.)
-        logdet[1] = logdet[1] - self.b_size * math.log(2.)
+        logdet[0] = logdet[0] - self.a_size * math.log(2.0)
+        logdet[1] = logdet[1] - self.b_size * math.log(2.0)
         ln_var_adj = self.ln_var * torch.ones([self.b_size], device=device, dtype=dtype)
         ln_var_x = self.ln_var * torch.ones([self.a_size], device=device, dtype=dtype)
         nll_adj = torch.mean(
-            torch.sum(gaussian_nll(z[1], torch.zeros(self.b_size, device=device, dtype=dtype), ln_var_adj), dim=1)
-            - logdet[1])
-        nll_adj = nll_adj / (self.b_size * math.log(2.))  # the negative log likelihood per dim with log base 2
+            torch.sum(
+                gaussian_nll(
+                    z[1],
+                    torch.zeros(self.b_size, device=device, dtype=dtype),
+                    ln_var_adj,
+                ),
+                dim=1,
+            )
+            - logdet[1]
+        )
+        nll_adj = nll_adj / (
+            self.b_size * math.log(2.0)
+        )  # the negative log likelihood per dim with log base 2
 
-        nll_x = torch.mean(torch.sum(
-            gaussian_nll(z[0], torch.zeros(self.a_size, device=device, dtype=dtype), ln_var_x),
-            dim=1) - logdet[0])
-        nll_x = nll_x / (self.a_size * math.log(2.))  # the negative log likelihood per dim with log base 2
+        nll_x = torch.mean(
+            torch.sum(
+                gaussian_nll(
+                    z[0], torch.zeros(self.a_size, device=device, dtype=dtype), ln_var_x
+                ),
+                dim=1,
+            )
+            - logdet[0]
+        )
+        nll_x = nll_x / (
+            self.a_size * math.log(2.0)
+        )  # the negative log likelihood per dim with log base 2
 
         return nll_x, nll_adj
 
@@ -133,15 +152,15 @@ class MoFlow(nn.Module):
             n_block=config.model_config.bond_config.n_block,
             squeeze_fold=config.model_config.bond_config.n_squeeze,
             hidden_channel=config.model_config.bond_config.hidden_ch,
-            conv_lu=config.model_config.bond_config.conv_lu
+            conv_lu=config.model_config.bond_config.conv_lu,
         )
 
         self.atom_model = GlowOnGraph(
             n_node=self.a_n_node,
             in_dim=self.a_n_type,
             hidden_dim_dict={
-                'gnn': config.model_config.atom_config.hidden_gnn,
-                'linear': config.model_config.atom_config.hidden_lin
+                "gnn": config.model_config.atom_config.hidden_gnn,
+                "linear": config.model_config.atom_config.hidden_lin,
             },
             n_flow=config.model_config.atom_config.n_flow,
             n_block=config.model_config.atom_config.n_block,
@@ -154,7 +173,9 @@ class MoFlow(nn.Module):
         self.bond_stream = None
 
     @torch.jit.ignore
-    def forward(self, adj: torch.Tensor, x: torch.Tensor, with_cuda_graph: bool = False):
+    def forward(
+        self, adj: torch.Tensor, x: torch.Tensor, with_cuda_graph: bool = False
+    ):
         """
         :param adj:  (256,4,9,9)
         :param x: (256,9,5)
@@ -167,7 +188,7 @@ class MoFlow(nn.Module):
         # add uniform noise to node feature matrices
         if self.training:
             if self.noise_scale == 0:
-                h = h/2.0 - 0.5 + torch.rand_like(x) * 0.4
+                h = h / 2.0 - 0.5 + torch.rand_like(x) * 0.4
             else:
                 h = h + torch.rand_like(x) * self.noise_scale
         if with_cuda_graph:
@@ -183,18 +204,22 @@ class MoFlow(nn.Module):
         # add uniform noise to adjacency tensors
         if self.training:
             if self.noise_scale == 0:
-                adj_bond = adj/2.0 - 0.5 + torch.rand_like(adj) * 0.4
+                adj_bond = adj / 2.0 - 0.5 + torch.rand_like(adj) * 0.4
             else:
                 adj_bond = adj + torch.rand_like(adj) * self.noise_scale
         else:
             adj_bond = adj
         if with_cuda_graph:
             if self.bond_model not in self._cuda_graphs:
-                adj_h, sum_log_det_jacs_adj = self._forward_graph(self.bond_model, adj_bond)
+                adj_h, sum_log_det_jacs_adj = self._forward_graph(
+                    self.bond_model, adj_bond
+                )
             else:
                 self.bond_stream.wait_stream(torch.cuda.current_stream())
                 with torch.cuda.stream(self.bond_stream):
-                    adj_h, sum_log_det_jacs_adj = self._forward_graph(self.bond_model, adj_bond)
+                    adj_h, sum_log_det_jacs_adj = self._forward_graph(
+                        self.bond_model, adj_bond
+                    )
         else:
             adj_h, sum_log_det_jacs_adj = self.bond_model(adj_bond)
         if with_cuda_graph:
@@ -212,8 +237,8 @@ class MoFlow(nn.Module):
         :return: adjacency matrix and feature matrix of a molecule
         """
         batch_size = z.shape[0]
-        z_x = z[:, :self.a_size]
-        z_adj = z[:, self.a_size:]
+        z_x = z[:, : self.a_size]
+        z_adj = z[:, self.a_size :]
 
         h_adj = z_adj.reshape(batch_size, self.b_n_type, self.a_n_node, self.a_n_node)
         h_adj = h_adj.to(memory_format=torch.channels_last)
@@ -225,7 +250,9 @@ class MoFlow(nn.Module):
         adj = adj + adj.permute(0, 1, 3, 2)
         adj = adj / 2
         adj = adj.softmax(dim=1)
-        max_bond = adj.max(dim=1).values.reshape(batch_size, -1, self.a_n_node, self.a_n_node)
+        max_bond = adj.max(dim=1).values.reshape(
+            batch_size, -1, self.a_n_node, self.a_n_node
+        )
         adj = torch.floor(adj / max_bond)
 
         adj = adj.to(memory_format=torch.channels_last)

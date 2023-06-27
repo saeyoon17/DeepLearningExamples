@@ -12,20 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import copy
-from dataclasses import dataclass
+import json
 import logging
+from dataclasses import dataclass
+
 import paddle
 import paddle.nn as nn
+
 try:
     from paddle.incubate.nn import FusedTransformerEncoderLayer
 except ImportError:
     FusedTransformerEncoderLayer = None
 
 __all__ = [
-    'BertModel', 'BertForPretraining', 'BertPretrainingHeads',
-    'BertForQuestionAnswering'
+    "BertModel",
+    "BertForPretraining",
+    "BertPretrainingHeads",
+    "BertForQuestionAnswering",
 ]
 
 
@@ -56,7 +60,7 @@ class BertConfig:
     @classmethod
     def from_json_file(cls, json_file):
         """Constructs a `BertConfig` from a json file of parameters."""
-        with open(json_file, "r", encoding='utf-8') as reader:
+        with open(json_file, "r", encoding="utf-8") as reader:
             text = reader.read()
         return cls.from_dict(json.loads(text))
 
@@ -80,12 +84,15 @@ class BertEmbeddings(nn.Layer):
 
     def __init__(self, bert_config):
         super().__init__()
-        self.word_embeddings = nn.Embedding(bert_config.vocab_size,
-                                            bert_config.hidden_size)
+        self.word_embeddings = nn.Embedding(
+            bert_config.vocab_size, bert_config.hidden_size
+        )
         self.position_embeddings = nn.Embedding(
-            bert_config.max_position_embeddings, bert_config.hidden_size)
-        self.token_type_embeddings = nn.Embedding(bert_config.type_vocab_size,
-                                                  bert_config.hidden_size)
+            bert_config.max_position_embeddings, bert_config.hidden_size
+        )
+        self.token_type_embeddings = nn.Embedding(
+            bert_config.type_vocab_size, bert_config.hidden_size
+        )
         self.layer_norm = nn.LayerNorm(bert_config.hidden_size, epsilon=1e-12)
         self.dropout = nn.Dropout(bert_config.hidden_dropout_prob)
 
@@ -150,21 +157,25 @@ class BertModel(nn.Layer):
         self.fuse = False
 
         if self.fuse:
-            self.encoder = nn.LayerList([
-                FusedTransformerEncoderLayer(
-                    bert_config.hidden_size,
-                    bert_config.num_attention_heads,
-                    bert_config.intermediate_size,
-                    dropout_rate=bert_config.hidden_dropout_prob,
-                    activation=bert_config.hidden_act,
-                    attn_dropout_rate=bert_config.attention_probs_dropout_prob,
-                    act_dropout_rate=0.)
-                for _ in range(bert_config.num_hidden_layers)
-            ])
+            self.encoder = nn.LayerList(
+                [
+                    FusedTransformerEncoderLayer(
+                        bert_config.hidden_size,
+                        bert_config.num_attention_heads,
+                        bert_config.intermediate_size,
+                        dropout_rate=bert_config.hidden_dropout_prob,
+                        activation=bert_config.hidden_act,
+                        attn_dropout_rate=bert_config.attention_probs_dropout_prob,
+                        act_dropout_rate=0.0,
+                    )
+                    for _ in range(bert_config.num_hidden_layers)
+                ]
+            )
         else:
             logging.warning(
                 "FusedTransformerEncoderLayer is not supported by the running Paddle. "
-                "TransformerEncoderLayer will be used.")
+                "TransformerEncoderLayer will be used."
+            )
             encoder_layer = nn.TransformerEncoderLayer(
                 bert_config.hidden_size,
                 bert_config.num_attention_heads,
@@ -172,9 +183,11 @@ class BertModel(nn.Layer):
                 dropout=bert_config.hidden_dropout_prob,
                 activation=bert_config.hidden_act,
                 attn_dropout=bert_config.attention_probs_dropout_prob,
-                act_dropout=0)
-            self.encoder = nn.TransformerEncoder(encoder_layer,
-                                                 bert_config.num_hidden_layers)
+                act_dropout=0,
+            )
+            self.encoder = nn.TransformerEncoder(
+                encoder_layer, bert_config.num_hidden_layers
+            )
 
         self.pooler = BertPooler(bert_config.hidden_size)
 
@@ -214,15 +227,17 @@ class BertModel(nn.Layer):
 
         if attention_mask is None:
             attention_mask = paddle.unsqueeze(
-                (input_ids != self.bert_config.pad_token_id).astype('int32'),
-                axis=[1, 2])
+                (input_ids != self.bert_config.pad_token_id).astype("int32"),
+                axis=[1, 2],
+            )
         else:
             if attention_mask.ndim == 2:
                 # attention_mask [batch_size, sequence_length] -> [batch_size, 1, 1, sequence_length]
                 attention_mask = attention_mask.unsqueeze(axis=[1, 2])
 
         embedding_output = self.embeddings(
-            input_ids=input_ids, token_type_ids=token_type_ids)
+            input_ids=input_ids, token_type_ids=token_type_ids
+        )
 
         if self.fuse:
             encoder_output = embedding_output
@@ -262,9 +277,8 @@ class BertForQuestionAnswering(nn.Layer):
         """
 
         encoder_output, _ = self.bert(
-            input_ids,
-            token_type_ids=token_type_ids,
-            attention_mask=attention_mask)
+            input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+        )
 
         logits = self.classifier(encoder_output)
         logits = paddle.transpose(logits, perm=[2, 0, 1])
@@ -287,29 +301,32 @@ class BertLMPredictionHead(nn.Layer):
             Defaults: None, which means use the same weights of the embedding layer.
     """
 
-    def __init__(self,
-                 hidden_size,
-                 vocab_size,
-                 activation,
-                 embedding_weights=None):
+    def __init__(self, hidden_size, vocab_size, activation, embedding_weights=None):
         super().__init__()
         self.transform = nn.Linear(hidden_size, hidden_size)
         self.activation = getattr(nn.functional, activation)
         self.layer_norm = nn.LayerNorm(hidden_size, epsilon=1e-12)
-        self.decoder_weight = self.create_parameter(
-            shape=[vocab_size, hidden_size],
-            dtype=self.transform.weight.dtype,
-            is_bias=False) if embedding_weights is None else embedding_weights
+        self.decoder_weight = (
+            self.create_parameter(
+                shape=[vocab_size, hidden_size],
+                dtype=self.transform.weight.dtype,
+                is_bias=False,
+            )
+            if embedding_weights is None
+            else embedding_weights
+        )
         self.decoder_bias = self.create_parameter(
-            shape=[vocab_size], dtype=self.decoder_weight.dtype, is_bias=True)
+            shape=[vocab_size], dtype=self.decoder_weight.dtype, is_bias=True
+        )
 
     def forward(self, hidden_states):
         hidden_states = self.transform(hidden_states)
         hidden_states = self.activation(hidden_states)
         hidden_states = self.layer_norm(hidden_states)
-        hidden_states = paddle.tensor.matmul(
-            hidden_states, self.decoder_weight,
-            transpose_y=True) + self.decoder_bias
+        hidden_states = (
+            paddle.tensor.matmul(hidden_states, self.decoder_weight, transpose_y=True)
+            + self.decoder_bias
+        )
         return hidden_states
 
 
@@ -327,14 +344,11 @@ class BertPretrainingHeads(nn.Layer):
             Defaults: None, which means use the same weights of the embedding layer.
     """
 
-    def __init__(self,
-                 hidden_size,
-                 vocab_size,
-                 activation,
-                 embedding_weights=None):
+    def __init__(self, hidden_size, vocab_size, activation, embedding_weights=None):
         super().__init__()
-        self.predictions = BertLMPredictionHead(hidden_size, vocab_size,
-                                                activation, embedding_weights)
+        self.predictions = BertLMPredictionHead(
+            hidden_size, vocab_size, activation, embedding_weights
+        )
         self.seq_relationship = nn.Linear(hidden_size, 2)
 
     def forward(self, encoder_output, pooled_output, masked_lm_labels):
@@ -363,7 +377,8 @@ class BertPretrainingHeads(nn.Layer):
         sequence_flattened = paddle.index_select(
             encoder_output.reshape([-1, encoder_output.shape[-1]]),
             paddle.nonzero(masked_lm_labels.reshape([-1]) != -1).squeeze(),
-            axis=0)
+            axis=0,
+        )
         prediction_scores = self.predictions(sequence_flattened)
         seq_relationship_score = self.seq_relationship(pooled_output)
         return prediction_scores, seq_relationship_score
@@ -384,10 +399,10 @@ class BertForPretraining(nn.Layer):
             bert_config.hidden_size,
             bert_config.vocab_size,
             bert_config.hidden_act,
-            embedding_weights=self.bert.embeddings.word_embeddings.weight)
+            embedding_weights=self.bert.embeddings.word_embeddings.weight,
+        )
 
-    def forward(self, input_ids, token_type_ids, attention_mask,
-                masked_lm_labels):
+    def forward(self, input_ids, token_type_ids, attention_mask, masked_lm_labels):
         """
 
         Args:
@@ -407,10 +422,10 @@ class BertForPretraining(nn.Layer):
         """
         with paddle.static.amp.fp16_guard():
             outputs = self.bert(
-                input_ids,
-                token_type_ids=token_type_ids,
-                attention_mask=attention_mask)
+                input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            )
             sequence_output, pooled_output = outputs[:2]
             prediction_scores, seq_relationship_score = self.cls(
-                sequence_output, pooled_output, masked_lm_labels)
+                sequence_output, pooled_output, masked_lm_labels
+            )
             return prediction_scores, seq_relationship_score

@@ -35,10 +35,10 @@
 
 
 from typing import Tuple
+
 import torch
 import torch.nn as nn
-
-from moflow.model.basic import ActNorm, InvConv2dLU, InvConv2d
+from moflow.model.basic import ActNorm, InvConv2d, InvConv2dLU
 from moflow.model.coupling import AffineCoupling, GraphAffineCoupling
 
 
@@ -56,7 +56,9 @@ class Flow(nn.Module):
         elif conv_lu == 2:
             self.invconv = None
         else:
-            raise ValueError("conv_lu in {0,1,2}, 0:InvConv2d, 1:InvConv2dLU, 2:none-just swap to update in coupling")
+            raise ValueError(
+                "conv_lu in {0,1,2}, 0:InvConv2d, 1:InvConv2dLU, 2:none-just swap to update in coupling"
+            )
 
         self.coupling = AffineCoupling(in_channel, hidden_channels, mask_swap=mask_swap)
 
@@ -94,7 +96,9 @@ class FlowOnGraph(nn.Module):
         self.actnorm = ActNorm(num_channels=n_node, num_dims=3)
         self.coupling = GraphAffineCoupling(n_node, in_dim, hidden_dim_dict, masked_row)
 
-    def forward(self, graph: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, graph: Tuple[torch.Tensor, torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         adj, input = graph
         out, logdet = self.actnorm(input)
         det1 = 0
@@ -122,11 +126,13 @@ class Block(nn.Module):
         self.flows = nn.ModuleList()
         for i in range(n_flow):
             if conv_lu in (0, 1):
-                self.flows.append(Flow(squeeze_dim, hidden_channels,
-                                       conv_lu=conv_lu, mask_swap=False))
+                self.flows.append(
+                    Flow(squeeze_dim, hidden_channels, conv_lu=conv_lu, mask_swap=False)
+                )
             else:
-                self.flows.append(Flow(squeeze_dim, hidden_channels,
-                                       conv_lu=2, mask_swap=bool(i % 2)))
+                self.flows.append(
+                    Flow(squeeze_dim, hidden_channels, conv_lu=2, mask_swap=bool(i % 2))
+                )
 
     def forward(self, input: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         out = self._squeeze(input)
@@ -164,32 +170,50 @@ class Block(nn.Module):
         b_size, n_channel, height, width = x.shape
         fold = self.squeeze_fold
 
-        squeezed = x.view(b_size, n_channel, height // fold,  fold,  width // fold,  fold)
+        squeezed = x.view(b_size, n_channel, height // fold, fold, width // fold, fold)
         squeezed = squeezed.permute(0, 1, 3, 5, 2, 4).contiguous()
-        out = squeezed.view(b_size, n_channel * fold * fold, height // fold, width // fold)
+        out = squeezed.view(
+            b_size, n_channel * fold * fold, height // fold, width // fold
+        )
         return out
 
     def _unsqueeze(self, x: torch.Tensor) -> torch.Tensor:
         assert len(x.shape) == 4
         b_size, n_channel, height, width = x.shape
         fold = self.squeeze_fold
-        unsqueezed = x.view(b_size, n_channel // (fold * fold), fold, fold, height, width)
+        unsqueezed = x.view(
+            b_size, n_channel // (fold * fold), fold, fold, height, width
+        )
         unsqueezed = unsqueezed.permute(0, 1, 4, 2, 5, 3).contiguous()
-        out = unsqueezed.view(b_size, n_channel // (fold * fold), height * fold, width * fold)
+        out = unsqueezed.view(
+            b_size, n_channel // (fold * fold), height * fold, width * fold
+        )
         return out
 
 
 class BlockOnGraph(nn.Module):
-    def __init__(self, n_node, in_dim, hidden_dim_dict, n_flow, mask_row_size=1, mask_row_stride=1):
+    def __init__(
+        self,
+        n_node,
+        in_dim,
+        hidden_dim_dict,
+        n_flow,
+        mask_row_size=1,
+        mask_row_stride=1,
+    ):
         super(BlockOnGraph, self).__init__()
         assert 0 < mask_row_size < n_node
         self.flows = nn.ModuleList()
         for i in range(n_flow):
             start = i * mask_row_stride
-            masked_row =[r % n_node for r in range(start, start+mask_row_size)]
-            self.flows.append(FlowOnGraph(n_node, in_dim, hidden_dim_dict, masked_row=masked_row))
+            masked_row = [r % n_node for r in range(start, start + mask_row_size)]
+            self.flows.append(
+                FlowOnGraph(n_node, in_dim, hidden_dim_dict, masked_row=masked_row)
+            )
 
-    def forward(self, graph: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, graph: Tuple[torch.Tensor, torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         adj, input = graph
         out = input
         logdet = 0
@@ -208,13 +232,17 @@ class BlockOnGraph(nn.Module):
 
 
 class Glow(nn.Module):
-    def __init__(self, in_channel, n_flow, n_block, squeeze_fold, hidden_channel, conv_lu=2):
+    def __init__(
+        self, in_channel, n_flow, n_block, squeeze_fold, hidden_channel, conv_lu=2
+    ):
         super(Glow, self).__init__()
 
         self.blocks = nn.ModuleList()
         n_channel = in_channel
         for i in range(n_block):
-            self.blocks.append(Block(n_channel, n_flow, squeeze_fold, hidden_channel, conv_lu=conv_lu))
+            self.blocks.append(
+                Block(n_channel, n_flow, squeeze_fold, hidden_channel, conv_lu=conv_lu)
+            )
 
     def forward(self, input: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         logdet = 0
@@ -236,8 +264,16 @@ class Glow(nn.Module):
 
 
 class GlowOnGraph(nn.Module):
-    def __init__(self, n_node, in_dim, hidden_dim_dict, n_flow, n_block,
-                 mask_row_size_list=(2,), mask_row_stride_list=(1,)):
+    def __init__(
+        self,
+        n_node,
+        in_dim,
+        hidden_dim_dict,
+        n_flow,
+        n_block,
+        mask_row_size_list=(2,),
+        mask_row_stride_list=(1,),
+    ):
         super(GlowOnGraph, self).__init__()
 
         assert len(mask_row_size_list) == n_block or len(mask_row_size_list) == 1
@@ -250,9 +286,20 @@ class GlowOnGraph(nn.Module):
         for i in range(n_block):
             mask_row_size = mask_row_size_list[i]
             mask_row_stride = mask_row_stride_list[i]
-            self.blocks.append(BlockOnGraph(n_node, in_dim, hidden_dim_dict, n_flow, mask_row_size, mask_row_stride))
+            self.blocks.append(
+                BlockOnGraph(
+                    n_node,
+                    in_dim,
+                    hidden_dim_dict,
+                    n_flow,
+                    mask_row_size,
+                    mask_row_stride,
+                )
+            )
 
-    def forward(self, adj: torch.Tensor, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, adj: torch.Tensor, x: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         logdet = 0
         out = x
         for block in self.blocks:

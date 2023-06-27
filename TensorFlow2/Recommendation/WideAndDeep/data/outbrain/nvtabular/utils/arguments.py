@@ -23,7 +23,7 @@ def parse_args():
     parser.add_argument(
         "--data_path",
         help="Path with the data required for NVTabular preprocessing. "
-             "If stats already exists under metadata_path preprocessing phase will be skipped.",
+        "If stats already exists under metadata_path preprocessing phase will be skipped.",
         type=str,
         default=f"{DEFAULT_DIR}/orig",
         nargs="+",

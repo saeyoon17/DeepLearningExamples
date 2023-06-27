@@ -12,19 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import logging
+import os
 from contextlib import contextmanager
-from utils.cuda_bind import cuda_profile_start, cuda_profile_stop
-from utils.cuda_bind import cuda_nvtx_range_push, cuda_nvtx_range_pop
+
+from utils.cuda_bind import (cuda_nvtx_range_pop, cuda_nvtx_range_push,
+                             cuda_profile_start, cuda_profile_stop)
 
 
 class Profiler:
     def __init__(self):
         super().__init__()
-        self._enable_profile = int(os.environ.get('ENABLE_PROFILE', 0))
-        self._start_step = int(os.environ.get('PROFILE_START_STEP', 0))
-        self._stop_step = int(os.environ.get('PROFILE_STOP_STEP', 0))
+        self._enable_profile = int(os.environ.get("ENABLE_PROFILE", 0))
+        self._start_step = int(os.environ.get("PROFILE_START_STEP", 0))
+        self._stop_step = int(os.environ.get("PROFILE_STOP_STEP", 0))
 
         if self._enable_profile:
             log_msg = f"Profiling start at {self._start_step}-th and stop at {self._stop_step}-th iteration"
@@ -42,8 +43,7 @@ class Profiler:
 
         if self._enable_profile and step == self._start_step:
             cuda_profile_start()
-            logging.info("Profiling start at %d-th iteration",
-                         self._start_step)
+            logging.info("Profiling start at %d-th iteration", self._start_step)
 
         if self._enable_profile and step == self._stop_step:
             cuda_profile_stop()
@@ -52,9 +52,7 @@ class Profiler:
         return False
 
     def profile_tag_push(self, step, msg):
-        if self._enable_profile and \
-           step >= self._start_step and \
-           step < self._stop_step:
+        if self._enable_profile and step >= self._start_step and step < self._stop_step:
             tag_msg = f"Iter-{step}-{msg}"
             cuda_nvtx_range_push(tag_msg)
 

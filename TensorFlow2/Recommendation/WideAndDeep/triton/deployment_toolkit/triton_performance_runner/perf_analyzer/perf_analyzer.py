@@ -14,7 +14,6 @@
 import logging
 import pathlib
 from subprocess import PIPE, CalledProcessError, Popen
-
 # method from PEP-366 to support relative import in executed modules
 from typing import List, Optional
 
@@ -82,16 +81,22 @@ class PerfAnalyzer:
                 return
             except CalledProcessError as e:
                 if self._failed_with_measurement_inverval(e.output):
-                    if self._config["measurement-mode"] is None or self._config["measurement-mode"] == "count_windows":
+                    if (
+                        self._config["measurement-mode"] is None
+                        or self._config["measurement-mode"] == "count_windows"
+                    ):
                         self._increase_request_count()
                     else:
                         self._increase_time_interval()
                 else:
                     raise PerfAnalyzerException(
-                        f"Running perf_analyzer with {e.cmd} failed with" f" exit status {e.returncode} : {e.output}"
+                        f"Running perf_analyzer with {e.cmd} failed with"
+                        f" exit status {e.returncode} : {e.output}"
                     )
 
-        raise PerfAnalyzerException(f"Ran perf_analyzer {MAX_INTERVAL_CHANGES} times, but no valid requests recorded.")
+        raise PerfAnalyzerException(
+            f"Ran perf_analyzer {MAX_INTERVAL_CHANGES} times, but no valid requests recorded."
+        )
 
     def output(self):
         """
@@ -102,7 +107,9 @@ class PerfAnalyzer:
         """
         if self._output:
             return self._output
-        raise PerfAnalyzerException("Attempted to get perf_analyzer output" "without calling run first.")
+        raise PerfAnalyzerException(
+            "Attempted to get perf_analyzer output" "without calling run first."
+        )
 
     def _run_with_stream(self, command: List[str]):
         commands_lst = []
@@ -112,7 +119,9 @@ class PerfAnalyzer:
 
         commands_lst.extend(command)
         LOGGER.debug(f"Run with stream: {commands_lst}")
-        process = Popen(commands_lst, start_new_session=True, stdout=PIPE, encoding="utf-8")
+        process = Popen(
+            commands_lst, start_new_session=True, stdout=PIPE, encoding="utf-8"
+        )
         streamed_output = ""
         while True:
             output = process.stdout.readline()
@@ -128,11 +137,15 @@ class PerfAnalyzer:
 
         # WAR for Perf Analyzer exit code 0 when stabilization failed
         if result == 0 and self._failed_with_measurement_inverval(streamed_output):
-            LOGGER.debug("Perf Analyzer finished with exit status 0, however measurement stabilization failed.")
+            LOGGER.debug(
+                "Perf Analyzer finished with exit status 0, however measurement stabilization failed."
+            )
             result = 1
 
         if result != 0:
-            raise CalledProcessError(returncode=result, cmd=commands_lst, output=streamed_output)
+            raise CalledProcessError(
+                returncode=result, cmd=commands_lst, output=streamed_output
+            )
 
     def _failed_with_measurement_inverval(self, output: str):
         checks = [
@@ -141,7 +154,9 @@ class PerfAnalyzer:
         ]
         result = any([status != -1 for status in checks])
 
-        LOGGER.debug(f"Measurement stability message validation: {checks}. Result: {result}.")
+        LOGGER.debug(
+            f"Measurement stability message validation: {checks}. Result: {result}."
+        )
         return result
 
     def _increase_request_count(self):

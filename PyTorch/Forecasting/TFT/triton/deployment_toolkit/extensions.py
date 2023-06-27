@@ -29,7 +29,10 @@ class ExtensionManager:
 
     def register_extension(self, extension: str, clazz):
         already_registered_class = self._registry.get(extension, None)
-        if already_registered_class and already_registered_class.__module__ != clazz.__module__:
+        if (
+            already_registered_class
+            and already_registered_class.__module__ != clazz.__module__
+        ):
             raise RuntimeError(
                 f"Conflicting extension {self._name}/{extension}; "
                 f"{already_registered_class.__module__}.{already_registered_class.__name} "
@@ -37,8 +40,12 @@ class ExtensionManager:
                 f"{clazz.__module__}.{clazz.__name__}"
             )
         elif already_registered_class is None:
-            clazz_full_name = f"{clazz.__module__}.{clazz.__name__}" if clazz is not None else "None"
-            LOGGER.debug(f"Registering extension {self._name}/{extension}: {clazz_full_name}")
+            clazz_full_name = (
+                f"{clazz.__module__}.{clazz.__name__}" if clazz is not None else "None"
+            )
+            LOGGER.debug(
+                f"Registering extension {self._name}/{extension}: {clazz_full_name}"
+            )
             self._registry[extension] = clazz
 
     def get(self, extension):
@@ -63,12 +70,16 @@ class ExtensionManager:
                     import_path = python_path.relative_to(toolkit_root_dir.parent)
                     package = import_path.parent.as_posix().replace(os.sep, ".")
                     package_with_module = f"{package}.{import_path.stem}"
-                    spec = importlib.util.spec_from_file_location(name=package_with_module, location=python_path)
+                    spec = importlib.util.spec_from_file_location(
+                        name=package_with_module, location=python_path
+                    )
                     my_module = importlib.util.module_from_spec(spec)
                     my_module.__package__ = package
 
                     try:
-                        spec.loader.exec_module(my_module)  # pytype: disable=attribute-error
+                        spec.loader.exec_module(
+                            my_module
+                        )  # pytype: disable=attribute-error
                     except ModuleNotFoundError as e:
                         LOGGER.error(
                             f"Could not load extensions from {import_path} due to missing python packages; {e}"

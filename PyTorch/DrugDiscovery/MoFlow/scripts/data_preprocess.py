@@ -34,47 +34,52 @@
 # IN THE SOFTWARE.
 
 
-import os
-import pandas as pd
 import argparse
+import os
 import time
 
+import pandas as pd
 from moflow.config import CONFIGS
 from moflow.data.data_frame_parser import DataFrameParser
 from moflow.data.encoding import MolEncoder
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--data_name', type=str,
-                        choices=list(CONFIGS),
-                        help='dataset to be downloaded')
-    parser.add_argument('--data_dir', type=str, default='/data')
+    parser = argparse.ArgumentParser(description="")
+    parser.add_argument(
+        "--data_name", type=str, choices=list(CONFIGS), help="dataset to be downloaded"
+    )
+    parser.add_argument("--data_dir", type=str, default="/data")
     args = parser.parse_args()
     return args
+
 
 def main(args):
     start_time = time.time()
     args = parse_args()
-    print('args', vars(args))
+    print("args", vars(args))
 
     assert args.data_name in CONFIGS
     dataset_config = CONFIGS[args.data_name].dataset_config
 
     preprocessor = MolEncoder(out_size=dataset_config.max_num_atoms)
-    
+
     input_path = os.path.join(args.data_dir, dataset_config.csv_file)
     output_path = os.path.join(args.data_dir, dataset_config.dataset_file)
 
-    print(f'Preprocessing {args.data_name} data:')
+    print(f"Preprocessing {args.data_name} data:")
     df = pd.read_csv(input_path, index_col=0)
-    parser = DataFrameParser(preprocessor, labels=dataset_config.labels, smiles_col=dataset_config.smiles_col)
+    parser = DataFrameParser(
+        preprocessor, labels=dataset_config.labels, smiles_col=dataset_config.smiles_col
+    )
     dataset = parser.parse(df)
 
     dataset.save(output_path)
-    print('Total time:', time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
+    print(
+        "Total time:", time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parse_args()
     main(args)

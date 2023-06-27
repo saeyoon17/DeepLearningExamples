@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from feature_spec import FeatureSpec
-from neumf_constants import TEST_SAMPLES_PER_SERIES
-from dataloading import TorchTensorDataset
-import torch
 import os
 import sys
+
+import torch
+from dataloading import TorchTensorDataset
+from feature_spec import FeatureSpec
+from neumf_constants import TEST_SAMPLES_PER_SERIES
 
 
 def test_matches_template(path, template_path):
@@ -31,19 +32,19 @@ def mock_args():
         pass
 
     args = Obj()
-    args.__dict__['local_rank'] = 0
+    args.__dict__["local_rank"] = 0
     return args
 
 
 def test_dtypes(path):
     loaded_featurespec = FeatureSpec.from_yaml(path)
     features = loaded_featurespec.feature_spec
-    declared_dtypes = {name: data['dtype'] for name, data in features.items()}
+    declared_dtypes = {name: data["dtype"] for name, data in features.items()}
     source_spec = loaded_featurespec.source_spec
     for mapping in source_spec.values():
         for chunk in mapping:
             chunk_dtype = None
-            for present_feature in chunk['features']:
+            for present_feature in chunk["features"]:
                 assert present_feature in declared_dtypes, "unknown feature in mapping"
                 # Check declared type
                 feature_dtype = declared_dtypes[present_feature]
@@ -52,7 +53,9 @@ def test_dtypes(path):
                 else:
                     assert chunk_dtype == feature_dtype
 
-            path_to_load = os.path.join(loaded_featurespec.base_directory, chunk['files'][0])
+            path_to_load = os.path.join(
+                loaded_featurespec.base_directory, chunk["files"][0]
+            )
             loaded_data = torch.load(path_to_load)
             assert str(loaded_data.dtype) == chunk_dtype
 
@@ -60,7 +63,11 @@ def test_dtypes(path):
 def test_cardinalities(path):
     loaded_featurespec = FeatureSpec.from_yaml(path)
     features = loaded_featurespec.feature_spec
-    declared_cardinalities = {name: data['cardinality'] for name, data in features.items() if 'cardinality' in data}
+    declared_cardinalities = {
+        name: data["cardinality"]
+        for name, data in features.items()
+        if "cardinality" in data
+    }
     source_spec = loaded_featurespec.source_spec
 
     for mapping_name, mapping in source_spec.items():
@@ -75,12 +82,12 @@ def test_samples_in_test_series(path):
     loaded_featurespec = FeatureSpec.from_yaml(path)
 
     series_length = loaded_featurespec.metadata[TEST_SAMPLES_PER_SERIES]
-    dataset = TorchTensorDataset(loaded_featurespec, 'test', mock_args())
+    dataset = TorchTensorDataset(loaded_featurespec, "test", mock_args())
     for feature in dataset.features.values():
         assert len(feature) % series_length == 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     tested_spec = sys.argv[1]
     template = sys.argv[2]
 

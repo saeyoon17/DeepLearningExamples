@@ -27,7 +27,8 @@ from .experiment import Experiment, Stage
 from .logger import LOGGER
 from .maintainer import Maintainer
 from .pipeline import Pipeline
-from .stages import ResultsType, TritonPerformanceOfflineStage, TritonPerformanceOnlineStage
+from .stages import (ResultsType, TritonPerformanceOfflineStage,
+                     TritonPerformanceOnlineStage)
 from .task import Checkpoint, Dataset, SystemInfo, Task
 from .triton import Triton
 from .utils import clean_directory
@@ -66,7 +67,9 @@ class ExperimentPreparer(Preparer):
         logs_dir: pathlib.Path,
     ):
         LOGGER.info("Preparing Triton container image")
-        triton_container_image = self._prepare_triton_container_image(config, maintainer, triton)
+        triton_container_image = self._prepare_triton_container_image(
+            config, maintainer, triton
+        )
 
         LOGGER.info("Initialize task")
         task = self._initialize_task(
@@ -100,7 +103,9 @@ class ExperimentPreparer(Preparer):
             directory_path.mkdir(parents=True, exist_ok=True)
             LOGGER.info(f"Directory {directory} created.")
 
-    def _clean_previous_run_artifacts(self, workspace: pathlib.Path, task: Task) -> None:
+    def _clean_previous_run_artifacts(
+        self, workspace: pathlib.Path, task: Task
+    ) -> None:
         """
         Clean logs from previous run
 
@@ -116,7 +121,9 @@ class ExperimentPreparer(Preparer):
             clean_directory(directory_path)
             LOGGER.info(f"Location {directory} cleaned.")
 
-    def _prepare_triton_container_image(self, config: Config, maintainer: Maintainer, triton: Triton) -> str:
+    def _prepare_triton_container_image(
+        self, config: Config, maintainer: Maintainer, triton: Triton
+    ) -> str:
         """
         Prepare Triton Container Image based on provided configuration
 
@@ -129,7 +136,9 @@ class ExperimentPreparer(Preparer):
             return image_name
 
         if config.triton_container_image:
-            LOGGER.info(f"Using provided Triton Container Image: {config.triton_container_image}")
+            LOGGER.info(
+                f"Using provided Triton Container Image: {config.triton_container_image}"
+            )
             return config.triton_container_image
 
         normalized_model_name = config.model_name.lower().replace("_", "-")
@@ -139,7 +148,11 @@ class ExperimentPreparer(Preparer):
         maintainer.build_image(
             image_name=image_name,
             image_file_path=pathlib.Path(config.triton_dockerfile),
-            build_args={"FROM_IMAGE": triton.container_image(container_version=config.container_version)},
+            build_args={
+                "FROM_IMAGE": triton.container_image(
+                    container_version=config.container_version
+                )
+            },
         )
         return image_name
 
@@ -192,13 +205,18 @@ class ExperimentPreparer(Preparer):
         checkpoints = {}
         for checkpoint in config.checkpoints:
             download_path = workspace / Task.checkpoints_dir / checkpoint.name
-            checkpoints[checkpoint.name] = Checkpoint(name=checkpoint.name, url=checkpoint.url, path=download_path)
+            checkpoints[checkpoint.name] = Checkpoint(
+                name=checkpoint.name, url=checkpoint.url, path=download_path
+            )
 
         results_types = self._task_results_types(pipeline=pipeline)
 
         stages = dict()
         for stage in pipeline.stages():
-            stages[stage.label] = {"result_path": stage.result_path, "result_type": stage.result_type}
+            stages[stage.label] = {
+                "result_path": stage.result_path,
+                "result_type": stage.result_type,
+            }
 
         experiments = list()
         for idx, configuration in enumerate(config.configurations, start=1):
@@ -267,7 +285,9 @@ class ExperimentPreparer(Preparer):
         Returns:
             Experiment object
         """
-        parameters = {key.lower(): value for key, value in configuration.parameters.items()}
+        parameters = {
+            key.lower(): value for key, value in configuration.parameters.items()
+        }
         results_mapped = dict()
         for result_type in results_types:
             results_mapped[result_type] = result_type

@@ -18,10 +18,9 @@
 import sys
 
 import tensorflow as tf
-
-from utils import image_processing
 from utils import dali_utils
 from utils import hvd_wrapper as hvd
+from utils import image_processing
 
 __all__ = ["get_synth_input_fn", "normalized_inputs"]
 
@@ -34,7 +33,9 @@ _CHANNEL_STDS = [58.395, 57.120, 57.385]
 _NUM_CHANNELS = 3
 
 
-def get_synth_input_fn(batch_size, height, width, num_channels, data_format, num_classes, dtype=tf.float32):
+def get_synth_input_fn(
+    batch_size, height, width, num_channels, data_format, num_classes, dtype=tf.float32
+):
     """Returns an input function that returns a dataset with random data.
 
     This input_fn returns a data set that iterates over a set of random data and
@@ -64,8 +65,16 @@ def get_synth_input_fn(batch_size, height, width, num_channels, data_format, num
         input_shape = [batch_size, num_channels, height, width]
 
     # Convert the inputs to a Dataset.
-    inputs = tf.truncated_normal(input_shape, dtype=dtype, mean=127, stddev=60, name='synthetic_inputs')
-    labels = tf.random_uniform([batch_size], minval=0, maxval=num_classes - 1, dtype=tf.int32, name='synthetic_labels')
+    inputs = tf.truncated_normal(
+        input_shape, dtype=dtype, mean=127, stddev=60, name="synthetic_inputs"
+    )
+    labels = tf.random_uniform(
+        [batch_size],
+        minval=0,
+        maxval=num_classes - 1,
+        dtype=tf.int32,
+        name="synthetic_labels",
+    )
 
     data = tf.data.Dataset.from_tensors((inputs, labels))
 
@@ -76,7 +85,16 @@ def get_synth_input_fn(batch_size, height, width, num_channels, data_format, num
     return data
 
 
-def get_tfrecords_input_fn(filenames, batch_size, height, width, training, distort_color, num_threads, deterministic):
+def get_tfrecords_input_fn(
+    filenames,
+    batch_size,
+    height,
+    width,
+    training,
+    distort_color,
+    num_threads,
+    deterministic,
+):
 
     shuffle_buffer_size = 4096
 
@@ -93,7 +111,9 @@ def get_tfrecords_input_fn(filenames, batch_size, height, width, training, disto
     ds = ds.interleave(tf.data.TFRecordDataset, cycle_length=10, block_length=8)
 
     def preproc_func(record):
-        return image_processing.preprocess_image_record(record, height, width, _NUM_CHANNELS, training)
+        return image_processing.preprocess_image_record(
+            record, height, width, _NUM_CHANNELS, training
+        )
 
     if training:
         ds = ds.shuffle(buffer_size=shuffle_buffer_size, seed=seed)
@@ -113,10 +133,14 @@ def get_inference_input_fn(filenames, height, width, num_threads):
     ds = tf.data.Dataset.zip((ds, counter))
 
     def preproc_func(record, counter_):
-        return image_processing.preprocess_image_file(record, height, width, _NUM_CHANNELS, is_training=False)
+        return image_processing.preprocess_image_file(
+            record, height, width, _NUM_CHANNELS, is_training=False
+        )
 
     ds = ds.apply(
-        tf.data.experimental.map_and_batch(map_func=preproc_func, num_parallel_calls=num_threads, batch_size=1)
+        tf.data.experimental.map_and_batch(
+            map_func=preproc_func, num_parallel_calls=num_threads, batch_size=1
+        )
     )
 
     ds = ds.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
@@ -125,7 +149,15 @@ def get_inference_input_fn(filenames, height, width, num_threads):
 
 
 def get_dali_input_fn(
-    filenames, idx_filenames, batch_size, height, width, training, distort_color, num_threads, deterministic
+    filenames,
+    idx_filenames,
+    batch_size,
+    height,
+    width,
+    training,
+    distort_color,
+    num_threads,
+    deterministic,
 ):
 
     if idx_filenames is None:
@@ -140,7 +172,7 @@ def get_dali_input_fn(
         num_threads,
         dali_cpu=False,
         deterministic=deterministic,
-        training=training
+        training=training,
     )
 
     images, labels = preprocessor.get_device_minibatches()
@@ -153,10 +185,10 @@ def normalized_inputs(inputs):
     num_channels = inputs.get_shape()[-1]
 
     if inputs.get_shape().ndims != 4:
-        raise ValueError('Input must be of size [batch_size, height, width, C>0]')
+        raise ValueError("Input must be of size [batch_size, height, width, C>0]")
 
     if len(_CHANNEL_MEANS) != num_channels:
-        raise ValueError('len(means) must match the number of channels')
+        raise ValueError("len(means) must match the number of channels")
 
     # We have a 1-D tensor of means; convert to 3-D.
     means_per_channel = tf.reshape(_CHANNEL_MEANS, [1, 1, num_channels])
@@ -169,7 +201,9 @@ def normalized_inputs(inputs):
     return tf.divide(inputs, stds_per_channel)
 
 
-def get_serving_input_receiver_fn(batch_size, height, width, num_channels, data_format, dtype=tf.float32):
+def get_serving_input_receiver_fn(
+    batch_size, height, width, num_channels, data_format, dtype=tf.float32
+):
 
     if data_format not in ["NHWC", "NCHW"]:
         raise ValueError("Unknown data_format: %s" % str(data_format))
@@ -180,7 +214,9 @@ def get_serving_input_receiver_fn(batch_size, height, width, num_channels, data_
         input_shape = [batch_size] + [num_channels, height, width]
 
     def serving_input_receiver_fn():
-        features = tf.placeholder(dtype=dtype, shape=input_shape, name='input_tensor')
-        return tf.estimator.export.TensorServingInputReceiver(features=features, receiver_tensors=features)
+        features = tf.placeholder(dtype=dtype, shape=input_shape, name="input_tensor")
+        return tf.estimator.export.TensorServingInputReceiver(
+            features=features, receiver_tensors=features
+        )
 
     return serving_input_receiver_fn

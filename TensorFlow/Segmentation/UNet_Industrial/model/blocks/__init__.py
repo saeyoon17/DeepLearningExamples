@@ -19,23 +19,19 @@
 #
 # ==============================================================================
 
-from model.blocks.activation_blck import activation_block
-from model.blocks.activation_blck import authorized_activation_fn
-
+from model.blocks.activation_blck import (activation_block,
+                                          authorized_activation_fn)
+from model.blocks.unet_bottleneck import bottleneck_unet_block
 from model.blocks.unet_downsample import downsample_unet_block
+from model.blocks.unet_io_blocks import input_unet_block, output_unet_block
 from model.blocks.unet_upsample import upsample_unet_block
 
-from model.blocks.unet_bottleneck import bottleneck_unet_block
-
-from model.blocks.unet_io_blocks import input_unet_block
-from model.blocks.unet_io_blocks import output_unet_block
-
 __all__ = [
-    'activation_block',
-    'authorized_activation_fn',
-    'upsample_unet_block',
-    'upsample_unet_block',
-    'bottleneck_unet_block',
-    'input_unet_block',
-    'output_unet_block',
+    "activation_block",
+    "authorized_activation_fn",
+    "upsample_unet_block",
+    "upsample_unet_block",
+    "bottleneck_unet_block",
+    "input_unet_block",
+    "output_unet_block",
 ]

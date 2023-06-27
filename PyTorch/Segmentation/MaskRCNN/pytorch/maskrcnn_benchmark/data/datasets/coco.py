@@ -1,12 +1,12 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 import os
-import torch
-import torchvision
-import torch.multiprocessing as mp
 
-from maskrcnn_benchmark.structures.image_list import to_image_list
+import torch
+import torch.multiprocessing as mp
+import torchvision
 from maskrcnn_benchmark.structures.bounding_box import BoxList
+from maskrcnn_benchmark.structures.image_list import to_image_list
 from maskrcnn_benchmark.structures.segmentation_mask import SegmentationMask
 
 
@@ -41,7 +41,9 @@ class COCODataset(torchvision.datasets.coco.CocoDetection):
         anno = [obj for obj in anno if obj["iscrowd"] == 0]
 
         boxes = [obj["bbox"] for obj in anno]
-        boxes = torch.tensor(boxes, dtype=torch.float32, pin_memory=pin_memory).reshape(-1, 4) # guard against no boxes
+        boxes = torch.tensor(boxes, dtype=torch.float32, pin_memory=pin_memory).reshape(
+            -1, 4
+        )  # guard against no boxes
         target = BoxList(boxes, img_size, mode="xywh").convert("xyxy")
 
         classes = [obj["category_id"] for obj in anno]
@@ -57,7 +59,9 @@ class COCODataset(torchvision.datasets.coco.CocoDetection):
         return target
 
     def __getitem__(self, idx):
-        img = torchvision.io.read_image(self.get_raw_img_info(idx), torchvision.io.image.ImageReadMode.RGB)
+        img = torchvision.io.read_image(
+            self.get_raw_img_info(idx), torchvision.io.image.ImageReadMode.RGB
+        )
         target = self.get_target(idx)
         if self._transforms is not None:
             img, target = self._transforms(img, target)
@@ -70,7 +74,7 @@ class COCODataset(torchvision.datasets.coco.CocoDetection):
 
     def get_raw_img_info(self, index):
         img_id = self.ids[index]
-        path = self.coco.loadImgs(img_id)[0]['file_name']
+        path = self.coco.loadImgs(img_id)[0]["file_name"]
         return os.path.join(self.root, path)
 
     def get_target(self, index, pin_memory=False):
@@ -82,8 +86,20 @@ class COCODataset(torchvision.datasets.coco.CocoDetection):
 
 
 class HybridDataLoader(object):
-    def __init__(self, cfg, is_train, batch_size, batch_sampler, dataset, collator, transforms, size_divisible):
-        assert(dataset._transforms is None), "dataset._transforms must be None when hybrid dataloader is selected"
+    def __init__(
+        self,
+        cfg,
+        is_train,
+        batch_size,
+        batch_sampler,
+        dataset,
+        collator,
+        transforms,
+        size_divisible,
+    ):
+        assert (
+            dataset._transforms is None
+        ), "dataset._transforms must be None when hybrid dataloader is selected"
         self.batch_size = batch_size
         self.length = len(batch_sampler)
         self.batch_sampler = iter(batch_sampler)
@@ -100,11 +116,18 @@ class HybridDataLoader(object):
     def __next__(self):
         images, targets, idxs = [], [], []
         for idx in next(self.batch_sampler):
-            raw_image = torchvision.io.read_image(self.dataset.get_raw_img_info(idx), torchvision.io.image.ImageReadMode.RGB).pin_memory().to(device='cuda', non_blocking=True)
+            raw_image = (
+                torchvision.io.read_image(
+                    self.dataset.get_raw_img_info(idx),
+                    torchvision.io.image.ImageReadMode.RGB,
+                )
+                .pin_memory()
+                .to(device="cuda", non_blocking=True)
+            )
             raw_target = self.dataset.get_target(idx, pin_memory=True)
             image, target = self.transforms(raw_image, raw_target)
-            images.append( image )
-            targets.append( target )
-            idxs.append( idx )
+            images.append(image)
+            targets.append(target)
+            idxs.append(idx)
         images = to_image_list(images, self.size_divisible)
         return images, targets, idxs

@@ -31,8 +31,12 @@ import yaml
 if __package__ is None:
     __package__ = pathlib.Path(__file__).parent.name
 
-from .deployment_toolkit.core import BatchingMode, EvaluationMode, MeasurementMode, OfflineMode, PerformanceTool
-from .deployment_toolkit.model_analyzer import ModelAnalyzer, ModelAnalyzerConfig, ModelAnalyzerMode
+from .deployment_toolkit.core import (BatchingMode, EvaluationMode,
+                                      MeasurementMode, OfflineMode,
+                                      PerformanceTool)
+from .deployment_toolkit.model_analyzer import (ModelAnalyzer,
+                                                ModelAnalyzerConfig,
+                                                ModelAnalyzerMode)
 from .deployment_toolkit.perf_analyzer import PerfAnalyzer, PerfAnalyzerConfig
 from .deployment_toolkit.report import save_results, show_results, sort_results
 from .deployment_toolkit.utils import parse_server_url
@@ -48,8 +52,12 @@ if LooseVersion(sys.version) >= LooseVersion("3.8.0"):
 else:
     import pkg_resources
 
-    TRITON_CLIENT_VERSION = LooseVersion(pkg_resources.get_distribution("tritonclient").version)
-    TRITON_MODEL_ANALYZER_VERSION = LooseVersion(pkg_resources.get_distribution("triton-model-analyzer").version)
+    TRITON_CLIENT_VERSION = LooseVersion(
+        pkg_resources.get_distribution("tritonclient").version
+    )
+    TRITON_MODEL_ANALYZER_VERSION = LooseVersion(
+        pkg_resources.get_distribution("triton-model-analyzer").version
+    )
 
 
 def _log_dict(title: str, dict_: Dict[str, Any]):
@@ -74,7 +82,9 @@ def _calculate_average_latency(r):
     return avg_latency
 
 
-def _update_performance_data(results: List, batch_size: int, performance_partial_file: str):
+def _update_performance_data(
+    results: List, batch_size: int, performance_partial_file: str
+):
     row: Dict = {"Batch": batch_size}
     with open(performance_partial_file) as csvfile:
         reader = csv.DictReader(csvfile)
@@ -150,14 +160,18 @@ def _model_analyzer_evaluation(
             perf_analyzer_config["shape"] = input_shapes
         else:
             perf_analyzer_config["shape"] = input_shapes[0]
-            LOGGER.warning("Model Analyzer <= 1.8.0 support only single shape param for Perf Analyzer.")
+            LOGGER.warning(
+                "Model Analyzer <= 1.8.0 support only single shape param for Perf Analyzer."
+            )
 
     if batching_mode == BatchingMode.STATIC:
         batch_sizes = batch_sizes
         concurrency = [number_of_triton_instances]
     elif batching_mode == BatchingMode.DYNAMIC:
         max_batch_size = max(batch_sizes)
-        max_total_requests = 2 * max_batch_size * number_of_triton_instances * number_of_model_instances
+        max_total_requests = (
+            2 * max_batch_size * number_of_triton_instances * number_of_model_instances
+        )
         max_concurrency = min(256, max_total_requests)
         step = max(1, max_concurrency // concurrency_steps)
         min_concurrency = step
@@ -293,7 +307,9 @@ def _perf_analyzer_evaluation(
         step = 1
     elif batching_mode == BatchingMode.DYNAMIC:
         max_batch_size = max(batch_sizes)
-        max_total_requests = 2 * max_batch_size * number_of_triton_instances * number_of_model_instances
+        max_total_requests = (
+            2 * max_batch_size * number_of_triton_instances * number_of_model_instances
+        )
         max_concurrency = min(256, max_total_requests)
         step = max(1, max_concurrency // concurrency_steps)
         min_concurrency = step
@@ -353,7 +369,10 @@ def _perf_analyzer_evaluation(
                 params["output-shared-memory-size"] = output_shared_memory_size
 
             if verbose:
-                _log_dict(f"Perf Analyzer config for batch_size: {batch_size} and concurrency: {concurrency}", params)
+                _log_dict(
+                    f"Perf Analyzer config for batch_size: {batch_size} and concurrency: {concurrency}",
+                    params,
+                )
 
             config = PerfAnalyzerConfig()
             for param, value in params.items():
@@ -611,11 +630,21 @@ def main():
         type=str,
         help="Path to model repository. Valid when using Model Analyzer",
     )
-    parser.add_argument("--result-path", type=pathlib.Path, required=True, help="Path where results files is stored.")
     parser.add_argument(
-        "--warmup", help="Enable model warmup before performance test", action="store_true", default=False
+        "--result-path",
+        type=pathlib.Path,
+        required=True,
+        help="Path where results files is stored.",
     )
-    parser.add_argument("-v", "--verbose", help="Verbose logs", action="store_true", default=False)
+    parser.add_argument(
+        "--warmup",
+        help="Enable model warmup before performance test",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "-v", "--verbose", help="Verbose logs", action="store_true", default=False
+    )
 
     args = parser.parse_args()
 

@@ -14,7 +14,6 @@
 
 import horovod.tensorflow as hvd
 import tensorflow as tf
-
 from model.unet import unet_v1
 
 
@@ -22,7 +21,7 @@ from model.unet import unet_v1
 def dice_coef(predict, target, axis=1, eps=1e-6):
     intersection = tf.reduce_sum(predict * target, axis=axis)
     union = tf.reduce_sum(predict * predict + target * target, axis=axis)
-    dice = (2. * intersection + eps) / (union + eps)
+    dice = (2.0 * intersection + eps) / (union + eps)
     return tf.reduce_mean(dice, axis=0)  # average over batch
 
 
@@ -30,12 +29,18 @@ def regularization_l2loss(weight_decay):
     def loss_filter_fn(name):
         """we don't need to compute L2 loss for BN"""
 
-        return all([
-            tensor_name not in name.lower()
-            for tensor_name in ["batchnorm", "batch_norm", "batch_normalization"]
-        ])
+        return all(
+            [
+                tensor_name not in name.lower()
+                for tensor_name in ["batchnorm", "batch_norm", "batch_normalization"]
+            ]
+        )
 
-    filtered_params = [tf.cast(v, tf.float32) for v in tf.trainable_variables() if loss_filter_fn(v.name)]
+    filtered_params = [
+        tf.cast(v, tf.float32)
+        for v in tf.trainable_variables()
+        if loss_filter_fn(v.name)
+    ]
 
     if len(filtered_params) != 0:
 
@@ -49,7 +54,7 @@ def regularization_l2loss(weight_decay):
 
 
 def unet_fn(features, labels, mode, params):
-    """ Model function for tf.Estimator
+    """Model function for tf.Estimator
 
     Controls how the training is performed by specifying how the
     total_loss is computed and applied in the backward pass.
@@ -66,7 +71,7 @@ def unet_fn(features, labels, mode, params):
     """
     dtype = tf.float32
 
-    device = '/gpu:0'
+    device = "/gpu:0"
 
     global_step = tf.compat.v1.train.get_global_step()
 
@@ -76,41 +81,59 @@ def unet_fn(features, labels, mode, params):
         output_map = unet_v1(features=features, mode=mode)
 
         if mode == tf.estimator.ModeKeys.PREDICT:
-            predictions = {'logits': tf.nn.softmax(output_map, axis=-1)}
+            predictions = {"logits": tf.nn.softmax(output_map, axis=-1)}
             return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
         n_classes = output_map.shape[-1].value
 
-        flat_logits = tf.reshape(tf.cast(output_map, tf.float32),
-                                 [tf.shape(output_map)[0], -1, n_classes])
-        flat_labels = tf.reshape(labels,
-                                 [tf.shape(output_map)[0], -1, n_classes])
+        flat_logits = tf.reshape(
+            tf.cast(output_map, tf.float32), [tf.shape(output_map)[0], -1, n_classes]
+        )
+        flat_labels = tf.reshape(labels, [tf.shape(output_map)[0], -1, n_classes])
 
         crossentropy_loss = tf.reduce_mean(
-            tf.nn.softmax_cross_entropy_with_logits_v2(logits=flat_logits,
-                                                       labels=flat_labels), name='cross_loss_ref')
-        dice_loss = tf.reduce_mean(1 - dice_coef(tf.keras.activations.softmax(flat_logits, axis=-1),
-                                                 flat_labels), name='dice_loss_ref')
+            tf.nn.softmax_cross_entropy_with_logits_v2(
+                logits=flat_logits, labels=flat_labels
+            ),
+            name="cross_loss_ref",
+        )
+        dice_loss = tf.reduce_mean(
+            1
+            - dice_coef(
+                tf.keras.activations.softmax(flat_logits, axis=-1), flat_labels
+            ),
+            name="dice_loss_ref",
+        )
         total_loss = tf.add(crossentropy_loss, dice_loss, name="total_loss_ref")
 
         if mode == tf.estimator.ModeKeys.EVAL:
-            eval_metric_ops = {"eval_ce_loss": tf.compat.v1.metrics.mean(crossentropy_loss),
-                               "eval_dice_loss": tf.compat.v1.metrics.mean(dice_loss),
-                               "eval_total_loss": tf.compat.v1.metrics.mean(total_loss),
-                               "eval_dice_score": tf.compat.v1.metrics.mean(1.0 - dice_loss)}
-            return tf.estimator.EstimatorSpec(mode=mode, loss=dice_loss, eval_metric_ops=eval_metric_ops)
+            eval_metric_ops = {
+                "eval_ce_loss": tf.compat.v1.metrics.mean(crossentropy_loss),
+                "eval_dice_loss": tf.compat.v1.metrics.mean(dice_loss),
+                "eval_total_loss": tf.compat.v1.metrics.mean(total_loss),
+                "eval_dice_score": tf.compat.v1.metrics.mean(1.0 - dice_loss),
+            }
+            return tf.estimator.EstimatorSpec(
+                mode=mode, loss=dice_loss, eval_metric_ops=eval_metric_ops
+            )
 
         opt = tf.compat.v1.train.AdamOptimizer(learning_rate=params.learning_rate)
-        opt = hvd.DistributedOptimizer(opt, device_dense='/gpu:0')
+        opt = hvd.DistributedOptimizer(opt, device_dense="/gpu:0")
 
-        with tf.control_dependencies(tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)):
+        with tf.control_dependencies(
+            tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
+        ):
             deterministic = True
             gate_gradients = (
                 tf.compat.v1.train.Optimizer.GATE_OP
                 if deterministic
-                else tf.compat.v1.train.Optimizer.GATE_NONE)
+                else tf.compat.v1.train.Optimizer.GATE_NONE
+            )
 
-            train_op = opt.minimize(total_loss, gate_gradients=gate_gradients, global_step=global_step)
+            train_op = opt.minimize(
+                total_loss, gate_gradients=gate_gradients, global_step=global_step
+            )
 
-    return tf.estimator.EstimatorSpec(mode, loss=total_loss, train_op=train_op,
-                                      eval_metric_ops={})
+    return tf.estimator.EstimatorSpec(
+        mode, loss=total_loss, train_op=train_op, eval_metric_ops={}
+    )

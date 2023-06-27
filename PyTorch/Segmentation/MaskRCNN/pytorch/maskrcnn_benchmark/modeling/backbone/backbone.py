@@ -2,10 +2,10 @@
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 from collections import OrderedDict
 
-from torch import nn
-
 from maskrcnn_benchmark.modeling import registry
 from maskrcnn_benchmark.modeling.make_layers import conv_with_kaiming_uniform
+from torch import nn
+
 from . import fpn as fpn_module
 from . import resnet
 
@@ -45,8 +45,9 @@ def build_resnet_fpn_backbone(cfg):
 
 
 def build_backbone(cfg):
-    assert cfg.MODEL.BACKBONE.CONV_BODY in registry.BACKBONES, \
-        "cfg.MODEL.BACKBONE.CONV_BODY: {} are not registered in registry".format(
-            cfg.MODEL.BACKBONE.CONV_BODY
-        )
+    assert (
+        cfg.MODEL.BACKBONE.CONV_BODY in registry.BACKBONES
+    ), "cfg.MODEL.BACKBONE.CONV_BODY: {} are not registered in registry".format(
+        cfg.MODEL.BACKBONE.CONV_BODY
+    )
     return registry.BACKBONES[cfg.MODEL.BACKBONE.CONV_BODY](cfg)

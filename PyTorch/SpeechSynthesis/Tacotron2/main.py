@@ -26,21 +26,30 @@
 # *****************************************************************************
 
 import argparse
-from train import main as main_train
+
 from inference_perf import main as main_infer
+from train import main as main_train
+
 
 def parse_args(parser):
     """
     Parse commandline arguments.
     """
 
-    parser.add_argument('--bench-class',  type=str, choices=['train', 'perf-infer', 'perf-train'], required=True, help='Choose test class')
+    parser.add_argument(
+        "--bench-class",
+        type=str,
+        choices=["train", "perf-infer", "perf-train"],
+        required=True,
+        help="Choose test class",
+    )
 
     return parser
 
+
 def main():
-    
-    parser = argparse.ArgumentParser(description='PyTorch Tacotron 2 Testing')
+
+    parser = argparse.ArgumentParser(description="PyTorch Tacotron 2 Testing")
     parser = parse_args(parser)
     args, unknown_args = parser.parse_known_args()
 
@@ -49,5 +58,6 @@ def main():
     else:
         main_infer()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

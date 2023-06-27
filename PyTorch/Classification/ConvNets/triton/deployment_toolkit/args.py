@@ -54,7 +54,11 @@ def add_args_for_fn_signature(parser, fn) -> argparse.ArgumentParser:
                 argument_kwargs["type"] = str2bool
                 argument_kwargs["choices"] = [0, 1]
             elif isinstance(parameter.annotation, type(Optional[Any])):
-                types = [type_ for type_ in parameter.annotation.__args__ if not isinstance(None, type_)]
+                types = [
+                    type_
+                    for type_ in parameter.annotation.__args__
+                    if not isinstance(None, type_)
+                ]
                 if len(types) != 1:
                     raise RuntimeError(
                         f"Could not prepare argument parser for {parameter.name}: {parameter.annotation} in {fn}"
@@ -80,7 +84,11 @@ class ArgParserGenerator:
     def __init__(self, cls_or_fn, module_path: Optional[str] = None):
         self._cls_or_fn = cls_or_fn
 
-        self._handle = cls_or_fn if inspect.isfunction(cls_or_fn) else getattr(cls_or_fn, "__init__")
+        self._handle = (
+            cls_or_fn
+            if inspect.isfunction(cls_or_fn)
+            else getattr(cls_or_fn, "__init__")
+        )
         input_is_python_file = module_path and module_path.endswith(".py")
         self._input_path = module_path if input_is_python_file else None
         self._required_fn_name_for_signature_parsing = getattr(
@@ -99,7 +107,9 @@ class ArgParserGenerator:
         tmp_parser = argparse.ArgumentParser(allow_abbrev=False)
         self._update_argparser(tmp_parser)
         custom_names = [
-            p.dest.replace("-", "_") for p in tmp_parser._actions if not isinstance(p, argparse._HelpAction)
+            p.dest.replace("-", "_")
+            for p in tmp_parser._actions
+            if not isinstance(p, argparse._HelpAction)
         ]
         custom_params = {n: getattr(args, n) for n in custom_names}
         filtered_args = {**filtered_args, **custom_params}
@@ -113,12 +123,16 @@ class ArgParserGenerator:
     def _update_argparser(self, parser):
         label = "argparser_update"
         if self._input_path:
-            update_argparser_handle = load_from_file(self._input_path, label=label, target=GET_ARGPARSER_FN_NAME)
+            update_argparser_handle = load_from_file(
+                self._input_path, label=label, target=GET_ARGPARSER_FN_NAME
+            )
             if update_argparser_handle:
                 update_argparser_handle(parser)
             elif self._required_fn_name_for_signature_parsing:
                 fn_handle = load_from_file(
-                    self._input_path, label=label, target=self._required_fn_name_for_signature_parsing
+                    self._input_path,
+                    label=label,
+                    target=self._required_fn_name_for_signature_parsing,
                 )
                 if fn_handle:
                     add_args_for_fn_signature(parser, fn_handle)

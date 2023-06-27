@@ -13,12 +13,11 @@
 # limitations under the License.
 """Functions to perform COCO evaluation."""
 import numpy as np
-
-from mrcnn_tf2.utils import coco_utils, coco_metric
+from mrcnn_tf2.utils import coco_metric, coco_utils
 
 
 def process_predictions(predictions):
-    """ Process the model predictions for COCO eval.
+    """Process the model predictions for COCO eval.
     Converts boxes from [y1, x1, y2, x2] to [x1, y1, w, h] and scales them by image scale.
     Flattens source_ids
 
@@ -28,8 +27,8 @@ def process_predictions(predictions):
     Returns:
         Converted prediction.
     """
-    image_info = predictions['image_info']
-    detection_boxes = predictions['detection_boxes']
+    image_info = predictions["image_info"]
+    detection_boxes = predictions["detection_boxes"]
 
     for pred_id, box_id in np.ndindex(*detection_boxes.shape[:2]):
         # convert from [y1, x1, y2, x2] to [x1, y1, w, h] * scale
@@ -41,13 +40,13 @@ def process_predictions(predictions):
         detection_boxes[pred_id, box_id, :] = new_box
 
     # flatten source ids
-    predictions['source_ids'] = predictions['source_ids'].flatten()
+    predictions["source_ids"] = predictions["source_ids"].flatten()
 
     return predictions
 
 
 def evaluate(predictions, eval_file=None, include_mask=True):
-    """ Evaluates given iterable of predictions.
+    """Evaluates given iterable of predictions.
 
     Args:
         predictions (Iterable): Iterable of predictions returned from.
@@ -62,14 +61,20 @@ def evaluate(predictions, eval_file=None, include_mask=True):
     predictions = process_predictions(predictions)
 
     # create evaluation metric
-    eval_metric = coco_metric.EvaluationMetric(filename=eval_file, include_mask=include_mask)
+    eval_metric = coco_metric.EvaluationMetric(
+        filename=eval_file, include_mask=include_mask
+    )
 
     # eval using the file or groundtruth from features
     if eval_file is not None:
         eval_results = eval_metric.predict_metric_fn(predictions)
     else:
-        images, annotations = coco_utils.extract_coco_groundtruth(predictions, include_mask)
+        images, annotations = coco_utils.extract_coco_groundtruth(
+            predictions, include_mask
+        )
         coco_dataset = coco_utils.create_coco_format_dataset(images, annotations)
-        eval_results = eval_metric.predict_metric_fn(predictions, groundtruth_data=coco_dataset)
+        eval_results = eval_metric.predict_metric_fn(
+            predictions, groundtruth_data=coco_dataset
+        )
 
     return eval_results

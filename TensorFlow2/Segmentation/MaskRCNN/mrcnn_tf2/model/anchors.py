@@ -19,9 +19,11 @@ from collections import OrderedDict
 
 import numpy as np
 import tensorflow as tf
-
-from mrcnn_tf2.object_detection import argmax_matcher, faster_rcnn_box_coder, region_similarity_calculator, \
-    box_list, balanced_positive_negative_sampler, target_assigner
+from mrcnn_tf2.object_detection import (argmax_matcher,
+                                        balanced_positive_negative_sampler,
+                                        box_list, faster_rcnn_box_coder,
+                                        region_similarity_calculator,
+                                        target_assigner)
 
 
 def _generate_anchor_configs(min_level, max_level, num_scales, aspect_ratios):
@@ -48,7 +50,8 @@ def _generate_anchor_configs(min_level, max_level, num_scales, aspect_ratios):
         for scale_octave in range(num_scales):
             for aspect in aspect_ratios:
                 anchor_configs[level].append(
-                    (2 ** level, scale_octave / float(num_scales), aspect))
+                    (2**level, scale_octave / float(num_scales), aspect)
+                )
     return anchor_configs
 
 
@@ -75,8 +78,8 @@ def _generate_anchor_boxes(image_size, anchor_scale, anchor_configs):
         for config in configs:
             stride, octave_scale, aspect = config
             if image_size[0] % stride != 0 or image_size[1] % stride != 0:
-                raise ValueError('input size must be divided by the stride.')
-            base_anchor_size = anchor_scale * stride * 2 ** octave_scale
+                raise ValueError("input size must be divided by the stride.")
+            base_anchor_size = anchor_scale * stride * 2**octave_scale
             anchor_size_x_2 = base_anchor_size * aspect[0] / 2.0
             anchor_size_y_2 = base_anchor_size * aspect[1] / 2.0
 
@@ -86,8 +89,14 @@ def _generate_anchor_boxes(image_size, anchor_scale, anchor_configs):
             xv = xv.reshape(-1)
             yv = yv.reshape(-1)
 
-            boxes = np.vstack((yv - anchor_size_y_2, xv - anchor_size_x_2,
-                               yv + anchor_size_y_2, xv + anchor_size_x_2))
+            boxes = np.vstack(
+                (
+                    yv - anchor_size_y_2,
+                    xv - anchor_size_x_2,
+                    yv + anchor_size_y_2,
+                    xv + anchor_size_x_2,
+                )
+            )
             boxes = np.swapaxes(boxes, 0, 1)
             boxes_level.append(np.expand_dims(boxes, axis=1))
         # concat anchors on the same level to the reshape NxAx4
@@ -101,7 +110,9 @@ def _generate_anchor_boxes(image_size, anchor_scale, anchor_configs):
 class Anchors:
     """Mask-RCNN Anchors class."""
 
-    def __init__(self, min_level, max_level, num_scales, aspect_ratios, anchor_scale, image_size):
+    def __init__(
+        self, min_level, max_level, num_scales, aspect_ratios, anchor_scale, image_size
+    ):
         """Constructs multiscale Mask-RCNN anchors.
 
         Args:
@@ -130,13 +141,13 @@ class Anchors:
 
     def _generate_configs(self):
         """Generate configurations of anchor boxes."""
-        return _generate_anchor_configs(self.min_level, self.max_level,
-                                        self.num_scales, self.aspect_ratios)
+        return _generate_anchor_configs(
+            self.min_level, self.max_level, self.num_scales, self.aspect_ratios
+        )
 
     def _generate_boxes(self):
         """Generates multiscale anchor boxes."""
-        boxes = _generate_anchor_boxes(self.image_size, self.anchor_scale,
-                                       self.config)
+        boxes = _generate_anchor_boxes(self.image_size, self.anchor_scale, self.config)
         boxes = tf.convert_to_tensor(value=boxes, dtype=tf.float32)
         return boxes
 
@@ -151,22 +162,29 @@ class Anchors:
         labels_unpacked = OrderedDict()
         count = 0
         for level in range(self.min_level, self.max_level + 1):
-            feat_size0 = int(self.image_size[0] / 2 ** level)
-            feat_size1 = int(self.image_size[1] / 2 ** level)
+            feat_size0 = int(self.image_size[0] / 2**level)
+            feat_size1 = int(self.image_size[1] / 2**level)
             steps = feat_size0 * feat_size1 * self.get_anchors_per_location()
             indices = tf.range(count, count + steps)
             count += steps
             labels_unpacked[level] = tf.reshape(
-                tf.gather(labels, indices), [feat_size0, feat_size1, -1])
+                tf.gather(labels, indices), [feat_size0, feat_size1, -1]
+            )
         return labels_unpacked
 
 
 class AnchorLabeler:
     """Labeler for multiscale anchor boxes."""
 
-    def __init__(self, anchors, num_classes, match_threshold=0.7,
-                 unmatched_threshold=0.3, rpn_batch_size_per_im=256,
-                 rpn_fg_fraction=0.5):
+    def __init__(
+        self,
+        anchors,
+        num_classes,
+        match_threshold=0.7,
+        unmatched_threshold=0.3,
+        rpn_batch_size_per_im=256,
+        rpn_fg_fraction=0.5,
+    ):
         """Constructs anchor labeler to assign labels to anchors.
 
         Args:
@@ -188,11 +206,13 @@ class AnchorLabeler:
             match_threshold,
             unmatched_threshold=unmatched_threshold,
             negatives_lower_than_unmatched=True,
-            force_match_for_each_row=True)
+            force_match_for_each_row=True,
+        )
         box_coder = faster_rcnn_box_coder.FasterRcnnBoxCoder()
 
         self._target_assigner = target_assigner.TargetAssigner(
-            similarity_calc, matcher, box_coder)
+            similarity_calc, matcher, box_coder
+        )
         self._anchors = anchors
         self._match_threshold = match_threshold
         self._unmatched_threshold = unmatched_threshold
@@ -217,9 +237,9 @@ class AnchorLabeler:
             (2) score_targets[i]=0, negative. (3) score_targets[i]=-1, the anchor is
             don't care (ignore).
         """
-        sampler = (
-            balanced_positive_negative_sampler.BalancedPositiveNegativeSampler(
-                positive_fraction=self._rpn_fg_fraction, is_static=False))
+        sampler = balanced_positive_negative_sampler.BalancedPositiveNegativeSampler(
+            positive_fraction=self._rpn_fg_fraction, is_static=False
+        )
         # indicator includes both positive and negative labels.
         # labels includes only positives labels.
         # positives = indicator & labels.
@@ -228,20 +248,24 @@ class AnchorLabeler:
         indicator = tf.greater(match_results, -2)
         labels = tf.greater(match_results, -1)
 
-        samples = sampler.subsample(
-            indicator, self._rpn_batch_size_per_im, labels)
+        samples = sampler.subsample(indicator, self._rpn_batch_size_per_im, labels)
         positive_labels = tf.where(
             tf.logical_and(samples, labels),
             tf.constant(2, dtype=tf.int32, shape=match_results.shape),
-            tf.constant(0, dtype=tf.int32, shape=match_results.shape))
+            tf.constant(0, dtype=tf.int32, shape=match_results.shape),
+        )
         negative_labels = tf.where(
             tf.logical_and(samples, tf.logical_not(labels)),
             tf.constant(1, dtype=tf.int32, shape=match_results.shape),
-            tf.constant(0, dtype=tf.int32, shape=match_results.shape))
+            tf.constant(0, dtype=tf.int32, shape=match_results.shape),
+        )
         ignore_labels = tf.fill(match_results.shape, -1)
 
-        return (ignore_labels + positive_labels + negative_labels,
-                positive_labels, negative_labels)
+        return (
+            ignore_labels + positive_labels + negative_labels,
+            positive_labels,
+            negative_labels,
+        )
 
     def label_anchors(self, gt_boxes, gt_labels):
         """Labels anchors with ground truth inputs.
@@ -267,7 +291,8 @@ class AnchorLabeler:
 
         # cls_targets, cls_weights, box_weights are not used
         _, _, box_targets, _, matches = self._target_assigner.assign(
-            anchor_box_list, gt_box_list, gt_labels)
+            anchor_box_list, gt_box_list, gt_labels
+        )
 
         # score_targets contains the subsampled positive and negative anchors.
         score_targets, _, _ = self._get_rpn_samples(matches.match_results)

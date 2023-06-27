@@ -26,9 +26,7 @@ class MapMetric:
         self.cpu = cpu
         with tf.device("/CPU:0"):
             self.current_step_var = tf.Variable(0, trainable=False, dtype=tf.int64)
-            self.map_id_counter = tf.Variable(
-                0.0, trainable=False, dtype=tf.float64
-            )
+            self.map_id_counter = tf.Variable(0.0, trainable=False, dtype=tf.float64)
             self.streaming_map = tf.Variable(
                 0.0, name="STREAMING_MAP", trainable=False, dtype=tf.float64
             )
@@ -41,7 +39,7 @@ class MapMetric:
     @tf.function
     def calculate_map(self, y, predictions, map_ids):
 
-        #flatten all arrays
+        # flatten all arrays
         predictions = tf.reshape(predictions, [-1])
         predictions = tf.cast(predictions, tf.float64)
         map_ids = tf.reshape(map_ids, [-1])
@@ -54,22 +52,17 @@ class MapMetric:
         labels = tf.gather(labels, indices=sorted_ids)
 
         # renumber map ids to 0...n and get counts for each occurence
-        _, map_ids_idx, map_ids_count = tf.unique_with_counts(
-            map_ids, out_idx=tf.int64
-        )
+        _, map_ids_idx, map_ids_count = tf.unique_with_counts(map_ids, out_idx=tf.int64)
 
         # get how many times the most common ad id occurs and calculate the padding
         pad_length = 30 - tf.reduce_max(map_ids_count)
 
         # group predictions into rows based on map id idx and turn into tensor
-        preds = tf.RaggedTensor.from_value_rowids(
-            predictions, map_ids_idx
-        ).to_tensor()
+        preds = tf.RaggedTensor.from_value_rowids(predictions, map_ids_idx).to_tensor()
         # ditto for labels
         labels = tf.RaggedTensor.from_value_rowids(labels, map_ids_idx).to_tensor()
 
-
-        #get only rows for which there is a positive label
+        # get only rows for which there is a positive label
         labels_mask = tf.math.reduce_max(labels, 1)
         preds_masked = tf.boolean_mask(preds, labels_mask)
         labels_masked = tf.boolean_mask(labels, labels_mask)
@@ -86,10 +79,10 @@ class MapMetric:
 
         # get rows in which the true positive is among our top 12
 
-        #indicators of our hits
+        # indicators of our hits
         indices = tf.math.equal(predictions_idx, labels_masked)
 
-        #indicators of hits per row
+        # indicators of hits per row
         indices_mask = tf.math.reduce_any(indices, 1)
         masked_indices = tf.boolean_mask(indices, indices_mask)
 
@@ -117,15 +110,15 @@ class MapMetric:
 
 class Evaluator:
     def __init__(
-            self,
-            model,
-            throughput_calculator,
-            eval_dataset,
-            compiled_loss,
-            args,
-            maybe_map_column,
-            multihot_hotnesses_dict,
-            num_auc_thresholds
+        self,
+        model,
+        throughput_calculator,
+        eval_dataset,
+        compiled_loss,
+        args,
+        maybe_map_column,
+        multihot_hotnesses_dict,
+        num_auc_thresholds,
     ):
 
         self.model = model
@@ -134,15 +127,20 @@ class Evaluator:
         self.throughput_calculator = throughput_calculator
         self.compiled_loss = compiled_loss
         self.eval_loss = tf.keras.metrics.Mean()
-        self.metrics = [tf.keras.metrics.AUC(num_thresholds=num_auc_thresholds,
-                                          curve='ROC', summation_method='interpolation',
-                                          from_logits=True)]
-        self.map_enabled=False
+        self.metrics = [
+            tf.keras.metrics.AUC(
+                num_thresholds=num_auc_thresholds,
+                curve="ROC",
+                summation_method="interpolation",
+                from_logits=True,
+            )
+        ]
+        self.map_enabled = False
         self.map_column = None
         if maybe_map_column is not None:
-            self.map_metric=MapMetric(maybe_map_column, cpu=args.cpu)
-            self.map_enabled=True
-            self.map_column=maybe_map_column
+            self.map_metric = MapMetric(maybe_map_column, cpu=args.cpu)
+            self.map_enabled = True
+            self.map_column = maybe_map_column
 
         self.metric_names = ["auc_roc"]
         self.eval_dataset = eval_dataset
@@ -159,11 +157,16 @@ class Evaluator:
 
     def prepare_dataset(self, current_epoch):
         benchmark_needed_steps = self.args.benchmark_steps // self.steps_per_epoch + 1
-        n = 1 if self.args.evaluate and not self.args.benchmark else self.args.num_epochs - current_epoch \
-            if not self.args.benchmark else max(benchmark_needed_steps, self.args.num_epochs)
+        n = (
+            1
+            if self.args.evaluate and not self.args.benchmark
+            else self.args.num_epochs - current_epoch
+            if not self.args.benchmark
+            else max(benchmark_needed_steps, self.args.num_epochs)
+        )
         self.eval_dataset = self.eval_dataset.epochs(n)
 
-    #todo find a nicer way to do this
+    # todo find a nicer way to do this
     @tf.function(experimental_relax_shapes=True)
     def _execute_step_calculations_with_map(self, x, y, map_ids):
         predictions = self.model(x, training=False)
@@ -189,7 +192,6 @@ class Evaluator:
 
         return loss
 
-
     @tf.function
     def _reduce_results(self):
         if not self.args.cpu:
@@ -214,7 +216,9 @@ class Evaluator:
                 hand_gather_root = metric
                 hand_gather_root.reset_state()
                 for list_of_weights in gathered_weights:
-                    for (base_weight, new_weight) in zip(hand_gather_root.weights, list_of_weights):
+                    for (base_weight, new_weight) in zip(
+                        hand_gather_root.weights, list_of_weights
+                    ):
                         base_weight.assign_add(new_weight)
                 hand_reduced_metrics.append(hand_gather_root)
 
@@ -229,7 +233,7 @@ class Evaluator:
             map_ids = x.pop(self.map_column)
             self._execute_step_calculations_with_map(x, y, map_ids)
         else:
-            self._execute_step_calculations_no_map(x,y)
+            self._execute_step_calculations_no_map(x, y)
 
         if self.args.benchmark:
             self.throughput_calculator(y.shape[0], eval_benchmark=True)
@@ -258,14 +262,14 @@ class Evaluator:
                 # Eager mode part
                 current_step = int(step.numpy())
 
-                eval_data = {
-                    "loss_val": np.around(eval_loss.astype(np.float64), 4)
-                }
+                eval_data = {"loss_val": np.around(eval_loss.astype(np.float64), 4)}
                 if map_value is not None:
                     eval_data["streaming_map_val"] = np.around(map_value, 4)
 
                 for metric_name, metric in zip(self.metric_names, hand_reduced_metrics):
-                    eval_data[metric_name] = np.around(metric.result().numpy().astype(np.float64), 4)
+                    eval_data[metric_name] = np.around(
+                        metric.result().numpy().astype(np.float64), 4
+                    )
 
                 self.log(eval_data, current_step)
 

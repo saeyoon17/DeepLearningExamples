@@ -11,6 +11,7 @@ is implemented
 """
 
 import math
+
 import torch
 from torch.nn.modules.utils import _ntuple
 
@@ -25,7 +26,6 @@ class _NewEmptyTensorOp(torch.autograd.Function):
     def backward(ctx, grad):
         shape = ctx.shape
         return _NewEmptyTensorOp.apply(grad, shape), None
-
 
 
 class Conv2d(torch.nn.Conv2d):
@@ -102,10 +102,12 @@ def interpolate(
     output_shape = input.shape[:-2] + output_shape
     return _NewEmptyTensorOp.apply(input, output_shape)
 
+
 def nhwc_to_nchw_transform(x):
     if x.numel() == 0:
         return x
     return x.to(memory_format=torch.contiguous_format)
+
 
 def nchw_to_nhwc_transform(x):
     if x.numel() == 0:

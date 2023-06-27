@@ -27,6 +27,7 @@ class Seq2Seq(nn.Module):
     """
     Generic Seq2Seq module, with an encoder and a decoder.
     """
+
     def __init__(self, encoder=None, decoder=None, batch_first=False):
         """
         Constructor for the Seq2Seq module.

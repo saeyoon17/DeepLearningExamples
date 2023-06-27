@@ -40,17 +40,18 @@ This matcher is used in Fast(er)-RCNN.
 Note: matchers are used in TargetAssigners. There is a create_target_assigner
 factory function for popular implementations.
 """
+from typing import Optional
+
 import torch
 from torch.nn.functional import one_hot
+
 from .matcher import Match
-from typing import Optional
 
 
 def one_hot_bool(x, num_classes: int):
     # for improved perf over PyTorch builtin one_hot, scatter to bool
     onehot = torch.zeros(x.size(0), num_classes, device=x.device, dtype=torch.bool)
     return onehot.scatter_(1, x.unsqueeze(1), 1)
-
 
 
 @torch.jit.script
@@ -73,11 +74,13 @@ class ArgMaxMatcher(object):  # cannot inherit with torchscript
     For ignored matches this class sets the values in the Match object to -2.
     """
 
-    def __init__(self,
-                 matched_threshold: float,
-                 unmatched_threshold: Optional[float] = None,
-                 negatives_lower_than_unmatched: bool = True,
-                 force_match_for_each_row: bool = False):
+    def __init__(
+        self,
+        matched_threshold: float,
+        unmatched_threshold: Optional[float] = None,
+        negatives_lower_than_unmatched: bool = True,
+        force_match_for_each_row: bool = False,
+    ):
         """Construct ArgMaxMatcher.
 
         Args:
@@ -102,20 +105,27 @@ class ArgMaxMatcher(object):  # cannot inherit with torchscript
                 or if unmatched_threshold > matched_threshold.
         """
         if (matched_threshold is None) and (unmatched_threshold is not None):
-            raise ValueError('Need to also define matched_threshold when unmatched_threshold is defined')
+            raise ValueError(
+                "Need to also define matched_threshold when unmatched_threshold is defined"
+            )
         self._matched_threshold = matched_threshold
-        self._unmatched_threshold: float = 0.
+        self._unmatched_threshold: float = 0.0
         if unmatched_threshold is None:
             self._unmatched_threshold = matched_threshold
         else:
             if unmatched_threshold > matched_threshold:
-                raise ValueError('unmatched_threshold needs to be smaller or equal to matched_threshold')
+                raise ValueError(
+                    "unmatched_threshold needs to be smaller or equal to matched_threshold"
+                )
             self._unmatched_threshold = unmatched_threshold
         if not negatives_lower_than_unmatched:
             if self._unmatched_threshold == self._matched_threshold:
-                raise ValueError('When negatives are in between matched and unmatched thresholds, these '
-                                 'cannot be of equal value. matched: %s, unmatched: %s',
-                                 self._matched_threshold, self._unmatched_threshold)
+                raise ValueError(
+                    "When negatives are in between matched and unmatched thresholds, these "
+                    "cannot be of equal value. matched: %s, unmatched: %s",
+                    self._matched_threshold,
+                    self._unmatched_threshold,
+                )
         self._force_match_for_each_row = force_match_for_each_row
         self._negatives_lower_than_unmatched = negatives_lower_than_unmatched
 
@@ -143,21 +153,36 @@ class ArgMaxMatcher(object):  # cannot inherit with torchscript
         if self._matched_threshold is not None:
             # Get logical indices of ignored and unmatched columns as tf.int64
             below_unmatched_threshold = self._unmatched_threshold > matched_vals
-            between_thresholds = (matched_vals >= self._unmatched_threshold) & \
-                                 (self._matched_threshold > matched_vals)
+            between_thresholds = (matched_vals >= self._unmatched_threshold) & (
+                self._matched_threshold > matched_vals
+            )
 
             if self._negatives_lower_than_unmatched:
-                matches = self._set_values_using_indicator(matches, below_unmatched_threshold, -1)
-                matches = self._set_values_using_indicator(matches, between_thresholds, -2)
+                matches = self._set_values_using_indicator(
+                    matches, below_unmatched_threshold, -1
+                )
+                matches = self._set_values_using_indicator(
+                    matches, between_thresholds, -2
+                )
             else:
-                matches = self._set_values_using_indicator(matches, below_unmatched_threshold, -2)
-                matches = self._set_values_using_indicator(matches, between_thresholds, -1)
+                matches = self._set_values_using_indicator(
+                    matches, below_unmatched_threshold, -2
+                )
+                matches = self._set_values_using_indicator(
+                    matches, between_thresholds, -1
+                )
 
         if self._force_match_for_each_row:
             force_match_column_ids = torch.argmax(similarity_matrix, 1)
-            force_match_column_indicators = one_hot_bool(force_match_column_ids, similarity_matrix.shape[1])
-            force_match_column_mask, force_match_row_ids = torch.max(force_match_column_indicators, 0)
-            final_matches = torch.where(force_match_column_mask, force_match_row_ids, matches)
+            force_match_column_indicators = one_hot_bool(
+                force_match_column_ids, similarity_matrix.shape[1]
+            )
+            force_match_column_mask, force_match_row_ids = torch.max(
+                force_match_column_indicators, 0
+            )
+            final_matches = torch.where(
+                force_match_column_mask, force_match_row_ids, matches
+            )
             return final_matches
         else:
             return matches

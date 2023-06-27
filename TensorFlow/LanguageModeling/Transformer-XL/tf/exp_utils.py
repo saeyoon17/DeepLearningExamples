@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import dllogger
 import os
+
+import dllogger
+
 
 class AverageMeter:
     """
     Computes and stores the average and current value
     """
+
     def __init__(self, warmup=0, keep=False):
         self.reset()
         self.warmup = warmup
@@ -43,14 +46,15 @@ class AverageMeter:
             if self.keep:
                 self.vals.append(val)
 
+
 def setup_dllogger(enabled=True, filename=os.devnull, rank=0):
     if enabled and rank == 0:
         backends = [
             dllogger.JSONStreamBackend(
                 dllogger.Verbosity.VERBOSE,
                 filename,
-                ),
-            ]
+            ),
+        ]
         dllogger.init(backends)
     else:
         dllogger.init([])

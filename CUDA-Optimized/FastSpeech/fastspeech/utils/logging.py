@@ -26,4 +26,4 @@ import time
 
 
 def tprint(msg):
-    print('[{}] {}'.format(time.strftime('%Y%m%d %H:%M:%S'), msg))
+    print("[{}] {}".format(time.strftime("%Y%m%d %H:%M:%S"), msg))

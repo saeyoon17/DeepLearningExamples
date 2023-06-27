@@ -17,67 +17,76 @@ import re
 import sys
 
 import torch
-
-from common.text.symbols import get_symbols, get_pad_idx
-from common.utils import DefaultAttrDict, AttrDict
+from common.text.symbols import get_pad_idx, get_symbols
+from common.utils import AttrDict, DefaultAttrDict
 from fastpitch.model import FastPitch
 from fastpitch.model_jit import FastPitchJIT
 from hifigan.models import Generator
 
 try:
-    from waveglow.model import WaveGlow
     from waveglow import model as glow
     from waveglow.denoiser import Denoiser
-    sys.modules['glow'] = glow
+    from waveglow.model import WaveGlow
+
+    sys.modules["glow"] = glow
 except ImportError:
     print("WARNING: Couldn't import WaveGlow")
 
 
 def parse_model_args(model_name, parser, add_help=False):
-    if model_name == 'FastPitch':
+    if model_name == "FastPitch":
         from fastpitch import arg_parser
+
         return arg_parser.parse_fastpitch_args(parser, add_help)
 
-    elif model_name == 'HiFi-GAN':
+    elif model_name == "HiFi-GAN":
         from hifigan import arg_parser
+
         return arg_parser.parse_hifigan_args(parser, add_help)
 
-    elif model_name == 'WaveGlow':
+    elif model_name == "WaveGlow":
         from waveglow.arg_parser import parse_waveglow_args
+
         return parse_waveglow_args(parser, add_help)
 
     else:
         raise NotImplementedError(model_name)
 
 
-def get_model(model_name, model_config, device, bn_uniform_init=False,
-              forward_is_infer=False, jitable=False):
+def get_model(
+    model_name,
+    model_config,
+    device,
+    bn_uniform_init=False,
+    forward_is_infer=False,
+    jitable=False,
+):
     """Chooses a model based on name"""
     del bn_uniform_init  # unused (old name: uniform_initialize_bn_weight)
 
-    if model_name == 'FastPitch':
+    if model_name == "FastPitch":
         if jitable:
             model = FastPitchJIT(**model_config)
         else:
             model = FastPitch(**model_config)
 
-    elif model_name == 'HiFi-GAN':
+    elif model_name == "HiFi-GAN":
         model = Generator(model_config)
 
-    elif model_name == 'WaveGlow':
+    elif model_name == "WaveGlow":
         model = WaveGlow(**model_config)
 
     else:
         raise NotImplementedError(model_name)
 
-    if forward_is_infer and hasattr(model, 'infer'):
+    if forward_is_infer and hasattr(model, "infer"):
         model.forward = model.infer
 
     return model.to(device)
 
 
 def get_model_config(model_name, args, ckpt_config=None):
-    """ Get config needed to instantiate the model """
+    """Get config needed to instantiate the model"""
 
     # Mark keys missing in `args` with an object (None is ambiguous)
     _missing = object()
@@ -85,15 +94,21 @@ def get_model_config(model_name, args, ckpt_config=None):
 
     # `ckpt_config` is loaded from the checkpoint and has the priority
     # `model_config` is based on args and fills empty slots in `ckpt_config`
-    if model_name == 'FastPitch':
+    if model_name == "FastPitch":
         model_config = dict(
             # io
             n_mel_channels=args.n_mel_channels,
             # symbols
-            n_symbols=(len(get_symbols(args.symbol_set))
-                       if args.symbol_set is not _missing else _missing),
-            padding_idx=(get_pad_idx(args.symbol_set)
-                         if args.symbol_set is not _missing else _missing),
+            n_symbols=(
+                len(get_symbols(args.symbol_set))
+                if args.symbol_set is not _missing
+                else _missing
+            ),
+            padding_idx=(
+                get_pad_idx(args.symbol_set)
+                if args.symbol_set is not _missing
+                else _missing
+            ),
             symbols_embedding_dim=args.symbols_embedding_dim,
             # input FFT
             in_fft_n_layers=args.in_fft_n_layers,
@@ -139,12 +154,13 @@ def get_model_config(model_name, args, ckpt_config=None):
             energy_conditioning=args.energy_conditioning,
             energy_embedding_kernel_size=args.energy_embedding_kernel_size,
         )
-    elif model_name == 'HiFi-GAN':
+    elif model_name == "HiFi-GAN":
         if args.hifigan_config is not None:
             assert ckpt_config is None, (
                 "Supplied --hifigan-config, but the checkpoint has a config. "
-                "Drop the flag or remove the config from the checkpoint file.")
-            print(f'HiFi-GAN: Reading model config from {args.hifigan_config}')
+                "Drop the flag or remove the config from the checkpoint file."
+            )
+            print(f"HiFi-GAN: Reading model config from {args.hifigan_config}")
             with open(args.hifigan_config) as f:
                 args = AttrDict(json.load(f))
 
@@ -157,7 +173,7 @@ def get_model_config(model_name, args, ckpt_config=None):
             resblock_kernel_sizes=args.resblock_kernel_sizes,
             resblock_dilation_sizes=args.resblock_dilation_sizes,
         )
-    elif model_name == 'WaveGlow':
+    elif model_name == "WaveGlow":
         model_config = dict(
             n_mel_channels=args.n_mel_channels,
             n_flows=args.flows,
@@ -167,8 +183,8 @@ def get_model_config(model_name, args, ckpt_config=None):
             WN_config=dict(
                 n_layers=args.wn_layers,
                 kernel_size=args.wn_kernel_size,
-                n_channels=args.wn_channels
-            )
+                n_channels=args.wn_channels,
+            ),
         )
     else:
         raise NotImplementedError(model_name)
@@ -180,18 +196,20 @@ def get_model_config(model_name, args, ckpt_config=None):
 
     # If there was a ckpt_config, it should have had all args
     if ckpt_config is not None and len(missing_keys) > 0:
-        print(f'WARNING: Keys {missing_keys} missing from the loaded config; '
-              'using args instead.')
+        print(
+            f"WARNING: Keys {missing_keys} missing from the loaded config; "
+            "using args instead."
+        )
 
     assert all(v is not _missing for v in final_config.values())
     return final_config
 
 
 def get_model_train_setup(model_name, args):
-    """ Dump train setup for documentation purposes """
-    if model_name == 'FastPitch':
+    """Dump train setup for documentation purposes"""
+    if model_name == "FastPitch":
         return dict()
-    elif model_name == 'HiFi-GAN':
+    elif model_name == "HiFi-GAN":
         return dict(
             # audio
             segment_size=args.segment_size,
@@ -211,33 +229,41 @@ def get_model_train_setup(model_name, args):
             lr_decay=args.lr_decay,
             epochs_all=args.epochs,
         )
-    elif model_name == 'WaveGlow':
+    elif model_name == "WaveGlow":
         return dict()
     else:
         raise NotImplementedError(model_name)
 
 
-def load_model_from_ckpt(checkpoint_data, model, key='state_dict'):
+def load_model_from_ckpt(checkpoint_data, model, key="state_dict"):
 
     if key is None:
-        return checkpoint_data['model'], None
+        return checkpoint_data["model"], None
 
     sd = checkpoint_data[key]
-    sd = {re.sub('^module\.', '', k): v for k, v in sd.items()}
+    sd = {re.sub("^module\.", "", k): v for k, v in sd.items()}
     status = model.load_state_dict(sd, strict=False)
     return model, status
 
 
-def load_and_setup_model(model_name, parser, checkpoint, amp, device,
-                         unk_args=[], forward_is_infer=False, jitable=False):
+def load_and_setup_model(
+    model_name,
+    parser,
+    checkpoint,
+    amp,
+    device,
+    unk_args=[],
+    forward_is_infer=False,
+    jitable=False,
+):
     if checkpoint is not None:
         ckpt_data = torch.load(checkpoint)
-        print(f'{model_name}: Loading {checkpoint}...')
-        ckpt_config = ckpt_data.get('config')
+        print(f"{model_name}: Loading {checkpoint}...")
+        ckpt_config = ckpt_data.get("config")
         if ckpt_config is None:
-            print(f'{model_name}: No model config in the checkpoint; using args.')
+            print(f"{model_name}: No model config in the checkpoint; using args.")
         else:
-            print(f'{model_name}: Found model config saved in the checkpoint.')
+            print(f"{model_name}: Found model config saved in the checkpoint.")
     else:
         ckpt_config = None
         ckpt_data = {}
@@ -248,55 +274,62 @@ def load_and_setup_model(model_name, parser, checkpoint, amp, device,
 
     model_config = get_model_config(model_name, model_args, ckpt_config)
 
-    model = get_model(model_name, model_config, device,
-                      forward_is_infer=forward_is_infer,
-                      jitable=jitable)
+    model = get_model(
+        model_name,
+        model_config,
+        device,
+        forward_is_infer=forward_is_infer,
+        jitable=jitable,
+    )
 
     if checkpoint is not None:
-        key = 'generator' if model_name == 'HiFi-GAN' else 'state_dict'
+        key = "generator" if model_name == "HiFi-GAN" else "state_dict"
         model, status = load_model_from_ckpt(ckpt_data, model, key)
 
         missing = [] if status is None else status.missing_keys
         unexpected = [] if status is None else status.unexpected_keys
 
         # Attention is only used during training, we won't miss it
-        if model_name == 'FastPitch':
-            missing = [k for k in missing if not k.startswith('attention.')]
-            unexpected = [k for k in unexpected if not k.startswith('attention.')]
+        if model_name == "FastPitch":
+            missing = [k for k in missing if not k.startswith("attention.")]
+            unexpected = [k for k in unexpected if not k.startswith("attention.")]
 
         assert len(missing) == 0 and len(unexpected) == 0, (
-            f'Mismatched keys when loading parameters. Missing: {missing}, '
-            f'unexpected: {unexpected}.')
+            f"Mismatched keys when loading parameters. Missing: {missing}, "
+            f"unexpected: {unexpected}."
+        )
 
     if model_name == "WaveGlow":
         for k, m in model.named_modules():
             m._non_persistent_buffers_set = set()  # pytorch 1.6.0 compatability
         model = model.remove_weightnorm(model)
 
-    elif model_name == 'HiFi-GAN':
+    elif model_name == "HiFi-GAN":
         assert model_args.hifigan_config is not None or ckpt_config is not None, (
-            'Use a HiFi-GAN checkpoint from NVIDIA DeepLearningExamples with '
-            'saved config or supply --hifigan-config <json_file>.')
+            "Use a HiFi-GAN checkpoint from NVIDIA DeepLearningExamples with "
+            "saved config or supply --hifigan-config <json_file>."
+        )
         model.remove_weight_norm()
 
     if amp:
         model.half()
 
     model.eval()
-    return model.to(device), model_config, ckpt_data.get('train_setup', {})
+    return model.to(device), model_config, ckpt_data.get("train_setup", {})
 
 
 def load_and_setup_ts_model(model_name, checkpoint, amp, device=None):
-    print(f'{model_name}: Loading TorchScript checkpoint {checkpoint}...')
+    print(f"{model_name}: Loading TorchScript checkpoint {checkpoint}...")
     model = torch.jit.load(checkpoint).eval()
     if device is not None:
         model = model.to(device)
-    
+
     if amp:
         model.half()
     elif next(model.parameters()).dtype == torch.float16:
-        raise ValueError('Trying to load FP32 model,'
-                         'TS checkpoint is in FP16 precision.')
+        raise ValueError(
+            "Trying to load FP32 model," "TS checkpoint is in FP16 precision."
+        )
     return model
 
 
@@ -305,10 +338,13 @@ def convert_ts_to_trt(model_name, ts_model, parser, amp, unk_args=[]):
     trt_args, trt_unk_args = trt_parser.parse_known_args()
     unk_args[:] = list(set(unk_args) & set(trt_unk_args))
 
-    if model_name == 'HiFi-GAN':
+    if model_name == "HiFi-GAN":
         return _convert_ts_to_trt_hifigan(
-            ts_model, amp, trt_args.trt_min_opt_max_batch,
-            trt_args.trt_min_opt_max_hifigan_length)
+            ts_model,
+            amp,
+            trt_args.trt_min_opt_max_batch,
+            trt_args.trt_min_opt_max_hifigan_length,
+        )
     else:
         raise NotImplementedError
 
@@ -317,37 +353,52 @@ def _parse_trt_compilation_args(model_name, parent, add_help=False):
     """
     Parse model and inference specific commandline arguments.
     """
-    parser = argparse.ArgumentParser(parents=[parent], add_help=add_help,
-                                     allow_abbrev=False)
-    trt = parser.add_argument_group(f'{model_name} Torch-TensorRT compilation parameters')
-    trt.add_argument('--trt-min-opt-max-batch', nargs=3, type=int,
-                     default=(1, 8, 16),
-                     help='Torch-TensorRT min, optimal and max batch size')
-    if model_name == 'HiFi-GAN':
-        trt.add_argument('--trt-min-opt-max-hifigan-length', nargs=3, type=int,
-                         default=(100, 800, 1200),
-                         help='Torch-TensorRT min, optimal and max audio length (in frames)')
+    parser = argparse.ArgumentParser(
+        parents=[parent], add_help=add_help, allow_abbrev=False
+    )
+    trt = parser.add_argument_group(
+        f"{model_name} Torch-TensorRT compilation parameters"
+    )
+    trt.add_argument(
+        "--trt-min-opt-max-batch",
+        nargs=3,
+        type=int,
+        default=(1, 8, 16),
+        help="Torch-TensorRT min, optimal and max batch size",
+    )
+    if model_name == "HiFi-GAN":
+        trt.add_argument(
+            "--trt-min-opt-max-hifigan-length",
+            nargs=3,
+            type=int,
+            default=(100, 800, 1200),
+            help="Torch-TensorRT min, optimal and max audio length (in frames)",
+        )
     return parser
 
 
-def _convert_ts_to_trt_hifigan(ts_model, amp, trt_min_opt_max_batch,
-                               trt_min_opt_max_hifigan_length, num_mels=80):
+def _convert_ts_to_trt_hifigan(
+    ts_model, amp, trt_min_opt_max_batch, trt_min_opt_max_hifigan_length, num_mels=80
+):
     import torch_tensorrt
+
     trt_dtype = torch.half if amp else torch.float
-    print(f'Torch TensorRT: compiling HiFi-GAN for dtype {trt_dtype}.')
-    min_shp, opt_shp, max_shp = zip(trt_min_opt_max_batch,
-                                    (num_mels,) * 3,
-                                    trt_min_opt_max_hifigan_length)
+    print(f"Torch TensorRT: compiling HiFi-GAN for dtype {trt_dtype}.")
+    min_shp, opt_shp, max_shp = zip(
+        trt_min_opt_max_batch, (num_mels,) * 3, trt_min_opt_max_hifigan_length
+    )
     compile_settings = {
-        "inputs": [torch_tensorrt.Input(
-            min_shape=min_shp,
-            opt_shape=opt_shp,
-            max_shape=max_shp,
-            dtype=trt_dtype,
-        )],
+        "inputs": [
+            torch_tensorrt.Input(
+                min_shape=min_shp,
+                opt_shape=opt_shp,
+                max_shape=max_shp,
+                dtype=trt_dtype,
+            )
+        ],
         "enabled_precisions": {trt_dtype},
         "require_full_compilation": True,
     }
     trt_model = torch_tensorrt.compile(ts_model, **compile_settings)
-    print('Torch TensorRT: compilation successful.')
+    print("Torch TensorRT: compilation successful.")
     return trt_model

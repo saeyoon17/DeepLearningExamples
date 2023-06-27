@@ -25,44 +25,60 @@
 #
 # *****************************************************************************
 
-import torch
 import argparse
 import sys
-sys.path.append('./')
-from inference import checkpoint_from_distributed, unwrap_distributed, load_and_setup_model
+
+import torch
+
+sys.path.append("./")
+from inference import (checkpoint_from_distributed, load_and_setup_model,
+                       unwrap_distributed)
+
 
 def parse_args(parser):
     """
     Parse commandline arguments.
     """
-    parser.add_argument('--tacotron2', type=str, required=True,
-                        help='full path to the Tacotron2 model checkpoint file')
+    parser.add_argument(
+        "--tacotron2",
+        type=str,
+        required=True,
+        help="full path to the Tacotron2 model checkpoint file",
+    )
 
-    parser.add_argument('-o', '--output', type=str, default="trtis_repo/tacotron/1/model.pt",
-                        help='filename for the Tacotron 2 TorchScript model')
-    parser.add_argument('--fp16', action='store_true',
-                        help='inference with mixed precision')
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default="trtis_repo/tacotron/1/model.pt",
+        help="filename for the Tacotron 2 TorchScript model",
+    )
+    parser.add_argument(
+        "--fp16", action="store_true", help="inference with mixed precision"
+    )
 
     return parser
 
 
 def main():
 
-    parser = argparse.ArgumentParser(
-        description='PyTorch Tacotron 2 Inference')
+    parser = argparse.ArgumentParser(description="PyTorch Tacotron 2 Inference")
     parser = parse_args(parser)
     args = parser.parse_args()
 
-    tacotron2 = load_and_setup_model('Tacotron2', parser, args.tacotron2,
-                                     fp16_run=args.fp16, cpu_run=False,
-                                     forward_is_infer=True)
-    
+    tacotron2 = load_and_setup_model(
+        "Tacotron2",
+        parser,
+        args.tacotron2,
+        fp16_run=args.fp16,
+        cpu_run=False,
+        forward_is_infer=True,
+    )
+
     jitted_tacotron2 = torch.jit.script(tacotron2)
 
     torch.jit.save(jitted_tacotron2, args.output)
-    
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
-
-    

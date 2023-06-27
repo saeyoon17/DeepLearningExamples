@@ -1,14 +1,23 @@
 import tensorflow as tf
 
 
-class PiecewiseConstantWithWarmupSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
+class PiecewiseConstantWithWarmupSchedule(
+    tf.keras.optimizers.schedules.LearningRateSchedule
+):
     """
     Schedule that starts with learning rate at `init_value` and monotonically increases
     it up to `values[0]` at step `boundaries[0]`. After that the learning rate changes
     on each boundary to corresponding value.
     """
 
-    def __init__(self, init_value, boundaries, values, scale=1.0, name='PiecewiseConstantWithWarmup'):
+    def __init__(
+        self,
+        init_value,
+        boundaries,
+        values,
+        scale=1.0,
+        name="PiecewiseConstantWithWarmup",
+    ):
         """
         Constructs piecewise constant learning rate with linear warmup.
         Args:
@@ -30,7 +39,9 @@ class PiecewiseConstantWithWarmupSchedule(tf.keras.optimizers.schedules.Learning
     def __call__(self, step):
         with tf.name_scope(self._name):
             # linear learning rate before first boundary
-            warmup_lr = self._init_value + (self._values[0] - self._init_value) * (step / self._boundaries[0])
+            warmup_lr = self._init_value + (self._values[0] - self._init_value) * (
+                step / self._boundaries[0]
+            )
             warmup_pred = (tf.less(step, self._boundaries[0]), lambda: warmup_lr)
 
             # step learning rate after first boundary
@@ -41,7 +52,7 @@ class PiecewiseConstantWithWarmupSchedule(tf.keras.optimizers.schedules.Learning
 
             learning_rate = tf.case(
                 pred_fn_pairs=[warmup_pred] + boundaries_pred,
-                default=lambda: self._values[-1]
+                default=lambda: self._values[-1],
             )
 
             return learning_rate * self._scale
@@ -51,5 +62,5 @@ class PiecewiseConstantWithWarmupSchedule(tf.keras.optimizers.schedules.Learning
             "init_value": self._init_value,
             "values": self._values,
             "boundaries": self._boundaries,
-            "name": self._name
+            "name": self._name,
         }

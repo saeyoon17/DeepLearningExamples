@@ -20,9 +20,17 @@ from common.fairseq.optim.fused_adam import get_fused_adam_class
 from common.utils import print_once
 
 
-def lr_poly_policy(step, optimizer, lr, initial_lr_scale=0.0,
-                   final_lr_scale=0.0, warmup_steps=1000, hold_steps=0,
-                   num_steps=None, power=1.0):
+def lr_poly_policy(
+    step,
+    optimizer,
+    lr,
+    initial_lr_scale=0.0,
+    final_lr_scale=0.0,
+    warmup_steps=1000,
+    hold_steps=0,
+    num_steps=None,
+    power=1.0,
+):
     """Polynomial decay LR policy with an optional hold period."""
     assert step >= 1
     assert num_steps is not None
@@ -37,17 +45,25 @@ def lr_poly_policy(step, optimizer, lr, initial_lr_scale=0.0,
         new_lr = lr
     elif warmup_steps + hold_steps < step <= num_steps:
         remain = 1 - (step - warmup_steps) / (num_steps - warmup_steps)
-        new_lr = (lr - end_lr) * remain ** power + end_lr
+        new_lr = (lr - end_lr) * remain**power + end_lr
     else:
         new_lr = end_lr
 
     for param_group in optimizer.param_groups:
-        param_group['lr'] = new_lr
+        param_group["lr"] = new_lr
 
 
-def lr_exp_policy(step, optimizer, initial_lr_scale, lr, final_lr_scale=0.0,
-                  warmup_steps=1000, hold_steps=0, num_steps=float('inf'),
-                  decay=None):
+def lr_exp_policy(
+    step,
+    optimizer,
+    initial_lr_scale,
+    lr,
+    final_lr_scale=0.0,
+    warmup_steps=1000,
+    hold_steps=0,
+    num_steps=float("inf"),
+    decay=None,
+):
     """Exponential LR policy with an optional hold period.
 
     If `decay` factor is not supplied, it is calculated to reach `end_lr`
@@ -80,15 +96,15 @@ def lr_exp_policy(step, optimizer, initial_lr_scale, lr, final_lr_scale=0.0,
         new_lr = max(a * lr, end_lr)
 
     for param_group in optimizer.param_groups:
-        param_group['lr'] = new_lr
+        param_group["lr"] = new_lr
 
 
 def get_optimizer(model, args):
 
-    kw = {'lr': args.lr, 'weight_decay': args.weight_decay}
-    if args.optimizer == 'adam' and (args.fp16 or args.bf16):
+    kw = {"lr": args.lr, "weight_decay": args.weight_decay}
+    if args.optimizer == "adam" and (args.fp16 or args.bf16):
 
-        print_once('WARNING: Using Fairseq FP16Optimizer')
+        print_once("WARNING: Using Fairseq FP16Optimizer")
 
         # based on fairseq.optim.FP16Optimizer.build_optimizer
         flatten = True  # not args.fp16_no_flatten_grads
@@ -97,8 +113,7 @@ def get_optimizer(model, args):
 
         params = list(filter(lambda p: p.requires_grad, model.parameters()))
 
-        fp32_params = FP16Optimizer.build_fp32_params(args, params,
-                                                      flatten=flatten)
+        fp32_params = FP16Optimizer.build_fp32_params(args, params, flatten=flatten)
 
         # based on fairseq.optim.build_optimizer
         def build_optimizer(cfg, params, *extra_args, **extra_kwargs):
@@ -118,12 +133,11 @@ def get_optimizer(model, args):
                 "not support flat params, please set --fp16-no-flatten-grads"
             )
         kwargs = {}
-        optimizer = FP16Optimizer(args, params, fp32_optimizer, fp32_params,
-                                  **kwargs)
+        optimizer = FP16Optimizer(args, params, fp32_optimizer, fp32_params, **kwargs)
 
-    elif args.optimizer == 'adam' and not (args.fp16 or args.bf16):
-        print_once('WARNING: Using FusedAdam instead of Adam')
-        kw.update({'betas': args.adam_betas, 'eps': args.adam_eps})
+    elif args.optimizer == "adam" and not (args.fp16 or args.bf16):
+        print_once("WARNING: Using FusedAdam instead of Adam")
+        kw.update({"betas": args.adam_betas, "eps": args.adam_eps})
         fused_adam_cls = get_fused_adam_class()
         optimizer = fused_adam_cls(model.parameters(), **kw)
     else:

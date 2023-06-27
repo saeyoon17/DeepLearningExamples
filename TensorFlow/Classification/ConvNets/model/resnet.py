@@ -17,22 +17,17 @@
 
 from __future__ import print_function
 
-import tensorflow as tf
-
-from utils import hvd_wrapper as hvd
 import dllogger
-
-from model import layers
-from model import blocks
-
+import tensorflow as tf
+from model import blocks, layers
+from utils import hvd_wrapper as hvd
 from utils import var_storage
 from utils.data_utils import normalized_inputs
-
 from utils.learning_rate import learning_rate_scheduler
 from utils.optimizers import FixedLossScalerOptimizer
 
 __all__ = [
-    'ResnetModel',
+    "ResnetModel",
 ]
 
 
@@ -46,9 +41,9 @@ class ResnetModel(object):
         layers_count,
         layers_depth,
         expansions,
-        compute_format='NCHW',
-        input_format='NHWC',
-        weight_init='fan_out',
+        compute_format="NCHW",
+        input_format="NHWC",
+        weight_init="fan_out",
         dtype=tf.float32,
         use_dali=False,
         use_cpu=False,
@@ -70,7 +65,7 @@ class ResnetModel(object):
             use_cpu=use_cpu,
             cardinality=cardinality,
             use_se=use_se,
-            se_ratio=se_ratio
+            se_ratio=se_ratio,
         )
 
         self.batch_norm_hparams = tf.contrib.training.HParams(
@@ -79,25 +74,25 @@ class ResnetModel(object):
             scale=True,
             center=True,
             param_initializers={
-                'beta': tf.constant_initializer(0.0),
-                'gamma': tf.constant_initializer(1.0),
-                'moving_mean': tf.constant_initializer(0.0),
-                'moving_variance': tf.constant_initializer(1.0)
+                "beta": tf.constant_initializer(0.0),
+                "gamma": tf.constant_initializer(1.0),
+                "moving_mean": tf.constant_initializer(0.0),
+                "moving_variance": tf.constant_initializer(1.0),
             },
         )
 
         self.conv2d_hparams = tf.contrib.training.HParams(
             kernel_initializer=tf.compat.v1.variance_scaling_initializer(
-                scale=2.0, distribution='truncated_normal', mode=weight_init
+                scale=2.0, distribution="truncated_normal", mode=weight_init
             ),
-            bias_initializer=tf.constant_initializer(0.0)
+            bias_initializer=tf.constant_initializer(0.0),
         )
 
         self.dense_hparams = tf.contrib.training.HParams(
             kernel_initializer=tf.compat.v1.variance_scaling_initializer(
-                scale=2.0, distribution='truncated_normal', mode=weight_init
+                scale=2.0, distribution="truncated_normal", mode=weight_init
             ),
-            bias_initializer=tf.constant_initializer(0.0)
+            bias_initializer=tf.constant_initializer(0.0),
         )
         if hvd.rank() == 0:
             print("Model HParams:")
@@ -111,8 +106,14 @@ class ResnetModel(object):
 
         if mode == tf.estimator.ModeKeys.TRAIN:
             mandatory_params = [
-                "batch_size", "lr_init", "num_gpus", "steps_per_epoch", "momentum", "weight_decay", "loss_scale",
-                "label_smoothing"
+                "batch_size",
+                "lr_init",
+                "num_gpus",
+                "steps_per_epoch",
+                "momentum",
+                "weight_decay",
+                "loss_scale",
+                "label_smoothing",
             ]
             for p in mandatory_params:
                 if p not in params:
@@ -120,14 +121,16 @@ class ResnetModel(object):
 
         if mode == tf.estimator.ModeKeys.TRAIN and not self.model_hparams.use_dali:
 
-            with tf.device('/cpu:0'):
+            with tf.device("/cpu:0"):
                 # Stage inputs on the host
                 cpu_prefetch_op, (features, labels) = self._stage([features, labels])
 
             if not self.model_hparams.use_cpu:
-                with tf.device('/gpu:0'):
+                with tf.device("/gpu:0"):
                     # Stage inputs to the device
-                    gpu_prefetch_op, (features, labels) = self._stage([features, labels])
+                    gpu_prefetch_op, (features, labels) = self._stage(
+                        [features, labels]
+                    )
 
         main_device = "/gpu:0" if not self.model_hparams.use_cpu else "/cpu:0"
         with tf.device(main_device):
@@ -144,19 +147,24 @@ class ResnetModel(object):
             eta = 0
 
             if mode == tf.estimator.ModeKeys.TRAIN:
-                eta = params['label_smoothing']
-                mixup = params['mixup']
+                eta = params["label_smoothing"]
+                mixup = params["mixup"]
 
             if mode != tf.estimator.ModeKeys.PREDICT:
                 n_cls = self.model_hparams.n_classes
-                one_hot_smoothed_labels = tf.one_hot(labels, n_cls, 
-                        on_value=1 - eta + eta / n_cls, off_value=eta / n_cls)
+                one_hot_smoothed_labels = tf.one_hot(
+                    labels, n_cls, on_value=1 - eta + eta / n_cls, off_value=eta / n_cls
+                )
                 if mixup != 0:
 
-                    print("Using mixup training with beta=", params['mixup'])
-                    beta_distribution = tf.distributions.Beta(params['mixup'], params['mixup'])
+                    print("Using mixup training with beta=", params["mixup"])
+                    beta_distribution = tf.distributions.Beta(
+                        params["mixup"], params["mixup"]
+                    )
 
-                    feature_coefficients = beta_distribution.sample(sample_shape=[params['batch_size'], 1, 1, 1])
+                    feature_coefficients = beta_distribution.sample(
+                        sample_shape=[params["batch_size"], 1, 1, 1]
+                    )
 
                     reversed_feature_coefficients = tf.subtract(
                         tf.ones(shape=feature_coefficients.shape), feature_coefficients
@@ -164,7 +172,10 @@ class ResnetModel(object):
 
                     rotated_features = tf.reverse(features, axis=[0])
 
-                    features = feature_coefficients * features + reversed_feature_coefficients * rotated_features
+                    features = (
+                        feature_coefficients * features
+                        + reversed_feature_coefficients * rotated_features
+                    )
 
                     label_coefficients = tf.squeeze(feature_coefficients, axis=[2, 3])
 
@@ -174,7 +185,10 @@ class ResnetModel(object):
                         tf.ones(shape=label_coefficients.shape), label_coefficients
                     )
 
-                    one_hot_smoothed_labels = label_coefficients * one_hot_smoothed_labels + reversed_label_coefficients * rotated_labels
+                    one_hot_smoothed_labels = (
+                        label_coefficients * one_hot_smoothed_labels
+                        + reversed_label_coefficients * rotated_labels
+                    )
 
             # Update Global Step
             global_step = tf.train.get_or_create_global_step()
@@ -189,64 +203,79 @@ class ResnetModel(object):
                 features,
                 training=mode == tf.estimator.ModeKeys.TRAIN,
                 reuse=False,
-                use_final_conv=params['use_final_conv']
+                use_final_conv=params["use_final_conv"],
             )
 
-            if params['use_final_conv']:
+            if params["use_final_conv"]:
                 logits = tf.squeeze(logits, axis=[-2, -1])
 
             y_preds = tf.argmax(logits, axis=1, output_type=tf.int32)
 
             # Check the output dtype, shall be FP32 in training
-            assert (probs.dtype == tf.float32)
-            assert (logits.dtype == tf.float32)
-            assert (y_preds.dtype == tf.int32)
+            assert probs.dtype == tf.float32
+            assert logits.dtype == tf.float32
+            assert y_preds.dtype == tf.int32
 
             tf.identity(logits, name="logits_ref")
             tf.identity(probs, name="probs_ref")
             tf.identity(y_preds, name="y_preds_ref")
 
-            #if mode == tf.estimator.ModeKeys.TRAIN:
+            # if mode == tf.estimator.ModeKeys.TRAIN:
             #
             #    assert (len(tf.trainable_variables()) == 161)
             #
-            #else:
+            # else:
             #
             #    assert (len(tf.trainable_variables()) == 0)
 
-            if mode == tf.estimator.ModeKeys.TRAIN and params['quantize']:
-                dllogger.log(data={"QUANTIZATION AWARE TRAINING ENABLED": True}, step=tuple())
-                if params['symmetric']:
+            if mode == tf.estimator.ModeKeys.TRAIN and params["quantize"]:
+                dllogger.log(
+                    data={"QUANTIZATION AWARE TRAINING ENABLED": True}, step=tuple()
+                )
+                if params["symmetric"]:
                     dllogger.log(data={"MODE": "USING SYMMETRIC MODE"}, step=tuple())
                     tf.contrib.quantize.experimental_create_training_graph(
                         tf.get_default_graph(),
                         symmetric=True,
-                        use_qdq=params['use_qdq'],
-                        quant_delay=params['quant_delay']
+                        use_qdq=params["use_qdq"],
+                        quant_delay=params["quant_delay"],
                     )
                 else:
                     dllogger.log(data={"MODE": "USING ASSYMETRIC MODE"}, step=tuple())
                     tf.contrib.quantize.create_training_graph(
-                        tf.get_default_graph(), quant_delay=params['quant_delay'], use_qdq=params['use_qdq']
+                        tf.get_default_graph(),
+                        quant_delay=params["quant_delay"],
+                        use_qdq=params["use_qdq"],
                     )
 
             # Fix for restoring variables during fine-tuning of Resnet
-            if 'finetune_checkpoint' in params.keys():
+            if "finetune_checkpoint" in params.keys():
                 train_vars = tf.trainable_variables()
                 train_var_dict = {}
                 for var in train_vars:
                     train_var_dict[var.op.name] = var
-                dllogger.log(data={"Restoring variables from checkpoint": params['finetune_checkpoint']}, step=tuple())
-                tf.train.init_from_checkpoint(params['finetune_checkpoint'], train_var_dict)
+                dllogger.log(
+                    data={
+                        "Restoring variables from checkpoint": params[
+                            "finetune_checkpoint"
+                        ]
+                    },
+                    step=tuple(),
+                )
+                tf.train.init_from_checkpoint(
+                    params["finetune_checkpoint"], train_var_dict
+                )
 
         if mode == tf.estimator.ModeKeys.PREDICT:
 
-            predictions = {'classes': y_preds, 'probabilities': probs}
+            predictions = {"classes": y_preds, "probabilities": probs}
 
             return tf.estimator.EstimatorSpec(
                 mode=mode,
                 predictions=predictions,
-                export_outputs={'predict': tf.estimator.export.PredictOutput(predictions)}
+                export_outputs={
+                    "predict": tf.estimator.export.PredictOutput(predictions)
+                },
             )
 
         else:
@@ -269,16 +298,18 @@ class ResnetModel(object):
                 tf.identity(acc_top5, name="acc_top5_ref")
 
                 predictions = {
-                    'classes': y_preds,
-                    'probabilities': probs,
-                    'accuracy_top1': acc_top1,
-                    'accuracy_top5': acc_top5
+                    "classes": y_preds,
+                    "probabilities": probs,
+                    "accuracy_top1": acc_top1,
+                    "accuracy_top5": acc_top5,
                 }
 
-                cross_entropy = tf.losses.softmax_cross_entropy(logits=logits, onehot_labels=one_hot_smoothed_labels)
+                cross_entropy = tf.losses.softmax_cross_entropy(
+                    logits=logits, onehot_labels=one_hot_smoothed_labels
+                )
 
-                assert (cross_entropy.dtype == tf.float32)
-                tf.identity(cross_entropy, name='cross_entropy_loss_ref')
+                assert cross_entropy.dtype == tf.float32
+                tf.identity(cross_entropy, name="cross_entropy_loss_ref")
 
                 def loss_filter_fn(name):
                     """we don't need to compute L2 loss for BN and bias (eq. to add a cste)"""
@@ -286,31 +317,41 @@ class ResnetModel(object):
                         [
                             tensor_name not in name.lower()
                             # for tensor_name in ["batchnorm", "batch_norm", "batch_normalization", "bias"]
-                            for tensor_name in ["batchnorm", "batch_norm", "batch_normalization"]
+                            for tensor_name in [
+                                "batchnorm",
+                                "batch_norm",
+                                "batch_normalization",
+                            ]
                         ]
                     )
 
-                filtered_params = [tf.cast(v, tf.float32) for v in tf.trainable_variables() if loss_filter_fn(v.name)]
+                filtered_params = [
+                    tf.cast(v, tf.float32)
+                    for v in tf.trainable_variables()
+                    if loss_filter_fn(v.name)
+                ]
 
                 if len(filtered_params) != 0:
 
                     l2_loss_per_vars = [tf.nn.l2_loss(v) for v in filtered_params]
-                    l2_loss = tf.multiply(tf.add_n(l2_loss_per_vars), params["weight_decay"])
+                    l2_loss = tf.multiply(
+                        tf.add_n(l2_loss_per_vars), params["weight_decay"]
+                    )
 
                 else:
                     l2_loss = tf.zeros(shape=(), dtype=tf.float32)
 
-                assert (l2_loss.dtype == tf.float32)
-                tf.identity(l2_loss, name='l2_loss_ref')
+                assert l2_loss.dtype == tf.float32
+                tf.identity(l2_loss, name="l2_loss_ref")
 
                 total_loss = tf.add(cross_entropy, l2_loss, name="total_loss")
 
-                assert (total_loss.dtype == tf.float32)
-                tf.identity(total_loss, name='total_loss_ref')
+                assert total_loss.dtype == tf.float32
+                tf.identity(total_loss, name="total_loss_ref")
 
-                tf.summary.scalar('cross_entropy', cross_entropy)
-                tf.summary.scalar('l2_loss', l2_loss)
-                tf.summary.scalar('total_loss', total_loss)
+                tf.summary.scalar("cross_entropy", cross_entropy)
+                tf.summary.scalar("l2_loss", l2_loss)
+                tf.summary.scalar("total_loss", total_loss)
 
                 if mode == tf.estimator.ModeKeys.TRAIN:
 
@@ -324,67 +365,90 @@ class ResnetModel(object):
                             num_batches_per_epoch=params["steps_per_epoch"],
                             num_decay_steps=params["num_decay_steps"],
                             num_gpus=params["num_gpus"],
-                            use_cosine_lr=params["use_cosine_lr"]
+                            use_cosine_lr=params["use_cosine_lr"],
                         )
 
-                    tf.identity(learning_rate, name='learning_rate_ref')
-                    tf.summary.scalar('learning_rate', learning_rate)
+                    tf.identity(learning_rate, name="learning_rate_ref")
+                    tf.summary.scalar("learning_rate", learning_rate)
 
-                    optimizer = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=params["momentum"])
+                    optimizer = tf.train.MomentumOptimizer(
+                        learning_rate=learning_rate, momentum=params["momentum"]
+                    )
 
                     if params["apply_loss_scaling"]:
-                        optimizer = FixedLossScalerOptimizer(optimizer, scale=params["loss_scale"])
+                        optimizer = FixedLossScalerOptimizer(
+                            optimizer, scale=params["loss_scale"]
+                        )
 
                     if hvd.size() > 1:
-                        optimizer = hvd.hvd_global_object.DistributedOptimizer(optimizer)
+                        optimizer = hvd.hvd_global_object.DistributedOptimizer(
+                            optimizer
+                        )
 
                     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
                     if mode != tf.estimator.ModeKeys.TRAIN:
                         update_ops += [acc_top1_update_op, acc_top5_update_op]
 
                     deterministic = True
-                    gate_gradients = (tf.compat.v1.train.Optimizer.GATE_OP if deterministic else tf.compat.v1.train.Optimizer.GATE_NONE)
+                    gate_gradients = (
+                        tf.compat.v1.train.Optimizer.GATE_OP
+                        if deterministic
+                        else tf.compat.v1.train.Optimizer.GATE_NONE
+                    )
 
-                    backprop_op = optimizer.minimize(total_loss, gate_gradients=gate_gradients, global_step=global_step)
+                    backprop_op = optimizer.minimize(
+                        total_loss,
+                        gate_gradients=gate_gradients,
+                        global_step=global_step,
+                    )
 
                     if self.model_hparams.use_dali:
-                        train_ops = tf.group(backprop_op, update_ops, name='train_ops')
+                        train_ops = tf.group(backprop_op, update_ops, name="train_ops")
                     elif self.model_hparams.use_cpu:
                         train_ops = tf.group(
-                            backprop_op, cpu_prefetch_op, update_ops, name='train_ops'
+                            backprop_op, cpu_prefetch_op, update_ops, name="train_ops"
                         )
                     else:
                         train_ops = tf.group(
-                            backprop_op, cpu_prefetch_op, gpu_prefetch_op, update_ops, name='train_ops'
+                            backprop_op,
+                            cpu_prefetch_op,
+                            gpu_prefetch_op,
+                            update_ops,
+                            name="train_ops",
                         )
 
-                    return tf.estimator.EstimatorSpec(mode=mode, loss=total_loss, train_op=train_ops)
+                    return tf.estimator.EstimatorSpec(
+                        mode=mode, loss=total_loss, train_op=train_ops
+                    )
 
                 elif mode == tf.estimator.ModeKeys.EVAL:
                     eval_metrics = {
                         "top1_accuracy": (acc_top1, acc_top1_update_op),
-                        "top5_accuracy": (acc_top5, acc_top5_update_op)
+                        "top5_accuracy": (acc_top5, acc_top5_update_op),
                     }
 
                     return tf.estimator.EstimatorSpec(
-                        mode=mode, predictions=predictions, loss=total_loss, eval_metric_ops=eval_metrics
+                        mode=mode,
+                        predictions=predictions,
+                        loss=total_loss,
+                        eval_metric_ops=eval_metrics,
                     )
 
                 else:
-                    raise NotImplementedError('Unknown mode {}'.format(mode))
+                    raise NotImplementedError("Unknown mode {}".format(mode))
 
     @staticmethod
     def _stage(tensors):
-        """Stages the given tensors in a StagingArea for asynchronous put/get.
-        """
+        """Stages the given tensors in a StagingArea for asynchronous put/get."""
         stage_area = tf.contrib.staging.StagingArea(
-            dtypes=[tensor.dtype for tensor in tensors], shapes=[tensor.get_shape() for tensor in tensors]
+            dtypes=[tensor.dtype for tensor in tensors],
+            shapes=[tensor.get_shape() for tensor in tensors],
         )
 
         put_op = stage_area.put(tensors)
         get_tensors = stage_area.get()
 
-        tf.add_to_collection('STAGING_AREA_PUTS', put_op)
+        tf.add_to_collection("STAGING_AREA_PUTS", put_op)
 
         return put_op, get_tensors
 
@@ -395,11 +459,17 @@ class ResnetModel(object):
         ):
 
             with tf.variable_scope("input_reshape"):
-                if self.model_hparams.input_format == 'NHWC' and self.model_hparams.compute_format == 'NCHW':
+                if (
+                    self.model_hparams.input_format == "NHWC"
+                    and self.model_hparams.compute_format == "NCHW"
+                ):
                     # Reshape inputs: NHWC => NCHW
                     inputs = tf.transpose(inputs, [0, 3, 1, 2])
 
-                elif self.model_hparams.input_format == 'NCHW' and self.model_hparams.compute_format == 'NHWC':
+                elif (
+                    self.model_hparams.input_format == "NCHW"
+                    and self.model_hparams.compute_format == "NHWC"
+                ):
                     # Reshape inputs: NCHW => NHWC
                     inputs = tf.transpose(inputs, [0, 2, 3, 1])
 
@@ -411,21 +481,21 @@ class ResnetModel(object):
                 n_channels=64,
                 kernel_size=(7, 7),
                 strides=(2, 2),
-                mode='SAME',
+                mode="SAME",
                 use_batch_norm=True,
-                activation='relu',
+                activation="relu",
                 is_training=training,
                 data_format=self.model_hparams.compute_format,
                 conv2d_hparams=self.conv2d_hparams,
                 batch_norm_hparams=self.batch_norm_hparams,
-                name='conv2d'
+                name="conv2d",
             )
 
             net = layers.max_pooling2d(
                 net,
                 pool_size=(3, 3),
                 strides=(2, 2),
-                padding='SAME',
+                padding="SAME",
                 data_format=self.model_hparams.compute_format,
                 name="max_pooling2d",
             )
@@ -447,12 +517,15 @@ class ResnetModel(object):
                         batch_norm_hparams=self.batch_norm_hparams,
                         block_name="btlnck_block_%d_%d" % (block_id, layer_id),
                         use_se=self.model_hparams.use_se,
-                        ratio=self.model_hparams.se_ratio
+                        ratio=self.model_hparams.se_ratio,
                     )
 
             with tf.variable_scope("output"):
                 net = layers.reduce_mean(
-                    net, keepdims=False, data_format=self.model_hparams.compute_format, name='spatial_mean'
+                    net,
+                    keepdims=False,
+                    data_format=self.model_hparams.compute_format,
+                    name="spatial_mean",
                 )
 
                 if use_final_conv:
@@ -461,14 +534,14 @@ class ResnetModel(object):
                         n_channels=self.model_hparams.n_classes,
                         kernel_size=(1, 1),
                         strides=(1, 1),
-                        padding='SAME',
+                        padding="SAME",
                         data_format=self.model_hparams.compute_format,
                         dilation_rate=(1, 1),
                         use_bias=True,
                         kernel_initializer=self.dense_hparams.kernel_initializer,
                         bias_initializer=self.dense_hparams.bias_initializer,
                         trainable=training,
-                        name='dense'
+                        name="dense",
                     )
                 else:
                     logits = layers.dense(
@@ -477,36 +550,40 @@ class ResnetModel(object):
                         use_bias=True,
                         trainable=training,
                         kernel_initializer=self.dense_hparams.kernel_initializer,
-                        bias_initializer=self.dense_hparams.bias_initializer
+                        bias_initializer=self.dense_hparams.bias_initializer,
                     )
 
                 if logits.dtype != tf.float32:
                     logits = tf.cast(logits, tf.float32)
 
-                axis = 3 if self.model_hparams.compute_format=="NHWC" and use_final_conv else 1
+                axis = (
+                    3
+                    if self.model_hparams.compute_format == "NHWC" and use_final_conv
+                    else 1
+                )
                 probs = layers.softmax(logits, name="softmax", axis=axis)
 
             return probs, logits
 
 
 model_architectures = {
-    'resnet50': {
-        'layers': [3, 4, 6, 3],
-        'widths': [64, 128, 256, 512],
-        'expansions': 4,
+    "resnet50": {
+        "layers": [3, 4, 6, 3],
+        "widths": [64, 128, 256, 512],
+        "expansions": 4,
     },
-    'resnext101-32x4d': {
-        'layers': [3, 4, 23, 3],
-        'widths': [128, 256, 512, 1024],
-        'expansions': 2,
-        'cardinality': 32,
+    "resnext101-32x4d": {
+        "layers": [3, 4, 23, 3],
+        "widths": [128, 256, 512, 1024],
+        "expansions": 2,
+        "cardinality": 32,
     },
-    'se-resnext101-32x4d': {
-        'cardinality': 32,
-        'layers': [3, 4, 23, 3],
-        'widths': [128, 256, 512, 1024],
-        'expansions': 2,
-        'use_se': True,
-        'se_ratio': 16,
+    "se-resnext101-32x4d": {
+        "cardinality": 32,
+        "layers": [3, 4, 23, 3],
+        "widths": [128, 256, 512, 1024],
+        "expansions": 2,
+        "use_se": True,
+        "se_ratio": 16,
     },
 }

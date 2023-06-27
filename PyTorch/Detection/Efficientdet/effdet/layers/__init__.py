@@ -14,13 +14,13 @@
 
 from .activations import *
 from .cond_conv2d import CondConv2d, get_condconv_initializer
-from .config import is_exportable, is_scriptable, is_no_jit, set_exportable, set_scriptable, set_no_jit,\
-    set_layer_config
+from .config import (is_exportable, is_no_jit, is_scriptable, set_exportable,
+                     set_layer_config, set_no_jit, set_scriptable)
 from .conv2d_same import Conv2dSame
-from .create_act import create_act_layer, get_act_layer, get_act_fn
+from .create_act import create_act_layer, get_act_fn, get_act_layer
 from .create_conv2d import create_conv2d
 from .drop import DropBlock2d, DropPath, drop_block_2d, drop_path
 from .mixed_conv2d import MixedConv2d
+from .nms_layer import batched_nms, batched_soft_nms
 from .padding import get_padding
 from .pool2d_same import AvgPool2dSame, create_pool2d
-from .nms_layer import batched_soft_nms, batched_nms

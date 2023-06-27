@@ -12,48 +12,65 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .model import EfficientDet
-from .bench import DetBenchTrain, DetBenchPredict
+from utils.utils import freeze_layers_fn, load_checkpoint
+
+from .bench import DetBenchPredict, DetBenchTrain
 from .config import get_efficientdet_config
-from utils.utils import load_checkpoint, freeze_layers_fn
+from .model import EfficientDet
 
 
 def create_model(
-        model_name, input_size=None, num_classes=None, bench_task='', pretrained=False, checkpoint_path='', checkpoint_ema=False, **kwargs):
+    model_name,
+    input_size=None,
+    num_classes=None,
+    bench_task="",
+    pretrained=False,
+    checkpoint_path="",
+    checkpoint_ema=False,
+    **kwargs
+):
     config = get_efficientdet_config(model_name)
     if num_classes is not None:
         config.num_classes = num_classes
     if input_size is not None:
         config.image_size = input_size
 
-    pretrained_backbone_path = kwargs.pop('pretrained_backbone_path', '')
+    pretrained_backbone_path = kwargs.pop("pretrained_backbone_path", "")
     if pretrained or checkpoint_path:
-        pretrained_backbone_path = ''  # no point in loading backbone weights
-    strict_load = kwargs.pop('strict_load', True)
+        pretrained_backbone_path = ""  # no point in loading backbone weights
+    strict_load = kwargs.pop("strict_load", True)
 
-    redundant_bias = kwargs.pop('redundant_bias', None)
+    redundant_bias = kwargs.pop("redundant_bias", None)
     if redundant_bias is not None:
         # override config if set to something
         config.redundant_bias = redundant_bias
 
-    soft_nms = kwargs.pop('soft_nms', False)
-    config.label_smoothing = kwargs.pop('label_smoothing', 0.1)
-    remove_params = kwargs.pop('remove_params', [])
-    freeze_layers = kwargs.pop('freeze_layers', [])
-    config.fused_focal_loss = kwargs.pop('fused_focal_loss', False)
+    soft_nms = kwargs.pop("soft_nms", False)
+    config.label_smoothing = kwargs.pop("label_smoothing", 0.1)
+    remove_params = kwargs.pop("remove_params", [])
+    freeze_layers = kwargs.pop("freeze_layers", [])
+    config.fused_focal_loss = kwargs.pop("fused_focal_loss", False)
 
-    model = EfficientDet(config, pretrained_backbone_path=pretrained_backbone_path, **kwargs)
+    model = EfficientDet(
+        config, pretrained_backbone_path=pretrained_backbone_path, **kwargs
+    )
 
     # FIXME handle different head classes / anchors and re-init of necessary layers w/ pretrained load
     if checkpoint_path:
-        load_checkpoint(model, checkpoint_path, use_ema=checkpoint_ema, strict=strict_load, remove_params=remove_params)
+        load_checkpoint(
+            model,
+            checkpoint_path,
+            use_ema=checkpoint_ema,
+            strict=strict_load,
+            remove_params=remove_params,
+        )
 
     if len(freeze_layers) > 0:
         freeze_layers_fn(model, freeze_layers=freeze_layers)
 
     # wrap model in task specific bench if set
-    if bench_task == 'train':
+    if bench_task == "train":
         model = DetBenchTrain(model, config)
-    elif bench_task == 'predict':
+    elif bench_task == "predict":
         model = DetBenchPredict(model, config, soft_nms)
     return model

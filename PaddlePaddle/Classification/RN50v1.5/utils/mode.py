@@ -16,11 +16,11 @@ from enum import Enum
 
 
 class Mode(Enum):
-    TRAIN = 'Train'
-    EVAL = 'Eval'
+    TRAIN = "Train"
+    EVAL = "Eval"
 
 
 class RunScope(Enum):
-    TRAIN_ONLY = 'train_only'
-    EVAL_ONLY = 'eval_only'
-    TRAIN_EVAL = 'train_eval'
+    TRAIN_ONLY = "train_only"
+    EVAL_ONLY = "eval_only"
+    TRAIN_EVAL = "train_eval"

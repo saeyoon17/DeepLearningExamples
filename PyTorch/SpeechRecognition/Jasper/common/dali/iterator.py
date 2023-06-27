@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import numpy as np
 import torch
 import torch.distributed as dist
-import numpy as np
 from common.helpers import print_once
 from common.text import _clean_text, punctuation_map
 
@@ -28,7 +28,7 @@ def normalize_string(s, symbols, punct_map):
     labels = set(symbols)
     try:
         text = _clean_text(s, ["english_cleaners"], punct_map).strip()
-        return ''.join([tok for tok in text if all(t in labels for t in tok)])
+        return "".join([tok for tok in text if all(t in labels for t in tok)])
     except Exception as e:
         print_once("WARNING: Normalizing failed: {s} {e}")
 
@@ -42,17 +42,31 @@ class DaliJasperIterator(object):
     Use DataLoader instead.
     """
 
-    def __init__(self, dali_pipelines, transcripts, symbols, batch_size, reader_name, train_iterator: bool):
+    def __init__(
+        self,
+        dali_pipelines,
+        transcripts,
+        symbols,
+        batch_size,
+        reader_name,
+        train_iterator: bool,
+    ):
         self.transcripts = transcripts
         self.symbols = symbols
         self.batch_size = batch_size
-        from nvidia.dali.plugin.pytorch import DALIGenericIterator
         from nvidia.dali.plugin.base_iterator import LastBatchPolicy
+        from nvidia.dali.plugin.pytorch import DALIGenericIterator
 
         self.dali_it = DALIGenericIterator(
-            dali_pipelines, ["audio", "label", "audio_shape"], reader_name=reader_name,
-            dynamic_shape=True, auto_reset=True,
-            last_batch_policy=(LastBatchPolicy.DROP if train_iterator else LastBatchPolicy.PARTIAL))
+            dali_pipelines,
+            ["audio", "label", "audio_shape"],
+            reader_name=reader_name,
+            dynamic_shape=True,
+            auto_reset=True,
+            last_batch_policy=(
+                LastBatchPolicy.DROP if train_iterator else LastBatchPolicy.PARTIAL
+            ),
+        )
 
     @staticmethod
     def _str2list(s: str):
@@ -66,9 +80,9 @@ class DaliJasperIterator(object):
         list = []
         for c in s:
             if c == "'":
-                list.append(27.)
+                list.append(27.0)
             else:
-                list.append(max(0., ord(c) - 96.))
+                list.append(max(0.0, ord(c) - 96.0))
         return list
 
     @staticmethod
@@ -90,17 +104,32 @@ class DaliJasperIterator(object):
         """
         Generate transcripts in format expected by NN
         """
-        lists = [
-            self._str2list(normalize_string(self.transcripts[lab.item()], self.symbols, punctuation_map(self.symbols)))
-            for lab in labels
-        ] if normalize_transcripts else [self._str2list(self.transcripts[lab.item()]) for lab in labels]
+        lists = (
+            [
+                self._str2list(
+                    normalize_string(
+                        self.transcripts[lab.item()],
+                        self.symbols,
+                        punctuation_map(self.symbols),
+                    )
+                )
+                for lab in labels
+            ]
+            if normalize_transcripts
+            else [self._str2list(self.transcripts[lab.item()]) for lab in labels]
+        )
         sizes = self._pad_lists(lists)
         return torch.tensor(lists).cuda(), torch.tensor(sizes, dtype=torch.int32).cuda()
 
     def __next__(self):
         data = self.dali_it.__next__()
         transcripts, transcripts_lengths = self._gen_transcripts(data[0]["label"])
-        return data[0]["audio"], data[0]["audio_shape"][:, 1], transcripts, transcripts_lengths
+        return (
+            data[0]["audio"],
+            data[0]["audio_shape"][:, 1],
+            transcripts,
+            transcripts_lengths,
+        )
 
     def next(self):
         return self.__next__()
@@ -111,8 +140,18 @@ class DaliJasperIterator(object):
 
 # TODO: refactor
 class SyntheticDataIterator(object):
-    def __init__(self, batch_size, nfeatures, feat_min=-5., feat_max=0., txt_min=0., txt_max=23., feat_lens_max=1760,
-                 txt_lens_max=231, regenerate=False):
+    def __init__(
+        self,
+        batch_size,
+        nfeatures,
+        feat_min=-5.0,
+        feat_max=0.0,
+        txt_min=0.0,
+        txt_max=23.0,
+        feat_lens_max=1760,
+        txt_lens_max=231,
+        regenerate=False,
+    ):
         """
         Args:
             batch_size
@@ -139,15 +178,23 @@ class SyntheticDataIterator(object):
 
     def _generate_sample(self):
         feat = (self.feat_max - self.feat_min) * np.random.random_sample(
-            (self.batch_size, self.nfeatures, self.feat_lens_max)) + self.feat_min
-        feat_lens = np.random.randint(0, int(self.feat_lens_max) - 1, size=self.batch_size)
+            (self.batch_size, self.nfeatures, self.feat_lens_max)
+        ) + self.feat_min
+        feat_lens = np.random.randint(
+            0, int(self.feat_lens_max) - 1, size=self.batch_size
+        )
         txt = (self.txt_max - self.txt_min) * np.random.random_sample(
-            (self.batch_size, self.txt_lens_max)) + self.txt_min
-        txt_lens = np.random.randint(0, int(self.txt_lens_max) - 1, size=self.batch_size)
-        return torch.Tensor(feat).cuda(), \
-               torch.Tensor(feat_lens).cuda(), \
-               torch.Tensor(txt).cuda(), \
-               torch.Tensor(txt_lens).cuda()
+            (self.batch_size, self.txt_lens_max)
+        ) + self.txt_min
+        txt_lens = np.random.randint(
+            0, int(self.txt_lens_max) - 1, size=self.batch_size
+        )
+        return (
+            torch.Tensor(feat).cuda(),
+            torch.Tensor(feat_lens).cuda(),
+            torch.Tensor(txt).cuda(),
+            torch.Tensor(txt_lens).cuda(),
+        )
 
     def __next__(self):
         if self.regenerate:

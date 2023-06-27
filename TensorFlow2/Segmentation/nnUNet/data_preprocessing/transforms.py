@@ -51,7 +51,9 @@ def crop_foreground(image, label=None):
     box_start = np.asarray(box_start, dtype=np.int16)
     box_end = np.asarray(box_end, dtype=np.int16)
     image_cropped = spatial_crop(image, box_start, box_end)
-    label_cropped = spatial_crop(label, box_start, box_end) if label is not None else None
+    label_cropped = (
+        spatial_crop(label, box_start, box_end) if label is not None else None
+    )
     return image_cropped, label_cropped, (box_start, box_end)
 
 

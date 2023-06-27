@@ -1,17 +1,18 @@
 import argparse
-import random
 import math
+import random
 import warnings
-from typing import List, Any, Optional
-from collections import namedtuple, OrderedDict
+from collections import OrderedDict, namedtuple
 from dataclasses import dataclass, replace
+from functools import partial
+from typing import Any, List, Optional
 
 import torch
 from torch import nn
-from functools import partial
 
 try:
     from pytorch_quantization import nn as quant_nn
+
     from ..quantization import switch_on_quantization
 except ImportError as e:
     warnings.warn(
@@ -30,22 +31,11 @@ except ImportError as e:
             pass
 
 
-from .common import (
-    SequentialSqueezeAndExcitation,
-    SequentialSqueezeAndExcitationTRT,
-    LayerBuilder,
-    StochasticDepthResidual,
-    Flatten,
-)
-
-from .model import (
-    Model,
-    ModelParams,
-    ModelArch,
-    OptimizerParams,
-    create_entrypoint,
-    EntryPoint,
-)
+from .common import (Flatten, LayerBuilder, SequentialSqueezeAndExcitation,
+                     SequentialSqueezeAndExcitationTRT,
+                     StochasticDepthResidual)
+from .model import (EntryPoint, Model, ModelArch, ModelParams, OptimizerParams,
+                    create_entrypoint)
 
 
 # EffNetArch {{{

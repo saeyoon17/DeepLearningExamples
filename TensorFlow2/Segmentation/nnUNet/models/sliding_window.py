@@ -13,8 +13,12 @@ def get_window_slices(image_size, roi_size, overlap, strategy):
         if strategy == "overlap_inside" and starts[-1] + roi_x < image_x:
             starts.append(image_x - roi_x)
         dim_starts.append(starts)
-    slices = [(starts + (0,), roi_size + (-1,)) for starts in itertools.product(*dim_starts)]
-    batched_window_slices = [((0,) + start, (1,) + roi_size) for start, roi_size in slices]
+    slices = [
+        (starts + (0,), roi_size + (-1,)) for starts in itertools.product(*dim_starts)
+    ]
+    batched_window_slices = [
+        ((0,) + start, (1,) + roi_size) for start, roi_size in slices
+    ]
     return batched_window_slices
 
 
@@ -37,7 +41,9 @@ def get_importance_kernel(roi_size, blend_mode, sigma):
     elif blend_mode == "gaussian":
         return gaussian_kernel(roi_size, sigma)
     else:
-        raise ValueError(f'Invalid blend mode: {blend_mode}. Use either "constant" or "gaussian".')
+        raise ValueError(
+            f'Invalid blend mode: {blend_mode}. Use either "constant" or "gaussian".'
+        )
 
 
 @tf.function
@@ -59,7 +65,9 @@ def sliding_window_inference(
     roi_size = tuple(roi_size)
     # Padding to make sure that the image size is at least roi size
     padded_image_size = tuple(max(image_size[i], roi_size[i]) for i in range(3))
-    padding_size = [image_x - input_x for image_x, input_x in zip(image_size, padded_image_size)]
+    padding_size = [
+        image_x - input_x for image_x, input_x in zip(image_size, padded_image_size)
+    ]
     paddings = [[0, 0]] + [[x // 2, x - x // 2] for x in padding_size] + [[0, 0]]
     input_padded = tf.pad(inputs, paddings)
 
@@ -72,13 +80,17 @@ def sliding_window_inference(
         window = tf.slice(input_padded, begin=window_slice[0], size=window_slice[1])
         pred = run_model(window, model, importance_map, **kwargs)
         padding = [
-            [start, output_size - (start + size)] for start, size, output_size in zip(*window_slice, output_shape)
+            [start, output_size - (start + size)]
+            for start, size, output_size in zip(*window_slice, output_shape)
         ]
         padding = padding[:-1] + [[0, 0]]
         output_sum = output_sum + tf.pad(pred, padding)
         output_weight_sum = output_weight_sum + tf.pad(importance_map, padding)
 
     output = output_sum / output_weight_sum
-    crop_slice = [slice(pad[0], pad[0] + input_x) for pad, input_x in zip(paddings, inputs.shape[:-1])]
+    crop_slice = [
+        slice(pad[0], pad[0] + input_x)
+        for pad, input_x in zip(paddings, inputs.shape[:-1])
+    ]
 
     return output[crop_slice]

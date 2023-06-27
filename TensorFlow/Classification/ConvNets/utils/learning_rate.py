@@ -19,12 +19,19 @@
 
 import tensorflow as tf
 
-__all__ = ['learning_rate_scheduler']
+__all__ = ["learning_rate_scheduler"]
 
 
-def learning_rate_scheduler(lr_init, lr_warmup_epochs, global_step, batch_size, 
-                            num_batches_per_epoch, num_decay_steps, num_gpus, use_cosine_lr):
-
+def learning_rate_scheduler(
+    lr_init,
+    lr_warmup_epochs,
+    global_step,
+    batch_size,
+    num_batches_per_epoch,
+    num_decay_steps,
+    num_gpus,
+    use_cosine_lr,
+):
     def get_scaled_base_learning_rate():
         """Calculates base learning rate for creating lr schedule.
         In replicated mode, gradients are summed rather than averaged which, with
@@ -42,11 +49,11 @@ def learning_rate_scheduler(lr_init, lr_warmup_epochs, global_step, batch_size,
         return base_lr * (batch_size / 256.0)
 
     rescaled_lr = get_scaled_base_learning_rate()
-    
+
     if use_cosine_lr:
         print("Using cosine learning rate schedule")
         lr = tf.train.cosine_decay(rescaled_lr, global_step, num_decay_steps)
-    
+
     else:
         print("Using step learning rate schedule")
         boundaries = [int(num_batches_per_epoch * x) for x in [30, 60, 80, 90]]
@@ -55,8 +62,12 @@ def learning_rate_scheduler(lr_init, lr_warmup_epochs, global_step, batch_size,
         values = [rescaled_lr * v for v in values]
 
         lr = tf.train.piecewise_constant(global_step, boundaries, values)
-    
+
     warmup_steps = int(num_batches_per_epoch * lr_warmup_epochs)
-    warmup_lr = (rescaled_lr * tf.cast(global_step, tf.float32) / tf.cast(warmup_steps, tf.float32))
-    
+    warmup_lr = (
+        rescaled_lr
+        * tf.cast(global_step, tf.float32)
+        / tf.cast(warmup_steps, tf.float32)
+    )
+
     return tf.cond(global_step < warmup_steps, lambda: warmup_lr, lambda: lr)

@@ -24,12 +24,11 @@ Example:
 """
 
 import horovod.tensorflow as hvd
-
-from model.unet import Unet
-from runtime.run import train, evaluate, predict
-from runtime.setup import get_logger, set_flags, prepare_model_dir
-from runtime.arguments import PARSER, parse_args
 from data_loading.data_loader import Dataset
+from model.unet import Unet
+from runtime.arguments import PARSER, parse_args
+from runtime.run import evaluate, predict, train
+from runtime.setup import get_logger, prepare_model_dir, set_flags
 
 
 def main():
@@ -45,26 +44,28 @@ def main():
 
     model = Unet()
 
-    dataset = Dataset(data_dir=params.data_dir,
-                      batch_size=params.batch_size,
-                      fold=params.fold,
-                      augment=params.augment,
-                      gpu_id=hvd.rank(),
-                      num_gpus=hvd.size(),
-                      seed=params.seed,
-                      amp=params.use_amp)
+    dataset = Dataset(
+        data_dir=params.data_dir,
+        batch_size=params.batch_size,
+        fold=params.fold,
+        augment=params.augment,
+        gpu_id=hvd.rank(),
+        num_gpus=hvd.size(),
+        seed=params.seed,
+        amp=params.use_amp,
+    )
 
-    if 'train' in params.exec_mode:
+    if "train" in params.exec_mode:
         train(params, model, dataset, logger)
 
-    if 'evaluate' in params.exec_mode:
+    if "evaluate" in params.exec_mode:
         if hvd.rank() == 0:
             evaluate(params, model, dataset, logger)
 
-    if 'predict' in params.exec_mode:
+    if "predict" in params.exec_mode:
         if hvd.rank() == 0:
             predict(params, model, dataset, logger)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

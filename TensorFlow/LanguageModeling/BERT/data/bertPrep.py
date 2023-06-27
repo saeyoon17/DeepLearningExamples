@@ -11,18 +11,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import BookscorpusTextFormatting
-import Downloader
-import TextSharding
-import WikicorpusTextFormatting
-import PubMedTextFormatting
-
 import argparse
 import itertools
 import multiprocessing
 import os
 import pprint
 import subprocess
+
+import BookscorpusTextFormatting
+import Downloader
+import PubMedTextFormatting
+import TextSharding
+import WikicorpusTextFormatting
 
 
 def main(args):

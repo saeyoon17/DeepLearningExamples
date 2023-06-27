@@ -19,7 +19,7 @@ import numpy as np
 
 
 class BaseSeeder:
-    """ Base seeder
+    """Base seeder
     Args:
         seed (int): optional global seed
     """

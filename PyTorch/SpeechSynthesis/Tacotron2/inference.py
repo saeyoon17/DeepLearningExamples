@@ -25,54 +25,69 @@
 #
 # *****************************************************************************
 
-from tacotron2.text import text_to_sequence
-import models
-import torch
 import argparse
 import os
-import numpy as np
-from scipy.io.wavfile import write
+import sys
+import time
+
+import dllogger as DLLogger
 import matplotlib
 import matplotlib.pyplot as plt
-
-import sys
-
-import time
-import dllogger as DLLogger
-from dllogger import StdOutBackend, JSONStreamBackend, Verbosity
-
+import models
+import numpy as np
+import torch
+from dllogger import JSONStreamBackend, StdOutBackend, Verbosity
+from scipy.io.wavfile import write
+from tacotron2.text import text_to_sequence
 from waveglow.denoiser import Denoiser
+
 
 def parse_args(parser):
     """
     Parse commandline arguments.
     """
-    parser.add_argument('-i', '--input', type=str, required=True,
-                        help='full path to the input text (phareses separated by new line)')
-    parser.add_argument('-o', '--output', required=True,
-                        help='output folder to save audio (file per phrase)')
-    parser.add_argument('--suffix', type=str, default="", help="output filename suffix")
-    parser.add_argument('--tacotron2', type=str,
-                        help='full path to the Tacotron2 model checkpoint file')
-    parser.add_argument('--waveglow', type=str,
-                        help='full path to the WaveGlow model checkpoint file')
-    parser.add_argument('-s', '--sigma-infer', default=0.9, type=float)
-    parser.add_argument('-d', '--denoising-strength', default=0.01, type=float)
-    parser.add_argument('-sr', '--sampling-rate', default=22050, type=int,
-                        help='Sampling rate')
+    parser.add_argument(
+        "-i",
+        "--input",
+        type=str,
+        required=True,
+        help="full path to the input text (phareses separated by new line)",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        required=True,
+        help="output folder to save audio (file per phrase)",
+    )
+    parser.add_argument("--suffix", type=str, default="", help="output filename suffix")
+    parser.add_argument(
+        "--tacotron2", type=str, help="full path to the Tacotron2 model checkpoint file"
+    )
+    parser.add_argument(
+        "--waveglow", type=str, help="full path to the WaveGlow model checkpoint file"
+    )
+    parser.add_argument("-s", "--sigma-infer", default=0.9, type=float)
+    parser.add_argument("-d", "--denoising-strength", default=0.01, type=float)
+    parser.add_argument(
+        "-sr", "--sampling-rate", default=22050, type=int, help="Sampling rate"
+    )
 
     run_mode = parser.add_mutually_exclusive_group()
-    run_mode.add_argument('--fp16', action='store_true',
-                        help='Run inference with mixed precision')
-    run_mode.add_argument('--cpu', action='store_true',
-                        help='Run inference on CPU')
+    run_mode.add_argument(
+        "--fp16", action="store_true", help="Run inference with mixed precision"
+    )
+    run_mode.add_argument("--cpu", action="store_true", help="Run inference on CPU")
 
-    parser.add_argument('--log-file', type=str, default='nvlog.json',
-                        help='Filename for logging')
-    parser.add_argument('--include-warmup', action='store_true',
-                        help='Include warmup')
-    parser.add_argument('--stft-hop-length', type=int, default=256,
-                        help='STFT hop length for estimating audio length from mel size')
+    parser.add_argument(
+        "--log-file", type=str, default="nvlog.json", help="Filename for logging"
+    )
+    parser.add_argument("--include-warmup", action="store_true", help="Include warmup")
+    parser.add_argument(
+        "--stft-hop-length",
+        type=int,
+        default=256,
+        help="STFT hop length for estimating audio length from mel size",
+    )
 
     return parser
 
@@ -86,7 +101,7 @@ def checkpoint_from_distributed(state_dict):
     """
     ret = False
     for key, _ in state_dict.items():
-        if key.find('module.') != -1:
+        if key.find("module.") != -1:
             ret = True
             break
     return ret
@@ -101,26 +116,39 @@ def unwrap_distributed(state_dict):
     """
     new_state_dict = {}
     for key, value in state_dict.items():
-        new_key = key.replace('module.', '')
+        new_key = key.replace("module.", "")
         new_state_dict[new_key] = value
     return new_state_dict
 
 
-def load_and_setup_model(model_name, parser, checkpoint, fp16_run, cpu_run,
-                         forward_is_infer=False, jittable=False):
+def load_and_setup_model(
+    model_name,
+    parser,
+    checkpoint,
+    fp16_run,
+    cpu_run,
+    forward_is_infer=False,
+    jittable=False,
+):
     model_parser = models.model_parser(model_name, parser, add_help=False)
     model_args, _ = model_parser.parse_known_args()
 
     model_config = models.get_model_config(model_name, model_args)
-    model = models.get_model(model_name, model_config, cpu_run=cpu_run,
-                             forward_is_infer=forward_is_infer,
-                             jittable=jittable)
+    model = models.get_model(
+        model_name,
+        model_config,
+        cpu_run=cpu_run,
+        forward_is_infer=forward_is_infer,
+        jittable=jittable,
+    )
 
     if checkpoint is not None:
         if cpu_run:
-            state_dict = torch.load(checkpoint, map_location=torch.device('cpu'))['state_dict']
+            state_dict = torch.load(checkpoint, map_location=torch.device("cpu"))[
+                "state_dict"
+            ]
         else:
-            state_dict = torch.load(checkpoint)['state_dict']
+            state_dict = torch.load(checkpoint)["state_dict"]
         if checkpoint_from_distributed(state_dict):
             state_dict = unwrap_distributed(state_dict)
 
@@ -141,15 +169,15 @@ def load_and_setup_model(model_name, parser, checkpoint, fp16_run, cpu_run,
 def pad_sequences(batch):
     # Right zero-pad all one-hot text sequences to max input length
     input_lengths, ids_sorted_decreasing = torch.sort(
-        torch.LongTensor([len(x) for x in batch]),
-        dim=0, descending=True)
+        torch.LongTensor([len(x) for x in batch]), dim=0, descending=True
+    )
     max_input_len = input_lengths[0]
 
     text_padded = torch.LongTensor(len(batch), max_input_len)
     text_padded.zero_()
     for i in range(len(ids_sorted_decreasing)):
         text = batch[ids_sorted_decreasing[i]]
-        text_padded[i, :text.size(0)] = text
+        text_padded[i, : text.size(0)] = text
 
     return text_padded, input_lengths
 
@@ -157,9 +185,8 @@ def pad_sequences(batch):
 def prepare_input_sequence(texts, cpu_run=False):
 
     d = []
-    for i,text in enumerate(texts):
-        d.append(torch.IntTensor(
-            text_to_sequence(text, ['english_cleaners'])[:]))
+    for i, text in enumerate(texts):
+        d.append(torch.IntTensor(text_to_sequence(text, ["english_cleaners"])[:]))
 
     text_padded, input_lengths = pad_sequences(d)
     if not cpu_run:
@@ -172,7 +199,7 @@ def prepare_input_sequence(texts, cpu_run=False):
     return text_padded, input_lengths
 
 
-class MeasureTime():
+class MeasureTime:
     def __init__(self, measurements, key, cpu_run=False):
         self.measurements = measurements
         self.key = key
@@ -194,23 +221,33 @@ def main():
     Launches text to speech (inference).
     Inference is executed on a single GPU or CPU.
     """
-    parser = argparse.ArgumentParser(
-        description='PyTorch Tacotron 2 Inference')
+    parser = argparse.ArgumentParser(description="PyTorch Tacotron 2 Inference")
     parser = parse_args(parser)
     args, _ = parser.parse_known_args()
 
     log_file = os.path.join(args.output, args.log_file)
-    DLLogger.init(backends=[JSONStreamBackend(Verbosity.DEFAULT, log_file),
-                            StdOutBackend(Verbosity.VERBOSE)])
-    for k,v in vars(args).items():
-        DLLogger.log(step="PARAMETER", data={k:v})
-    DLLogger.log(step="PARAMETER", data={'model_name':'Tacotron2_PyT'})
+    DLLogger.init(
+        backends=[
+            JSONStreamBackend(Verbosity.DEFAULT, log_file),
+            StdOutBackend(Verbosity.VERBOSE),
+        ]
+    )
+    for k, v in vars(args).items():
+        DLLogger.log(step="PARAMETER", data={k: v})
+    DLLogger.log(step="PARAMETER", data={"model_name": "Tacotron2_PyT"})
 
-    tacotron2 = load_and_setup_model('Tacotron2', parser, args.tacotron2,
-                                     args.fp16, args.cpu, forward_is_infer=True)
-    waveglow = load_and_setup_model('WaveGlow', parser, args.waveglow,
-                                    args.fp16, args.cpu, forward_is_infer=True,
-                                    jittable=True)
+    tacotron2 = load_and_setup_model(
+        "Tacotron2", parser, args.tacotron2, args.fp16, args.cpu, forward_is_infer=True
+    )
+    waveglow = load_and_setup_model(
+        "WaveGlow",
+        parser,
+        args.waveglow,
+        args.fp16,
+        args.cpu,
+        forward_is_infer=True,
+        jittable=True,
+    )
     denoiser = Denoiser(waveglow)
     if not args.cpu:
         denoiser.cuda()
@@ -221,14 +258,14 @@ def main():
 
     texts = []
     try:
-        f = open(args.input, 'r')
+        f = open(args.input, "r")
         texts = f.readlines()
     except:
         print("Could not read file")
         sys.exit(1)
 
     if args.include_warmup:
-        sequence = torch.randint(low=0, high=148, size=(1,50)).long()
+        sequence = torch.randint(low=0, high=148, size=(1, 50)).long()
         input_lengths = torch.IntTensor([sequence.size(1)]).long()
         if not args.cpu:
             sequence = sequence.cuda()
@@ -251,29 +288,45 @@ def main():
     with torch.no_grad(), MeasureTime(measurements, "denoiser_time", args.cpu):
         audios = denoiser(audios, strength=args.denoising_strength).squeeze(1)
 
-    print("Stopping after",mel.size(2),"decoder steps")
-    tacotron2_infer_perf = mel.size(0)*mel.size(2)/measurements['tacotron2_time']
-    waveglow_infer_perf = audios.size(0)*audios.size(1)/measurements['waveglow_time']
+    print("Stopping after", mel.size(2), "decoder steps")
+    tacotron2_infer_perf = mel.size(0) * mel.size(2) / measurements["tacotron2_time"]
+    waveglow_infer_perf = (
+        audios.size(0) * audios.size(1) / measurements["waveglow_time"]
+    )
 
     DLLogger.log(step=0, data={"tacotron2_items_per_sec": tacotron2_infer_perf})
-    DLLogger.log(step=0, data={"tacotron2_latency": measurements['tacotron2_time']})
+    DLLogger.log(step=0, data={"tacotron2_latency": measurements["tacotron2_time"]})
     DLLogger.log(step=0, data={"waveglow_items_per_sec": waveglow_infer_perf})
-    DLLogger.log(step=0, data={"waveglow_latency": measurements['waveglow_time']})
-    DLLogger.log(step=0, data={"denoiser_latency": measurements['denoiser_time']})
-    DLLogger.log(step=0, data={"latency": (measurements['tacotron2_time']+measurements['waveglow_time']+measurements['denoiser_time'])})
+    DLLogger.log(step=0, data={"waveglow_latency": measurements["waveglow_time"]})
+    DLLogger.log(step=0, data={"denoiser_latency": measurements["denoiser_time"]})
+    DLLogger.log(
+        step=0,
+        data={
+            "latency": (
+                measurements["tacotron2_time"]
+                + measurements["waveglow_time"]
+                + measurements["denoiser_time"]
+            )
+        },
+    )
 
     for i, audio in enumerate(audios):
 
-        plt.imshow(alignments[i].float().data.cpu().numpy().T, aspect="auto", origin="lower")
-        figure_path = os.path.join(args.output,"alignment_"+str(i)+args.suffix+".png")
+        plt.imshow(
+            alignments[i].float().data.cpu().numpy().T, aspect="auto", origin="lower"
+        )
+        figure_path = os.path.join(
+            args.output, "alignment_" + str(i) + args.suffix + ".png"
+        )
         plt.savefig(figure_path)
 
-        audio = audio[:mel_lengths[i]*args.stft_hop_length]
-        audio = audio/torch.max(torch.abs(audio))
-        audio_path = os.path.join(args.output,"audio_"+str(i)+args.suffix+".wav")
+        audio = audio[: mel_lengths[i] * args.stft_hop_length]
+        audio = audio / torch.max(torch.abs(audio))
+        audio_path = os.path.join(args.output, "audio_" + str(i) + args.suffix + ".wav")
         write(audio_path, args.sampling_rate, audio.cpu().numpy())
 
     DLLogger.flush()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

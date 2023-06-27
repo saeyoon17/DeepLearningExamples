@@ -21,22 +21,13 @@ import numpy as np
 import pandas as pd
 import torch
 from packaging import version
+from syngen.generator.tabular.base_tabular_generator import \
+    BaseTabularGenerator
+from syngen.generator.tabular.data_transformer.ctgan_data_transformer import \
+    CTGANDataTransformer
 from torch import optim
-from torch.nn import (
-    BatchNorm1d,
-    Dropout,
-    LeakyReLU,
-    Linear,
-    Module,
-    ReLU,
-    Sequential,
-    functional,
-)
-
-from syngen.generator.tabular.base_tabular_generator import BaseTabularGenerator
-from syngen.generator.tabular.data_transformer.ctgan_data_transformer import (
-    CTGANDataTransformer,
-)
+from torch.nn import (BatchNorm1d, Dropout, LeakyReLU, Linear, Module, ReLU,
+                      Sequential, functional)
 
 
 class CTGANGenerator(BaseTabularGenerator):
@@ -153,9 +144,7 @@ class CTGANGenerator(BaseTabularGenerator):
                     return transformed
                 raise ValueError("gumbel_softmax returning NaN.")
 
-        return functional.gumbel_softmax(
-            logits, tau=tau, hard=hard, eps=eps, dim=dim
-        )
+        return functional.gumbel_softmax(logits, tau=tau, hard=hard, eps=eps, dim=dim)
 
     def _apply_activate(self, data):
         """Apply proper activation function to the output of the generator."""
@@ -184,10 +173,7 @@ class CTGANGenerator(BaseTabularGenerator):
         st_c = 0
         for column_info in self._transformer.output_info_list:
             for span_info in column_info:
-                if (
-                    len(column_info) != 1
-                    or span_info.activation_fn != "softmax"
-                ):
+                if len(column_info) != 1 or span_info.activation_fn != "softmax":
                     # not discrete column
                     st += span_info.dim
                 else:
@@ -220,23 +206,17 @@ class CTGANGenerator(BaseTabularGenerator):
                 a ``pandas.DataFrame``, this list should contain the column names.
         """
         if isinstance(train_data, (pd.DataFrame, cudf.DataFrame)):
-            invalid_columns = set(categorical_columns) - set(
-                train_data.columns
-            )
+            invalid_columns = set(categorical_columns) - set(train_data.columns)
         elif isinstance(train_data, np.ndarray):
             invalid_columns = []
             for column in categorical_columns:
                 if column < 0 or column >= train_data.shape[1]:
                     invalid_columns.append(column)
         else:
-            raise TypeError(
-                "``train_data`` should be either pd.DataFrame or np.array."
-            )
+            raise TypeError("``train_data`` should be either pd.DataFrame or np.array.")
 
         if invalid_columns:
-            raise ValueError(
-                "Invalid columns found: {}".format(invalid_columns)
-            )
+            raise ValueError("Invalid columns found: {}".format(invalid_columns))
 
     def fit(self, train_data, categorical_columns=tuple(), epochs=None):
         """Fit the CTGAN Synthesizer models to the training data.
@@ -299,9 +279,7 @@ class CTGANGenerator(BaseTabularGenerator):
             betas=(0.5, 0.9),
             weight_decay=self._discriminator_decay,
         )
-        mean = torch.zeros(
-            self._batch_size, self._embedding_dim, device=self._device
-        )
+        mean = torch.zeros(self._batch_size, self._embedding_dim, device=self._device)
         std = mean + 1
 
         steps_per_epoch = max(len(train_data) // self._batch_size, 1)
@@ -311,9 +289,7 @@ class CTGANGenerator(BaseTabularGenerator):
                 for n in range(self._discriminator_steps):
                     fakez = torch.normal(mean=mean, std=std)
 
-                    condvec = self._data_sampler.sample_condvec(
-                        self._batch_size
-                    )
+                    condvec = self._data_sampler.sample_condvec(self._batch_size)
                     if condvec is None:
                         c1, m1, col, opt = None, None, None, None
                         real = self._data_sampler.sample_data(
@@ -335,9 +311,7 @@ class CTGANGenerator(BaseTabularGenerator):
                     fake = self._generator(fakez)
                     fakeact = self._apply_activate(fake)
 
-                    real = torch.from_numpy(real.astype("float32")).to(
-                        self._device
-                    )
+                    real = torch.from_numpy(real.astype("float32")).to(self._device)
 
                     if c1 is not None:
                         fake_cat = torch.cat([fakeact, c1], dim=1)
@@ -415,8 +389,10 @@ class CTGANGenerator(BaseTabularGenerator):
             condition_info = self._transformer.convert_column_name_value_to_id(
                 condition_column, condition_value
             )
-            global_condition_vec = self._data_sampler.generate_cond_from_condition_column_info(
-                condition_info, self._batch_size
+            global_condition_vec = (
+                self._data_sampler.generate_cond_from_condition_column_info(
+                    condition_info, self._batch_size
+                )
             )
         else:
             global_condition_vec = None
@@ -431,9 +407,7 @@ class CTGANGenerator(BaseTabularGenerator):
             if global_condition_vec is not None:
                 condvec = global_condition_vec.copy()
             else:
-                condvec = self._data_sampler.sample_original_condvec(
-                    self._batch_size
-                )
+                condvec = self._data_sampler.sample_original_condvec(self._batch_size)
 
             if condvec is not None:
                 c1 = condvec
@@ -500,15 +474,16 @@ class Discriminator(Module):
         )[0]
 
         gradient_penalty = (
-            (gradients.view(-1, pac * real_data.size(1)).norm(2, dim=1) - 1)
-            ** 2
+            (gradients.view(-1, pac * real_data.size(1)).norm(2, dim=1) - 1) ** 2
         ).mean() * lambda_
 
         return gradient_penalty
 
     def forward(self, input):
-        assert input.size()[0] % self.pac == 0, f'generator batch size ({input.size()[0]}) ' \
-                                                f'should be divisible by pac ({self.pac})'
+        assert input.size()[0] % self.pac == 0, (
+            f"generator batch size ({input.size()[0]}) "
+            f"should be divisible by pac ({self.pac})"
+        )
         return self.seq(input.view(-1, self.pacdim))
 
 
@@ -549,22 +524,13 @@ class DataSampler(object):
         self._data = data
 
         def is_discrete_column(column_info):
-            return (
-                len(column_info) == 1
-                and column_info[0].activation_fn == "softmax"
-            )
+            return len(column_info) == 1 and column_info[0].activation_fn == "softmax"
 
         n_discrete_columns = sum(
-            [
-                1
-                for column_info in output_info
-                if is_discrete_column(column_info)
-            ]
+            [1 for column_info in output_info if is_discrete_column(column_info)]
         )
 
-        self._discrete_column_matrix_st = np.zeros(
-            n_discrete_columns, dtype="int32"
-        )
+        self._discrete_column_matrix_st = np.zeros(n_discrete_columns, dtype="int32")
 
         # Store the row id for each category in each discrete column.
         # For example _rid_by_cat_cols[a][b] is a list of all rows with the
@@ -597,12 +563,8 @@ class DataSampler(object):
             default=0,
         )
 
-        self._discrete_column_cond_st = np.zeros(
-            n_discrete_columns, dtype="int32"
-        )
-        self._discrete_column_n_category = np.zeros(
-            n_discrete_columns, dtype="int32"
-        )
+        self._discrete_column_cond_st = np.zeros(n_discrete_columns, dtype="int32")
+        self._discrete_column_n_category = np.zeros(n_discrete_columns, dtype="int32")
         self._discrete_column_category_prob = np.zeros(
             (n_discrete_columns, max_category)
         )
@@ -667,8 +629,7 @@ class DataSampler(object):
         mask[np.arange(batch), discrete_column_id] = 1
         category_id_in_col = self._random_choice_prob_index(discrete_column_id)
         category_id = (
-            self._discrete_column_cond_st[discrete_column_id]
-            + category_id_in_col
+            self._discrete_column_cond_st[discrete_column_id] + category_id_in_col
         )
         cond[np.arange(batch), category_id] = 1
 
@@ -713,9 +674,7 @@ class DataSampler(object):
     def generate_cond_from_condition_column_info(self, condition_info, batch):
         vec = np.zeros((batch, self._n_categories), dtype="float32")
         vec_id = (
-            self._discrete_column_matrix_st[
-                condition_info["discrete_column_id"]
-            ]
+            self._discrete_column_matrix_st[condition_info["discrete_column_id"]]
             + condition_info["value_id"]
         )
         vec[:, vec_id] = 1

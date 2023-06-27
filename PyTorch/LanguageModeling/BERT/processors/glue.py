@@ -74,7 +74,7 @@ class DataProcessor(object):
             lines = []
             for line in reader:
                 if sys.version_info[0] == 2:
-                    line = list(unicode(cell, 'utf-8') for cell in line)
+                    line = list(unicode(cell, "utf-8") for cell in line)
                 lines.append(line)
             return lines
 
@@ -111,10 +111,8 @@ class MrpcProcessor(DataProcessor):
             text_b = line[4]
             label = line[0]
             examples.append(
-                InputExample(guid=guid,
-                             text_a=text_a,
-                             text_b=text_b,
-                             label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
 
@@ -150,10 +148,8 @@ class MnliProcessor(DataProcessor):
             text_b = line[9]
             label = line[-1]
             examples.append(
-                InputExample(guid=guid,
-                             text_a=text_a,
-                             text_b=text_b,
-                             label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
 
@@ -186,8 +182,8 @@ class ColaProcessor(DataProcessor):
             text_a = line[3]
             label = line[1]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=None,
-                             label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=label)
+            )
         return examples
 
 
@@ -222,13 +218,12 @@ class Sst2Processor(DataProcessor):
             text_a = line[0]
             label = line[1]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=None,
-                             label=label))
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=label)
+            )
         return examples
 
 
-def convert_examples_to_features(examples, label_list, max_seq_length,
-                                 tokenizer):
+def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer):
     """Loads a data file into a list of `InputBatch`s."""
 
     label_map = {label: i for i, label in enumerate(label_list)}
@@ -247,7 +242,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         else:
             # Account for [CLS] and [SEP] with "- 2"
             if len(tokens_a) > max_seq_length - 2:
-                tokens_a = tokens_a[:(max_seq_length - 2)]
+                tokens_a = tokens_a[: (max_seq_length - 2)]
 
         # The convention in BERT is:
         # (a) For sequence pairs:
@@ -293,10 +288,13 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         label_id = label_map[example.label]
 
         features.append(
-            InputFeatures(input_ids=input_ids,
-                          input_mask=input_mask,
-                          segment_ids=segment_ids,
-                          label_id=label_id))
+            InputFeatures(
+                input_ids=input_ids,
+                input_mask=input_mask,
+                segment_ids=segment_ids,
+                label_id=label_id,
+            )
+        )
     return features, label_map
 
 

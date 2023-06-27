@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
 import logging
+import sys
+
 import paddle
 from paddle import optimizer as optim
 
@@ -40,8 +41,7 @@ class AdamW:
     def __call__(self):
         # not apply weight decay to all bias and layer_norm
         def apply_decay_func(name):
-            return False if any(key in name
-                                for key in _EXCLUDE_FROM_DECAY) else True
+            return False if any(key in name for key in _EXCLUDE_FROM_DECAY) else True
 
         # add grad clipping to prevent exploding gradients
         clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=1.0)
@@ -53,7 +53,8 @@ class AdamW:
             weight_decay=self.weight_decay,
             apply_decay_param_fun=apply_decay_func,
             grad_clip=clip,
-            multi_precision=self.multi_precision)
+            multi_precision=self.multi_precision,
+        )
         return opt
 
 
@@ -77,8 +78,9 @@ class Lamb:
     def __call__(self):
         # not apply weight decay to all bias and layer_norm
         def exclude_from_decay_func(param):
-            return True if any(key in param.name
-                               for key in _EXCLUDE_FROM_DECAY) else False
+            return (
+                True if any(key in param.name for key in _EXCLUDE_FROM_DECAY) else False
+            )
 
         clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=1.0)
         opt = optim.Lamb(
@@ -88,7 +90,8 @@ class Lamb:
             beta2=self.beta2,
             epsilon=self.epsilon,
             exclude_from_weight_decay_fn=exclude_from_decay_func,
-            grad_clip=clip)
+            grad_clip=clip,
+        )
         opt._multi_precision = True if self.multi_precision else False
         return opt
 
@@ -113,8 +116,9 @@ class DistributedFusedLamb:
     def __call__(self):
         # not apply weight decay to all bias and layer_norm
         def exclude_from_decay_func(param):
-            return True if any(key in param.name
-                               for key in _EXCLUDE_FROM_DECAY) else False
+            return (
+                True if any(key in param.name for key in _EXCLUDE_FROM_DECAY) else False
+            )
 
         clip = paddle.nn.ClipGradByGlobalNorm(clip_norm=1.0)
         opt = paddle.incubate.DistributedFusedLamb(
@@ -129,7 +133,8 @@ class DistributedFusedLamb:
             is_grad_scaled_by_nranks=False,
             use_master_param_norm=True,
             gradient_accumulation_steps=self.gradient_merge_steps,
-            use_master_acc_grad=True)
+            use_master_acc_grad=True,
+        )
         return opt
 
 

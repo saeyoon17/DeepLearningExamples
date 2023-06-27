@@ -12,13 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from torch.autograd import Variable
-import torch
 import time
 
+import torch
 from apex import amp
+from torch.autograd import Variable
 
-def train_loop(model, loss_func, scaler, epoch, optim, train_dataloader, val_dataloader, encoder, iteration, logger, args, mean, std):
+
+def train_loop(
+    model,
+    loss_func,
+    scaler,
+    epoch,
+    optim,
+    train_dataloader,
+    val_dataloader,
+    encoder,
+    iteration,
+    logger,
+    args,
+    mean,
+    std,
+):
     for nbatch, data in enumerate(train_dataloader):
         img = data[0][0][0]
         bbox = data[0][1][0]
@@ -44,7 +59,7 @@ def train_loop(model, loss_func, scaler, epoch, optim, train_dataloader, val_dat
         label = label.view(N, M)
 
         with torch.cuda.amp.autocast(enabled=args.amp):
-            if args.data_layout == 'channels_last':
+            if args.data_layout == "channels_last":
                 img = img.to(memory_format=torch.channels_last)
             ploc, plabel = model(img)
 
@@ -70,7 +85,21 @@ def train_loop(model, loss_func, scaler, epoch, optim, train_dataloader, val_dat
     return iteration
 
 
-def benchmark_train_loop(model, loss_func, scaler, epoch, optim, train_dataloader, val_dataloader, encoder, iteration, logger, args, mean, std):
+def benchmark_train_loop(
+    model,
+    loss_func,
+    scaler,
+    epoch,
+    optim,
+    train_dataloader,
+    val_dataloader,
+    encoder,
+    iteration,
+    logger,
+    args,
+    mean,
+    std,
+):
     start_time = None
     # tensor for results
     result = torch.zeros((1,)).cuda()
@@ -103,7 +132,7 @@ def benchmark_train_loop(model, loss_func, scaler, epoch, optim, train_dataloade
         label = label.view(N, M)
 
         with torch.cuda.amp.autocast(enabled=args.amp):
-            if args.data_layout == 'channels_last':
+            if args.data_layout == "channels_last":
                 img = img.to(memory_format=torch.channels_last)
             ploc, plabel = model(img)
 
@@ -127,13 +156,13 @@ def benchmark_train_loop(model, loss_func, scaler, epoch, optim, train_dataloade
 
         if nbatch >= args.benchmark_warmup:
             torch.cuda.synchronize()
-            logger.update(args.batch_size*args.N_gpu, time.time() - start_time)
+            logger.update(args.batch_size * args.N_gpu, time.time() - start_time)
 
     result.data[0] = logger.print_result()
     if args.N_gpu > 1:
         torch.distributed.reduce(result, 0)
     if args.local_rank == 0:
-        print('Training performance = {} FPS'.format(float(result.data[0])))
+        print("Training performance = {} FPS".format(float(result.data[0])))
 
 
 def loop(dataloader, reset=True):
@@ -143,8 +172,23 @@ def loop(dataloader, reset=True):
         if reset:
             dataloader.reset()
 
-def benchmark_inference_loop(model, loss_func, scaler, epoch, optim, train_dataloader, val_dataloader, encoder, iteration, logger, args, mean, std):
-    assert args.N_gpu == 1, 'Inference benchmark only on 1 gpu'
+
+def benchmark_inference_loop(
+    model,
+    loss_func,
+    scaler,
+    epoch,
+    optim,
+    train_dataloader,
+    val_dataloader,
+    encoder,
+    iteration,
+    logger,
+    args,
+    mean,
+    std,
+):
+    assert args.N_gpu == 1, "Inference benchmark only on 1 gpu"
     model.eval()
     val_datas = loop(val_dataloader, False)
 
@@ -164,17 +208,17 @@ def benchmark_inference_loop(model, loss_func, scaler, epoch, optim, train_datal
         torch.cuda.synchronize()
         end_time = time.time()
 
-
         if i >= args.benchmark_warmup:
             logger.update(args.eval_batch_size, end_time - start_time)
 
     logger.print_result()
 
+
 def warmup(optim, warmup_iters, iteration, base_lr):
     if iteration < warmup_iters:
-        new_lr = 1. * base_lr / warmup_iters * iteration
+        new_lr = 1.0 * base_lr / warmup_iters * iteration
         for param_group in optim.param_groups:
-            param_group['lr'] = new_lr
+            param_group["lr"] = new_lr
 
 
 def load_checkpoint(model, checkpoint):
@@ -204,5 +248,4 @@ def tencent_trick(model):
             no_decay.append(param)
         else:
             decay.append(param)
-    return [{'params': no_decay, 'weight_decay': 0.0},
-            {'params': decay}]
+    return [{"params": no_decay, "weight_decay": 0.0}, {"params": decay}]

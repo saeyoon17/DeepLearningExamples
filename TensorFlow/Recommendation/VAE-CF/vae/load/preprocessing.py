@@ -13,20 +13,20 @@
 # limitations under the License.
 
 
+import json
+import logging
 import os
 from collections import defaultdict
 from glob import glob
 
-import pandas as pd
-from scipy import sparse
-import scipy.sparse as sp
 import numpy as np
-from scipy.sparse import load_npz, csr_matrix
-
-import logging
-import json
+import pandas as pd
+import scipy.sparse as sp
+from scipy import sparse
+from scipy.sparse import csr_matrix, load_npz
 
 LOG = logging.getLogger("VAE")
+
 
 def save_as_npz(m_sp, path):
     if not os.path.isdir(os.path.dirname(path)):
@@ -43,27 +43,27 @@ def get_count(tp, id):
 def filter_triplets(tp, min_uc=5, min_sc=0):
     # Only keep the triplets for items which were clicked on by at least min_sc users.
     if min_sc > 0:
-        itemcount = get_count(tp, 'movieId')
-        tp = tp[tp['movieId'].isin(itemcount.index[itemcount >= min_sc])]
+        itemcount = get_count(tp, "movieId")
+        tp = tp[tp["movieId"].isin(itemcount.index[itemcount >= min_sc])]
 
     # Only keep the triplets for users who clicked on at least min_uc items
     # After doing this, some of the items will have less than min_uc users, but should only be a small proportion
     if min_uc > 0:
-        usercount = get_count(tp, 'userId')
-        tp = tp[tp['userId'].isin(usercount.index[usercount >= min_uc])]
+        usercount = get_count(tp, "userId")
+        tp = tp[tp["userId"].isin(usercount.index[usercount >= min_uc])]
 
     # Update both usercount and itemcount after filtering
-    usercount, itemcount = get_count(tp, 'userId'), get_count(tp, 'movieId')
+    usercount, itemcount = get_count(tp, "userId"), get_count(tp, "movieId")
     return tp, usercount, itemcount
+
 
 def save_id_mappings(cache_dir, show2id, profile2id):
     if not os.path.isdir(cache_dir):
         os.makedirs(cache_dir)
 
-    for d, filename in [(show2id, 'show2id.json'),
-                        (profile2id, 'profile2id.json')]:
+    for d, filename in [(show2id, "show2id.json"), (profile2id, "profile2id.json")]:
 
-        with open(os.path.join(cache_dir, filename), 'w') as f:
+        with open(os.path.join(cache_dir, filename), "w") as f:
             d = {str(k): v for k, v in d.items()}
             json.dump(d, f, indent=4)
 
@@ -71,9 +71,9 @@ def save_id_mappings(cache_dir, show2id, profile2id):
 def load_and_parse_ML_20M(data_dir, threshold=4, parse=True):
     """
     Original way of processing ml-20m dataset from VAE for CF paper
-	Copyright [2018] [Dawen Liang, Rahul G. Krishnan, Matthew D. Hoffman, and Tony Jebara]
-	SPDX-License-Identifier: Apache-2.0
-	Modifications copyright (C) 2019 Michał Filipiuk, Albert Cieślak, Frederic Grabowski, Radosław Rowicki
+        Copyright [2018] [Dawen Liang, Rahul G. Krishnan, Matthew D. Hoffman, and Tony Jebara]
+        SPDX-License-Identifier: Apache-2.0
+        Modifications copyright (C) 2019 Michał Filipiuk, Albert Cieślak, Frederic Grabowski, Radosław Rowicki
     """
 
     cache_dir = os.path.join(data_dir, "ml-20m/preprocessed")
@@ -84,32 +84,41 @@ def load_and_parse_ML_20M(data_dir, threshold=4, parse=True):
     test_data_true_file = os.path.join(cache_dir, "test_data_true.npz")
     test_data_test_file = os.path.join(cache_dir, "test_data_test.npz")
 
-    if (os.path.isfile(train_data_file)
-       and os.path.isfile(vad_data_true_file)
-       and os.path.isfile(vad_data_test_file)
-       and os.path.isfile(test_data_true_file)
-       and os.path.isfile(test_data_test_file)):
+    if (
+        os.path.isfile(train_data_file)
+        and os.path.isfile(vad_data_true_file)
+        and os.path.isfile(vad_data_test_file)
+        and os.path.isfile(test_data_true_file)
+        and os.path.isfile(test_data_test_file)
+    ):
 
-           LOG.info("Already processed, skipping.")
-           return load_npz(train_data_file), \
-                load_npz(vad_data_true_file), \
-                load_npz(vad_data_test_file), \
-                load_npz(test_data_true_file), \
-                load_npz(test_data_test_file),
+        LOG.info("Already processed, skipping.")
+        return (
+            load_npz(train_data_file),
+            load_npz(vad_data_true_file),
+            load_npz(vad_data_test_file),
+            load_npz(test_data_true_file),
+            load_npz(test_data_test_file),
+        )
 
     if not parse:
-        raise ValueError('Dataset not preprocessed. Please run python3 prepare_dataset.py first.')
+        raise ValueError(
+            "Dataset not preprocessed. Please run python3 prepare_dataset.py first."
+        )
 
     LOG.info("Parsing movielens.")
 
     source_file = os.path.join(data_dir, "ml-20m/extracted/ml-20m", "ratings.csv")
     if not glob(source_file):
-        raise ValueError('Dataset not downloaded. Please download the ML-20m dataset from https://grouplens.org/datasets/movielens/20m/, unzip it and put it in ', source_file)
+        raise ValueError(
+            "Dataset not downloaded. Please download the ML-20m dataset from https://grouplens.org/datasets/movielens/20m/, unzip it and put it in ",
+            source_file,
+        )
 
     raw_data = pd.read_csv(source_file)
-    raw_data.drop('timestamp', axis=1, inplace=True)
+    raw_data.drop("timestamp", axis=1, inplace=True)
 
-    raw_data = raw_data[raw_data['rating'] >= threshold]
+    raw_data = raw_data[raw_data["rating"] >= threshold]
     raw_data, user_activity, item_popularity = filter_triplets(raw_data)
 
     unique_uid = user_activity.index
@@ -119,28 +128,32 @@ def load_and_parse_ML_20M(data_dir, threshold=4, parse=True):
     n_users = unique_uid.size
     n_heldout_users = 10000
 
-    true_users = unique_uid[:(n_users - n_heldout_users * 2)]
-    vd_users = unique_uid[(n_users - n_heldout_users * 2): (n_users - n_heldout_users)]
-    test_users = unique_uid[(n_users - n_heldout_users):]
+    true_users = unique_uid[: (n_users - n_heldout_users * 2)]
+    vd_users = unique_uid[(n_users - n_heldout_users * 2) : (n_users - n_heldout_users)]
+    test_users = unique_uid[(n_users - n_heldout_users) :]
 
-    train_plays = raw_data.loc[raw_data['userId'].isin(true_users)]
+    train_plays = raw_data.loc[raw_data["userId"].isin(true_users)]
 
-    unique_sid = pd.unique(train_plays['movieId'])
+    unique_sid = pd.unique(train_plays["movieId"])
 
     show2id = dict((sid, i) for (i, sid) in enumerate(unique_sid))
     profile2id = dict((pid, i) for (i, pid) in enumerate(unique_uid))
     save_id_mappings(cache_dir, show2id, profile2id)
 
     def split_train_test_proportion(data, test_prop=0.2):
-        data_grouped_by_user = data.groupby('userId')
+        data_grouped_by_user = data.groupby("userId")
         true_list, test_list = list(), list()
 
         for i, (_, group) in enumerate(data_grouped_by_user):
             n_items_u = len(group)
 
             if n_items_u >= 5:
-                idx = np.zeros(n_items_u, dtype='bool')
-                idx[np.random.choice(n_items_u, size=int(test_prop * n_items_u), replace=False).astype('int64')] = True
+                idx = np.zeros(n_items_u, dtype="bool")
+                idx[
+                    np.random.choice(
+                        n_items_u, size=int(test_prop * n_items_u), replace=False
+                    ).astype("int64")
+                ] = True
 
                 true_list.append(group[np.logical_not(idx)])
                 test_list.append(group[idx])
@@ -152,20 +165,20 @@ def load_and_parse_ML_20M(data_dir, threshold=4, parse=True):
 
         return data_true, data_test
 
-    vad_plays = raw_data.loc[raw_data['userId'].isin(vd_users)]
-    vad_plays = vad_plays.loc[vad_plays['movieId'].isin(unique_sid)]
+    vad_plays = raw_data.loc[raw_data["userId"].isin(vd_users)]
+    vad_plays = vad_plays.loc[vad_plays["movieId"].isin(unique_sid)]
 
     vad_plays_true, vad_plays_test = split_train_test_proportion(vad_plays)
 
-    test_plays = raw_data.loc[raw_data['userId'].isin(test_users)]
-    test_plays = test_plays.loc[test_plays['movieId'].isin(unique_sid)]
+    test_plays = raw_data.loc[raw_data["userId"].isin(test_users)]
+    test_plays = test_plays.loc[test_plays["movieId"].isin(unique_sid)]
 
     test_plays_true, test_plays_test = split_train_test_proportion(test_plays)
 
     def numerize(tp):
-        uid = tp['userId'].map(lambda x: profile2id[x])
-        sid = tp['movieId'].map(lambda x: show2id[x])
-        return pd.DataFrame(data={'uid': uid, 'sid': sid}, columns=['uid', 'sid'])
+        uid = tp["userId"].map(lambda x: profile2id[x])
+        sid = tp["movieId"].map(lambda x: show2id[x])
+        return pd.DataFrame(data={"uid": uid, "sid": sid}, columns=["uid", "sid"])
 
     train_data = numerize(train_plays)
     vad_data_true = numerize(vad_plays_true)
@@ -174,28 +187,37 @@ def load_and_parse_ML_20M(data_dir, threshold=4, parse=True):
     test_data_test = numerize(test_plays_test)
 
     n_items = len(unique_sid)
-    def load_train_data(tp):
-        n_users = tp['uid'].max() + 1
 
-        rows, cols = tp['uid'], tp['sid']
-        data = sparse.csr_matrix((np.ones_like(rows),
-                                  (rows, cols)), dtype='float64',
-                                 shape=(n_users, n_items))
+    def load_train_data(tp):
+        n_users = tp["uid"].max() + 1
+
+        rows, cols = tp["uid"], tp["sid"]
+        data = sparse.csr_matrix(
+            (np.ones_like(rows), (rows, cols)),
+            dtype="float64",
+            shape=(n_users, n_items),
+        )
         return data
 
     train_data = load_train_data(train_data)
 
     def load_true_test_data(tp_true, tp_test):
-        start_idx = min(tp_true['uid'].min(), tp_test['uid'].min())
-        end_idx = max(tp_true['uid'].max(), tp_test['uid'].max())
+        start_idx = min(tp_true["uid"].min(), tp_test["uid"].min())
+        end_idx = max(tp_true["uid"].max(), tp_test["uid"].max())
 
-        rows_true, cols_true = tp_true['uid'] - start_idx, tp_true['sid']
-        rows_test, cols_test = tp_test['uid'] - start_idx, tp_test['sid']
+        rows_true, cols_true = tp_true["uid"] - start_idx, tp_true["sid"]
+        rows_test, cols_test = tp_test["uid"] - start_idx, tp_test["sid"]
 
-        data_true = sparse.csr_matrix((np.ones_like(rows_true),
-                                     (rows_true, cols_true)), dtype='float64', shape=(end_idx - start_idx + 1, n_items))
-        data_test = sparse.csr_matrix((np.ones_like(rows_test),
-                                     (rows_test, cols_test)), dtype='float64', shape=(end_idx - start_idx + 1, n_items))
+        data_true = sparse.csr_matrix(
+            (np.ones_like(rows_true), (rows_true, cols_true)),
+            dtype="float64",
+            shape=(end_idx - start_idx + 1, n_items),
+        )
+        data_test = sparse.csr_matrix(
+            (np.ones_like(rows_test), (rows_test, cols_test)),
+            dtype="float64",
+            shape=(end_idx - start_idx + 1, n_items),
+        )
         return data_true, data_test
 
     vad_data_true, vad_data_test = load_true_test_data(vad_data_true, vad_data_test)
@@ -289,14 +311,20 @@ def split_movies_into_train_test(data, train_ratio):
         train_movies = user_movies[:train_count]
         test_movies = user_movies[train_count:]
 
-        train_rows += ([i] * train_count)
+        train_rows += [i] * train_count
         train_columns += list(train_movies)
 
-        test_rows += ([i] * test_count)
+        test_rows += [i] * test_count
         test_columns += list(test_movies)
 
-    train_matrix = csr_matrix(([1] * len(train_rows), (train_rows, train_columns)), shape=(rows_count, columns_count))
-    test_matrix = csr_matrix(([1] * len(test_rows), (test_rows, test_columns)), shape=(rows_count, columns_count))
+    train_matrix = csr_matrix(
+        ([1] * len(train_rows), (train_rows, train_columns)),
+        shape=(rows_count, columns_count),
+    )
+    test_matrix = csr_matrix(
+        ([1] * len(test_rows), (test_rows, test_columns)),
+        shape=(rows_count, columns_count),
+    )
 
     return train_matrix, test_matrix
 
@@ -315,4 +343,8 @@ def remove_items_that_doesnt_occure_in_train(train_matrix, val_matrix, test_matr
 
     non_empty_items = [k for k, v in item_occure.items() if v == True]
 
-    return train_matrix[:, non_empty_items], val_matrix[:, non_empty_items], test_matrix[:, non_empty_items]
+    return (
+        train_matrix[:, non_empty_items],
+        val_matrix[:, non_empty_items],
+        test_matrix[:, non_empty_items],
+    )

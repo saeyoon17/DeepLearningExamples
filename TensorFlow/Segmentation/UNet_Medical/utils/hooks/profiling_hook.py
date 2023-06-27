@@ -14,15 +14,13 @@
 
 import time
 
+import horovod.tensorflow as hvd
 import numpy as np
 import tensorflow as tf
-import horovod.tensorflow as hvd
-
 from utils.parse_results import process_performance_stats
 
 
 class ProfilingHook(tf.estimator.SessionRunHook):
-
     def __init__(self, logger, batch_size, log_every, warmup_steps, mode):
         self._log_every = log_every
         self._warmup_steps = warmup_steps
@@ -37,9 +35,7 @@ class ProfilingHook(tf.estimator.SessionRunHook):
         if self._current_step > self._warmup_steps:
             self._t0 = time.time()
 
-    def after_run(self,
-                  run_context,
-                  run_values):
+    def after_run(self, run_context, run_values):
         if self._current_step > self._warmup_steps:
             self._timestamps.append(time.time() - self._t0)
         self._current_step += 1
@@ -49,7 +45,7 @@ class ProfilingHook(tf.estimator.SessionRunHook):
 
     def end(self, session):
         if hvd.rank() == 0:
-            stats = process_performance_stats(np.array(self._timestamps),
-                                              self._global_batch_size,
-                                              self.mode)
+            stats = process_performance_stats(
+                np.array(self._timestamps), self._global_batch_size, self.mode
+            )
             self.logger.log(step=(), data=stats)

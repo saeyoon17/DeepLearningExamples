@@ -52,7 +52,9 @@ def calculate_average_latency(r):
     return avg_latency
 
 
-def update_performance_data(results: List, batch_size: int, performance_partial_file: str):
+def update_performance_data(
+    results: List, batch_size: int, performance_partial_file: str
+):
     row: Dict = {"batch_size": batch_size}
     with open(performance_partial_file, "r") as csvfile:
         reader = csv.DictReader(csvfile)
@@ -69,21 +71,25 @@ def _parse_batch_sizes(batch_sizes: str):
 
 
 def offline_performance(
-        model_name: str,
-        batch_sizes: List[int],
-        result_path: str,
-        input_shapes: Optional[List[str]] = None,
-        profiling_data: str = "random",
-        triton_instances: int = 1,
-        server_url: str = "localhost",
-        measurement_window: int = 10000,
-        shared_memory: bool = False
+    model_name: str,
+    batch_sizes: List[int],
+    result_path: str,
+    input_shapes: Optional[List[str]] = None,
+    profiling_data: str = "random",
+    triton_instances: int = 1,
+    server_url: str = "localhost",
+    measurement_window: int = 10000,
+    shared_memory: bool = False,
 ):
     print("\n")
     print(f"==== Static batching analysis start ====")
     print("\n")
 
-    input_shapes = " ".join(map(lambda shape: f" --shape {shape}", input_shapes)) if input_shapes else ""
+    input_shapes = (
+        " ".join(map(lambda shape: f" --shape {shape}", input_shapes))
+        if input_shapes
+        else ""
+    )
 
     results: List[Dict] = list()
     for batch_size in batch_sizes:
@@ -108,7 +114,9 @@ def offline_performance(
 
         result = os.system(f"perf_client {exec_args}")
         if result != 0:
-            print(f"Failed running performance tests. Perf client failed with exit code {result}")
+            print(
+                f"Failed running performance tests. Perf client failed with exit code {result}"
+            )
             sys.exit(1)
 
         update_performance_data(results, batch_size, performance_partial_file)
@@ -128,9 +136,15 @@ def offline_performance(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-name", type=str, required=True, help="Name of the model to test")
     parser.add_argument(
-        "--input-data", type=str, required=False, default="random", help="Input data to perform profiling."
+        "--model-name", type=str, required=True, help="Name of the model to test"
+    )
+    parser.add_argument(
+        "--input-data",
+        type=str,
+        required=False,
+        default="random",
+        help="Input data to perform profiling.",
     )
     parser.add_argument(
         "--input-shape",
@@ -138,15 +152,43 @@ def main():
         required=False,
         help="Input data shape in form INPUT_NAME:<full_shape_without_batch_axis>.",
     )
-    parser.add_argument("--batch-sizes", type=str, required=True, help="List of batch sizes to tests. Comma separated.")
-    parser.add_argument("--result-path", type=str, required=True, help="Path where result file is going to be stored.")
-    parser.add_argument("--triton-instances", type=int, default=1, help="Number of Triton Server instances")
-    parser.add_argument("--server-url", type=str, required=False, default="localhost", help="Url to Triton server")
     parser.add_argument(
-        "--measurement-window", required=False, help="Time which perf_analyzer will wait for results", default=10000
+        "--batch-sizes",
+        type=str,
+        required=True,
+        help="List of batch sizes to tests. Comma separated.",
     )
-    parser.add_argument("--shared-memory", help="Use shared memory for communication with Triton", action="store_true",
-                        default=False)
+    parser.add_argument(
+        "--result-path",
+        type=str,
+        required=True,
+        help="Path where result file is going to be stored.",
+    )
+    parser.add_argument(
+        "--triton-instances",
+        type=int,
+        default=1,
+        help="Number of Triton Server instances",
+    )
+    parser.add_argument(
+        "--server-url",
+        type=str,
+        required=False,
+        default="localhost",
+        help="Url to Triton server",
+    )
+    parser.add_argument(
+        "--measurement-window",
+        required=False,
+        help="Time which perf_analyzer will wait for results",
+        default=10000,
+    )
+    parser.add_argument(
+        "--shared-memory",
+        help="Use shared memory for communication with Triton",
+        action="store_true",
+        default=False,
+    )
 
     args = parser.parse_args()
 
@@ -158,7 +200,7 @@ def main():
         profiling_data=args.input_data,
         input_shapes=args.input_shape,
         measurement_window=args.measurement_window,
-        shared_memory=args.shared_memory
+        shared_memory=args.shared_memory,
     )
 
     offline_performance(
@@ -170,7 +212,7 @@ def main():
         input_shapes=args.input_shape,
         result_path=args.result_path,
         measurement_window=args.measurement_window,
-        shared_memory=args.shared_memory
+        shared_memory=args.shared_memory,
     )
 
 

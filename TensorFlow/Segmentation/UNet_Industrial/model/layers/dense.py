@@ -20,10 +20,9 @@
 # ==============================================================================
 
 import tensorflow as tf
-
 from model.layers.utils import _log_hparams
 
-__all__ = ['dense']
+__all__ = ["dense"]
 
 
 def dense(
@@ -32,7 +31,7 @@ def dense(
     use_bias=True,
     trainable=True,
     kernel_initializer=tf.variance_scaling_initializer(),
-    bias_initializer=tf.zeros_initializer()
+    bias_initializer=tf.zeros_initializer(),
 ):
 
     net = tf.layers.dense(
@@ -42,17 +41,17 @@ def dense(
         use_bias=use_bias,
         kernel_initializer=kernel_initializer,
         bias_initializer=bias_initializer,
-        trainable=trainable
+        trainable=trainable,
     )
 
     _log_hparams(
-        classname='Dense',
+        classname="Dense",
         layername=net.name,
         units=units,
         use_bias=use_bias,
         trainable=trainable,
         out_shape=str(net.get_shape()),
-        out_dtype=net.dtype
+        out_dtype=net.dtype,
     )
 
     return net

@@ -12,7 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from model.layers.activations import simple_swish, hard_swish, identity, gelu, get_activation
+from model.layers.activations import (gelu, get_activation, hard_swish,
+                                      identity, simple_swish)
 from model.layers.normalization import get_batch_norm
 
-__all__ = ['simple_swish', 'hard_swish', 'identity', 'gelu', 'get_activation', 'get_batch_norm']
+__all__ = [
+    "simple_swish",
+    "hard_swish",
+    "identity",
+    "gelu",
+    "get_activation",
+    "get_batch_norm",
+]

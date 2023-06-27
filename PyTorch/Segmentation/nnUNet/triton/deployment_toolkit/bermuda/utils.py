@@ -26,7 +26,9 @@ def infer_precision(
     output_names: List[str],
     get_node_dtype_fn: Callable,
 ):
-    node_dtypes = [nx_graph.nodes[node_name].get("dtype", None) for node_name in nx_graph.nodes]
+    node_dtypes = [
+        nx_graph.nodes[node_name].get("dtype", None) for node_name in nx_graph.nodes
+    ]
     node_dtypes = [dt for dt in node_dtypes if dt is None or dt.kind not in ["i", "b"]]
     dtypes_counter = Counter(node_dtypes)
     return dtypes_counter.most_common()[0][0]
@@ -67,7 +69,9 @@ def get_shapes_with_dynamic_axes(dataloader, batch_size_dim=0):
 
 
 def get_dynamic_axes(dataloader, batch_size_dim=0):
-    input_shapes, output_shapes = get_shapes_with_dynamic_axes(dataloader, batch_size_dim)
+    input_shapes, output_shapes = get_shapes_with_dynamic_axes(
+        dataloader, batch_size_dim
+    )
     all_shapes = {**input_shapes, **output_shapes}
     dynamic_axes = {}
 
@@ -78,7 +82,9 @@ def get_dynamic_axes(dataloader, batch_size_dim=0):
 
     for k, v in all_shapes.items():
         if k in dynamic_axes:
-            dynamic_axes[k].update({batch_size_dim: "batch_size_" + str(batch_size_dim)})
+            dynamic_axes[k].update(
+                {batch_size_dim: "batch_size_" + str(batch_size_dim)}
+            )
         else:
             dynamic_axes[k] = {batch_size_dim: "batch_size_" + str(batch_size_dim)}
 

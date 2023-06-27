@@ -2,12 +2,11 @@
 NVIDIA DALI data generator object.
 """
 import nvidia.dali.fn as fn
-from nvidia.dali import pipeline_def
-import nvidia.dali.types as types
 import nvidia.dali.plugin.tf as dali_tf
+import nvidia.dali.types as types
 import tensorflow as tf
+from nvidia.dali import pipeline_def
 from omegaconf import DictConfig
-
 from utils.general_utils import get_data_paths, get_gpus_count
 
 
@@ -25,12 +24,12 @@ def data_generator_pipeline(cfg: DictConfig, mode: str, mask_available: bool):
         """
         Returns DALI data pipeline object for single GPU training.
         """
-        device = 'mixed' if 'gpu' in device.lower() else 'cpu'
+        device = "mixed" if "gpu" in device.lower() else "cpu"
 
         pngs, _ = fn.readers.file(
             files=images_paths,
             random_shuffle=cfg.PREPROCESS_DATA.SHUFFLE[mode].VALUE,
-            seed=cfg.SEED
+            seed=cfg.SEED,
         )
         images = fn.decoders.image(pngs, device=device, output_type=types.RGB)
         if cfg.PREPROCESS_DATA.RESIZE.VALUE:
@@ -39,31 +38,31 @@ def data_generator_pipeline(cfg: DictConfig, mode: str, mask_available: bool):
                 images,
                 size=[
                     cfg.PREPROCESS_DATA.RESIZE.HEIGHT,
-                    cfg.PREPROCESS_DATA.RESIZE.WIDTH
-                ]
+                    cfg.PREPROCESS_DATA.RESIZE.WIDTH,
+                ],
             )
         if cfg.PREPROCESS_DATA.IMAGE_PREPROCESSING_TYPE == "normalize":
-            images = fn.normalize(images, mean=0, stddev=255, )  # axes=(2,)
+            images = fn.normalize(
+                images,
+                mean=0,
+                stddev=255,
+            )  # axes=(2,)
 
         if mask_available:
             labels, _ = fn.readers.file(
                 files=mask_paths,
                 random_shuffle=cfg.PREPROCESS_DATA.SHUFFLE[mode].VALUE,
-                seed=cfg.SEED
+                seed=cfg.SEED,
             )
-            labels = fn.decoders.image(
-                labels,
-                device=device,
-                output_type=types.GRAY
-            )
+            labels = fn.decoders.image(labels, device=device, output_type=types.GRAY)
             if cfg.PREPROCESS_DATA.RESIZE.VALUE:
                 # TODO verify image resizing method
                 labels = fn.resize(
                     labels,
                     size=[
                         cfg.PREPROCESS_DATA.RESIZE.HEIGHT,
-                        cfg.PREPROCESS_DATA.RESIZE.WIDTH
-                    ]
+                        cfg.PREPROCESS_DATA.RESIZE.WIDTH,
+                    ],
                 )
             if cfg.PREPROCESS_DATA.NORMALIZE_MASK.VALUE:
                 labels = fn.normalize(
@@ -80,15 +79,15 @@ def data_generator_pipeline(cfg: DictConfig, mode: str, mask_available: bool):
         if mask_available:
             return images, labels
         else:
-            return images,
+            return (images,)
 
     @pipeline_def(batch_size=cfg.HYPER_PARAMETERS.BATCH_SIZE)
     def multi_gpu_pipeline(device, shard_id):
         """
         Returns DALI data pipeline object for multi GPU'S training.
         """
-        device = 'mixed' if 'gpu' in device.lower() else 'cpu'
-        shard_id = 1 if 'cpu' in device else shard_id
+        device = "mixed" if "gpu" in device.lower() else "cpu"
+        shard_id = 1 if "cpu" in device else shard_id
         num_shards = get_gpus_count()
         # num_shards should be <= #images
         num_shards = len(images_paths) if num_shards > len(images_paths) else num_shards
@@ -98,7 +97,7 @@ def data_generator_pipeline(cfg: DictConfig, mode: str, mask_available: bool):
             random_shuffle=cfg.PREPROCESS_DATA.SHUFFLE[mode].VALUE,
             shard_id=shard_id,
             num_shards=num_shards,
-            seed=cfg.SEED
+            seed=cfg.SEED,
         )
         images = fn.decoders.image(pngs, device=device, output_type=types.RGB)
         if cfg.PREPROCESS_DATA.RESIZE.VALUE:
@@ -107,11 +106,15 @@ def data_generator_pipeline(cfg: DictConfig, mode: str, mask_available: bool):
                 images,
                 size=[
                     cfg.PREPROCESS_DATA.RESIZE.HEIGHT,
-                    cfg.PREPROCESS_DATA.RESIZE.WIDTH
-                ]
+                    cfg.PREPROCESS_DATA.RESIZE.WIDTH,
+                ],
             )
         if cfg.PREPROCESS_DATA.IMAGE_PREPROCESSING_TYPE == "normalize":
-            images = fn.normalize(images, mean=0, stddev=255, )  # axes=(2,)
+            images = fn.normalize(
+                images,
+                mean=0,
+                stddev=255,
+            )  # axes=(2,)
 
         if mask_available:
             labels, _ = fn.readers.file(
@@ -119,21 +122,17 @@ def data_generator_pipeline(cfg: DictConfig, mode: str, mask_available: bool):
                 random_shuffle=cfg.PREPROCESS_DATA.SHUFFLE[mode].VALUE,
                 shard_id=shard_id,
                 num_shards=num_shards,
-                seed=cfg.SEED
+                seed=cfg.SEED,
             )
-            labels = fn.decoders.image(
-                labels,
-                device=device,
-                output_type=types.GRAY
-            )
+            labels = fn.decoders.image(labels, device=device, output_type=types.GRAY)
             if cfg.PREPROCESS_DATA.RESIZE.VALUE:
                 # TODO verify image resizing method
                 labels = fn.resize(
                     labels,
                     size=[
                         cfg.PREPROCESS_DATA.RESIZE.HEIGHT,
-                        cfg.PREPROCESS_DATA.RESIZE.WIDTH
-                    ]
+                        cfg.PREPROCESS_DATA.RESIZE.WIDTH,
+                    ],
                 )
             if cfg.PREPROCESS_DATA.NORMALIZE_MASK.VALUE:
                 labels = fn.normalize(
@@ -150,7 +149,7 @@ def data_generator_pipeline(cfg: DictConfig, mode: str, mask_available: bool):
         if mask_available:
             return images, labels
         else:
-            return images,
+            return (images,)
 
     if cfg.USE_MULTI_GPUS.VALUE:
         return multi_gpu_pipeline
@@ -164,34 +163,34 @@ def get_data_shapes(cfg: DictConfig, mask_available: bool):
     """
     if mask_available:
         shapes = (
-            (cfg.HYPER_PARAMETERS.BATCH_SIZE,
-             cfg.INPUT.HEIGHT,
-             cfg.INPUT.WIDTH,
-             cfg.INPUT.CHANNELS),
-            (cfg.HYPER_PARAMETERS.BATCH_SIZE,
-             cfg.INPUT.HEIGHT,
-             cfg.INPUT.WIDTH,
-             cfg.OUTPUT.CLASSES)
+            (
+                cfg.HYPER_PARAMETERS.BATCH_SIZE,
+                cfg.INPUT.HEIGHT,
+                cfg.INPUT.WIDTH,
+                cfg.INPUT.CHANNELS,
+            ),
+            (
+                cfg.HYPER_PARAMETERS.BATCH_SIZE,
+                cfg.INPUT.HEIGHT,
+                cfg.INPUT.WIDTH,
+                cfg.OUTPUT.CLASSES,
+            ),
         )
-        dtypes = (
-            tf.float32,
-            tf.float32)
+        dtypes = (tf.float32, tf.float32)
     else:
         shapes = (
-            (cfg.HYPER_PARAMETERS.BATCH_SIZE,
-             cfg.INPUT.HEIGHT,
-             cfg.INPUT.WIDTH,
-             cfg.INPUT.CHANNELS),
+            (
+                cfg.HYPER_PARAMETERS.BATCH_SIZE,
+                cfg.INPUT.HEIGHT,
+                cfg.INPUT.WIDTH,
+                cfg.INPUT.CHANNELS,
+            ),
         )
-        dtypes = (
-            tf.float32,
-        )
+        dtypes = (tf.float32,)
     return shapes, dtypes
 
 
-def data_generator(cfg: DictConfig,
-                   mode: str,
-                   strategy: tf.distribute.Strategy = None):
+def data_generator(cfg: DictConfig, mode: str, strategy: tf.distribute.Strategy = None):
     """
     Generate batches of data for model by reading images and their
     corresponding masks using NVIDIA DALI.
@@ -205,8 +204,12 @@ def data_generator(cfg: DictConfig,
     """
 
     # check mask are available or not
-    mask_available = False if cfg.DATASET[mode].MASK_PATH is None or str(
-        cfg.DATASET[mode].MASK_PATH).lower() == "none" else True
+    mask_available = (
+        False
+        if cfg.DATASET[mode].MASK_PATH is None
+        or str(cfg.DATASET[mode].MASK_PATH).lower() == "none"
+        else True
+    )
 
     # create dali data pipeline
     data_pipeline = data_generator_pipeline(cfg, mode, mask_available)
@@ -214,6 +217,7 @@ def data_generator(cfg: DictConfig,
     shapes, dtypes = get_data_shapes(cfg, mask_available)
 
     if cfg.USE_MULTI_GPUS.VALUE:
+
         def bound_dataset(input_context):
             """
             In case of multi gpu training bound dataset to a device for distributed training.
@@ -225,7 +229,7 @@ def data_generator(cfg: DictConfig,
                         device="gpu",
                         device_id=device_id,
                         shard_id=device_id,
-                        num_threads=cfg.DATALOADER_WORKERS
+                        num_threads=cfg.DATALOADER_WORKERS,
                     ),
                     batch_size=cfg.HYPER_PARAMETERS.BATCH_SIZE,
                     output_shapes=shapes,
@@ -239,7 +243,8 @@ def data_generator(cfg: DictConfig,
             # for older dali versions use experimental_prefetch_to_device
             # for new dali versions use  experimental_fetch_to_device
             experimental_fetch_to_device=False,  # experimental_fetch_to_device
-            experimental_replication_mode=tf.distribute.InputReplicationMode.PER_REPLICA)
+            experimental_replication_mode=tf.distribute.InputReplicationMode.PER_REPLICA,
+        )
 
         # map dataset to given strategy and return it
         return strategy.distribute_datasets_from_function(bound_dataset, input_options)
@@ -249,16 +254,17 @@ def data_generator(cfg: DictConfig,
             batch_size=cfg.HYPER_PARAMETERS.BATCH_SIZE,
             num_threads=cfg.DATALOADER_WORKERS,
             device="gpu",
-            device_id=0
+            device_id=0,
         )
 
         # create dataset
-        with tf.device('/gpu:0'):
+        with tf.device("/gpu:0"):
             data_generator = dali_tf.DALIDataset(
                 pipeline=pipeline,
                 batch_size=cfg.HYPER_PARAMETERS.BATCH_SIZE,
                 output_shapes=shapes,
                 output_dtypes=dtypes,
-                device_id=0)
+                device_id=0,
+            )
 
         return data_generator

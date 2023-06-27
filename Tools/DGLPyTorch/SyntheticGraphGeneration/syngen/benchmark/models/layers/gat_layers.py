@@ -29,9 +29,9 @@ class GATLayer(nn.Module):
     """
     Parameters
     ----------
-    in_dim : 
+    in_dim :
         Number of input features.
-    out_dim : 
+    out_dim :
         Number of output features.
     num_heads : int
         Number of heads in Multi-Head Attention.
@@ -39,11 +39,11 @@ class GATLayer(nn.Module):
         Required for dropout of attn and feat in GATConv
     batch_norm :
         boolean flag for batch_norm layer.
-    residual : 
+    residual :
         If True, use residual connection inside this layer. Default: ``False``.
     activation : callable activation function/layer or None, optional.
         If not None, applies an activation function to the updated node features.
-        
+
     Using dgl builtin GATConv by default:
     https://github.com/graphdeeplearning/benchmarking-gnns/commit/206e888ecc0f8d941c54e061d5dffcc7ae2142fc
     """
@@ -67,9 +67,7 @@ class GATLayer(nn.Module):
             self.residual = False
 
         if dgl.__version__ < "0.5":
-            self.gatconv = GATConv(
-                in_dim, out_dim, num_heads, dropout, dropout
-            )
+            self.gatconv = GATConv(in_dim, out_dim, num_heads, dropout, dropout)
         else:
             self.gatconv = GATConv(
                 in_dim,
@@ -150,12 +148,10 @@ class CustomGATHeadLayer(nn.Module):
 
 class CustomGATLayer(nn.Module):
     """
-        Param: [in_dim, out_dim, n_heads]
+    Param: [in_dim, out_dim, n_heads]
     """
 
-    def __init__(
-        self, in_dim, out_dim, num_heads, dropout, batch_norm, residual=True
-    ):
+    def __init__(self, in_dim, out_dim, num_heads, dropout, batch_norm, residual=True):
         super().__init__()
 
         self.in_channels = in_dim
@@ -168,9 +164,7 @@ class CustomGATLayer(nn.Module):
 
         self.heads = nn.ModuleList()
         for i in range(num_heads):
-            self.heads.append(
-                CustomGATHeadLayer(in_dim, out_dim, dropout, batch_norm)
-            )
+            self.heads.append(CustomGATHeadLayer(in_dim, out_dim, dropout, batch_norm))
         self.merge = "cat"
 
     def forward(self, g, h, e):
@@ -215,9 +209,7 @@ class CustomGATHeadLayerEdgeReprFeat(nn.Module):
         self.batchnorm_e = nn.BatchNorm1d(out_dim)
 
     def edge_attention(self, edges):
-        z = torch.cat(
-            [edges.data["z_e"], edges.src["z_h"], edges.dst["z_h"]], dim=1
-        )
+        z = torch.cat([edges.data["z_e"], edges.src["z_h"], edges.dst["z_h"]], dim=1)
         e_proj = self.fc_proj(z)
         attn = F.leaky_relu(self.attn_fc(z))
         return {"attn": attn, "e_proj": e_proj}
@@ -261,12 +253,10 @@ class CustomGATHeadLayerEdgeReprFeat(nn.Module):
 
 class CustomGATLayerEdgeReprFeat(nn.Module):
     """
-        Param: [in_dim, out_dim, n_heads]
+    Param: [in_dim, out_dim, n_heads]
     """
 
-    def __init__(
-        self, in_dim, out_dim, num_heads, dropout, batch_norm, residual=True
-    ):
+    def __init__(self, in_dim, out_dim, num_heads, dropout, batch_norm, residual=True):
         super().__init__()
 
         self.in_channels = in_dim
@@ -280,9 +270,7 @@ class CustomGATLayerEdgeReprFeat(nn.Module):
         self.heads = nn.ModuleList()
         for i in range(num_heads):
             self.heads.append(
-                CustomGATHeadLayerEdgeReprFeat(
-                    in_dim, out_dim, dropout, batch_norm
-                )
+                CustomGATHeadLayerEdgeReprFeat(in_dim, out_dim, dropout, batch_norm)
             )
         self.merge = "cat"
 
@@ -356,12 +344,10 @@ class CustomGATHeadLayerIsotropic(nn.Module):
 
 class CustomGATLayerIsotropic(nn.Module):
     """
-        Param: [in_dim, out_dim, n_heads]
+    Param: [in_dim, out_dim, n_heads]
     """
 
-    def __init__(
-        self, in_dim, out_dim, num_heads, dropout, batch_norm, residual=True
-    ):
+    def __init__(self, in_dim, out_dim, num_heads, dropout, batch_norm, residual=True):
         super().__init__()
 
         self.in_channels = in_dim
@@ -375,9 +361,7 @@ class CustomGATLayerIsotropic(nn.Module):
         self.heads = nn.ModuleList()
         for i in range(num_heads):
             self.heads.append(
-                CustomGATHeadLayerIsotropic(
-                    in_dim, out_dim, dropout, batch_norm
-                )
+                CustomGATHeadLayerIsotropic(in_dim, out_dim, dropout, batch_norm)
             )
         self.merge = "cat"
 

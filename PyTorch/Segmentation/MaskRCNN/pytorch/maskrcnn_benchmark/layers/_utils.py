@@ -5,8 +5,8 @@ import os.path
 import torch
 
 try:
-    from torch.utils.cpp_extension import load as load_ext
     from torch.utils.cpp_extension import CUDA_HOME
+    from torch.utils.cpp_extension import load as load_ext
 except ImportError:
     raise ImportError("The cpp layer extensions requires PyTorch 0.4 or higher")
 

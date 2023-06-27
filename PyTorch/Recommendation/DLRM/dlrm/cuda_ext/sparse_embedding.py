@@ -15,14 +15,15 @@
 import copy
 
 import torch
-from torch.cuda import amp
 from dlrm.cuda_ext import sparse_gather
 from torch import nn
 from torch.autograd import Function
+from torch.cuda import amp
 
 
 class EmbeddingGatherFunction(Function):
     """Customized embedding gather with fused plain SGD"""
+
     @staticmethod
     @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
     def forward(ctx, embedding, indices):
@@ -35,7 +36,9 @@ class EmbeddingGatherFunction(Function):
     @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
     def backward(ctx, grad_output):
         indices = ctx.saved_tensors[0]
-        grad_embedding = sparse_gather.gather_gpu_bwd(grad_output, indices, ctx.num_features)
+        grad_embedding = sparse_gather.gather_gpu_bwd(
+            grad_output, indices, ctx.num_features
+        )
         return grad_embedding, None
 
 
@@ -49,19 +52,27 @@ class JointSparseEmbedding(nn.Module):
         embedding_dim (int): the size of each embedding vector
         device (torch.device): where to create the embedding. Default "cuda"
     """
+
     def __init__(self, categorical_feature_sizes, embedding_dim, device="cuda"):
         super(JointSparseEmbedding, self).__init__()
         self.embedding_dim = embedding_dim
         self.categorical_feature_sizes = copy.copy(categorical_feature_sizes)
 
-        self.register_buffer("offsets", torch.tensor([0] + categorical_feature_sizes).cumsum(0).to(device))
-        self.weights = torch.nn.Parameter(torch.rand((self.offsets[-1].item(), embedding_dim), device=device))
+        self.register_buffer(
+            "offsets",
+            torch.tensor([0] + categorical_feature_sizes).cumsum(0).to(device),
+        )
+        self.weights = torch.nn.Parameter(
+            torch.rand((self.offsets[-1].item(), embedding_dim), device=device)
+        )
 
     def forward(self, categorical_inputs):
         # Check input has the right shape
         assert categorical_inputs.shape[1] == len(self.categorical_feature_sizes)
 
-        embedding_out = embedding_gather(self.weights, categorical_inputs + self.offsets[:-1])
+        embedding_out = embedding_gather(
+            self.weights, categorical_inputs + self.offsets[:-1]
+        )
 
         return embedding_out
 

@@ -26,41 +26,41 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn import Module
-from torch.nn.utils.rnn import pad_sequence
-
 from fastspeech.text_norm.symbols import symbols
 from fastspeech.utils.nvtx import Nvtx
 from fastspeech.utils.pytorch import to_device_async
+from torch.nn import Module
+from torch.nn.utils.rnn import pad_sequence
 
 try:
     import apex
 except ImportError:
-    ImportError('Required to install apex.')
+    ImportError("Required to install apex.")
 
 
 class Bmm(Module):
-    """ Required for manual fp16 casting. If not using amp_opt_level='O2', just use torch.bmm.
-    """
+    """Required for manual fp16 casting. If not using amp_opt_level='O2', just use torch.bmm."""
+
     def forward(self, a, b):
         return torch.bmm(a, b)
 
 
 class FFTBlocks(nn.Module):
-    def __init__(self,
-                 max_seq_len,
-                 n_layers,
-                 n_head,
-                 d_k,
-                 d_v,
-                 d_model,
-                 d_inner,
-                 fft_conv1d_kernel,
-                 fft_conv1d_padding,
-                 dropout,
-                 name,
-                 fused_layernorm=False,
-                 ):
+    def __init__(
+        self,
+        max_seq_len,
+        n_layers,
+        n_head,
+        d_k,
+        d_v,
+        d_model,
+        d_inner,
+        fft_conv1d_kernel,
+        fft_conv1d_padding,
+        dropout,
+        name,
+        fused_layernorm=False,
+    ):
 
         self.max_seq_len = max_seq_len
         self.n_layers = n_layers
@@ -79,17 +79,26 @@ class FFTBlocks(nn.Module):
 
         n_position = max_seq_len + 1
         self.position = nn.Embedding.from_pretrained(
-            get_sinusoid_encoding_table(n_position, d_model, padding_idx=0),
-            freeze=True)
+            get_sinusoid_encoding_table(n_position, d_model, padding_idx=0), freeze=True
+        )
 
-        self.layer_stack = nn.ModuleList([FFTBlock(
-            d_model, d_inner, n_head, d_k, d_v,
-            fft_conv1d_kernel=fft_conv1d_kernel,
-            fft_conv1d_padding=fft_conv1d_padding,
-            dropout=dropout,
-            fused_layernorm=fused_layernorm,
-            name="{}.layer_stack.{}".format(self.name, i),
-        ) for i in range(n_layers)])
+        self.layer_stack = nn.ModuleList(
+            [
+                FFTBlock(
+                    d_model,
+                    d_inner,
+                    n_head,
+                    d_k,
+                    d_v,
+                    fft_conv1d_kernel=fft_conv1d_kernel,
+                    fft_conv1d_padding=fft_conv1d_padding,
+                    dropout=dropout,
+                    fused_layernorm=fused_layernorm,
+                    name="{}.layer_stack.{}".format(self.name, i),
+                )
+                for i in range(n_layers)
+            ]
+        )
 
     def forward(self, seq, pos, return_attns=False, acts=None):
 
@@ -111,12 +120,13 @@ class FFTBlocks(nn.Module):
                 output,
                 non_pad_mask=non_pad_mask,
                 slf_attn_mask=slf_attn_mask,
-                acts=acts)
+                acts=acts,
+            )
             if return_attns:
                 slf_attn_list += [slf_attn]
 
             if acts is not None:
-                acts['act.{}.layer_stack.{}'.format(self.name, i)] = output
+                acts["act.{}.layer_stack.{}".format(self.name, i)] = output
 
         return output, non_pad_mask
 
@@ -124,17 +134,19 @@ class FFTBlocks(nn.Module):
 class FFTBlock(torch.nn.Module):
     """FFT Block"""
 
-    def __init__(self,
-                 d_model,
-                 d_inner,
-                 n_head,
-                 d_k,
-                 d_v,
-                 fft_conv1d_kernel,
-                 fft_conv1d_padding,
-                 dropout,
-                 name,
-                 fused_layernorm=False):
+    def __init__(
+        self,
+        d_model,
+        d_inner,
+        n_head,
+        d_k,
+        d_v,
+        fft_conv1d_kernel,
+        fft_conv1d_padding,
+        dropout,
+        name,
+        fused_layernorm=False,
+    ):
         super(FFTBlock, self).__init__()
 
         self.d_model = d_model
@@ -155,7 +167,8 @@ class FFTBlock(torch.nn.Module):
             d_v=d_v,
             dropout=dropout,
             name="{}.slf_attn".format(name),
-            fused_layernorm=fused_layernorm)
+            fused_layernorm=fused_layernorm,
+        )
 
         self.pos_ffn = PositionwiseFeedForward(
             d_in=d_model,
@@ -164,12 +177,12 @@ class FFTBlock(torch.nn.Module):
             fft_conv1d_padding=fft_conv1d_padding,
             dropout=dropout,
             name="{}.pos_ffn".format(name),
-            fused_layernorm=fused_layernorm)
+            fused_layernorm=fused_layernorm,
+        )
 
     @Nvtx("fftblock", enabled=False)
     def forward(self, input, non_pad_mask=None, slf_attn_mask=None, acts=None):
-        output, slf_attn = self.slf_attn(
-            input, mask=slf_attn_mask, acts=acts)
+        output, slf_attn = self.slf_attn(input, mask=slf_attn_mask, acts=acts)
 
         output *= non_pad_mask.to(output.dtype)
 
@@ -180,7 +193,7 @@ class FFTBlock(torch.nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    ''' Multi-Head Attention module '''
+    """Multi-Head Attention module"""
 
     def __init__(self, n_head, d_model, d_k, d_v, dropout, name, fused_layernorm=False):
         super().__init__()
@@ -195,11 +208,14 @@ class MultiHeadAttention(nn.Module):
         nn.init.xavier_normal_(self.linear.weight)
 
         self.attention = ScaledDotProductAttention(
-            temperature=np.power(d_k, 0.5),
-            name="{}.scaled_dot".format(self.name))
+            temperature=np.power(d_k, 0.5), name="{}.scaled_dot".format(self.name)
+        )
 
-        self.layer_norm = apex.normalization.FusedLayerNorm(
-            d_model) if fused_layernorm else nn.LayerNorm(d_model)
+        self.layer_norm = (
+            apex.normalization.FusedLayerNorm(d_model)
+            if fused_layernorm
+            else nn.LayerNorm(d_model)
+        )
 
         self.fc = nn.Linear(n_head * d_v, d_model)
         nn.init.xavier_normal_(self.fc.weight)
@@ -217,14 +233,18 @@ class MultiHeadAttention(nn.Module):
             x = self.linear(x)  # (b, t, n_heads * h)
 
             if acts is not None:
-                acts['act.{}.linear'.format(self.name)] = x
+                acts["act.{}.linear".format(self.name)] = x
 
             x = x.view(bs, seq_len, self.n_head, d_out)  # (b, t, n_heads, h)
-            x = x.permute(2, 0, 1, 3).contiguous().view(self.n_head * bs, seq_len, d_out)  # (n * b, t, h)
+            x = (
+                x.permute(2, 0, 1, 3)
+                .contiguous()
+                .view(self.n_head * bs, seq_len, d_out)
+            )  # (n * b, t, h)
 
-            q = x[..., :self.d_k]  # (n * b, t, d_k)
-            k = x[..., self.d_k: 2*self.d_k]  # (n * b, t, d_k)
-            v = x[..., 2*self.d_k:]  # (n * b, t, d_k)
+            q = x[..., : self.d_k]  # (n * b, t, d_k)
+            k = x[..., self.d_k : 2 * self.d_k]  # (n * b, t, d_k)
+            v = x[..., 2 * self.d_k :]  # (n * b, t, d_k)
 
         with Nvtx("mask repeat", enabled=False):
             mask = mask.repeat(self.n_head, 1, 1)  # (b, t, h) -> (n * b, t, h)
@@ -233,11 +253,14 @@ class MultiHeadAttention(nn.Module):
             output, attn = self.attention(q, k, v, mask=mask, acts=acts)
 
         output = output.view(self.n_head, bs, seq_len, self.d_v)  # (n, b, t, d_k)
-        output = output.permute(1, 2, 0, 3).contiguous().view(
-            bs, seq_len, self.n_head * self.d_v)  # (b, t, n * d_k)
+        output = (
+            output.permute(1, 2, 0, 3)
+            .contiguous()
+            .view(bs, seq_len, self.n_head * self.d_v)
+        )  # (b, t, n * d_k)
 
         if acts is not None:
-            acts['act.{}.scaled_dot'.format(self.name)] = output
+            acts["act.{}.scaled_dot".format(self.name)] = output
 
         with Nvtx("fc", enabled=False):
             output = self.fc(output)
@@ -248,19 +271,19 @@ class MultiHeadAttention(nn.Module):
         output += residual
 
         if acts is not None:
-            acts['act.{}.residual'.format(self.name)] = output
+            acts["act.{}.residual".format(self.name)] = output
 
         with Nvtx("layer norm", enabled=False):
             output = self.layer_norm(output)
 
         if acts is not None:
-            acts['act.{}.ln'.format(self.name)] = output
+            acts["act.{}.ln".format(self.name)] = output
 
         return output, attn
 
 
 class ScaledDotProductAttention(nn.Module):
-    ''' Scaled Dot-Product Attention '''
+    """Scaled Dot-Product Attention"""
 
     def __init__(self, temperature, attn_dropout=0.1, name=None):
         super().__init__()
@@ -298,28 +321,35 @@ class ScaledDotProductAttention(nn.Module):
 
 
 class PositionwiseFeedForward(nn.Module):
-    ''' A two-feed-forward-layer module '''
+    """A two-feed-forward-layer module"""
 
-    def __init__(self,
-                 d_in,
-                 d_hid,
-                 fft_conv1d_kernel,
-                 fft_conv1d_padding,
-                 dropout,
-                 name,
-                 fused_layernorm=False):
+    def __init__(
+        self,
+        d_in,
+        d_hid,
+        fft_conv1d_kernel,
+        fft_conv1d_padding,
+        dropout,
+        name,
+        fused_layernorm=False,
+    ):
         super().__init__()
 
         self.name = name
 
         self.w_1 = nn.Conv1d(
-            d_in, d_hid, kernel_size=fft_conv1d_kernel, padding=fft_conv1d_padding)
+            d_in, d_hid, kernel_size=fft_conv1d_kernel, padding=fft_conv1d_padding
+        )
 
         self.w_2 = nn.Conv1d(
-            d_hid, d_in, kernel_size=fft_conv1d_kernel, padding=fft_conv1d_padding)
+            d_hid, d_in, kernel_size=fft_conv1d_kernel, padding=fft_conv1d_padding
+        )
 
-        self.layer_norm = apex.normalization.FusedLayerNorm(
-            d_in) if fused_layernorm else nn.LayerNorm(d_in)
+        self.layer_norm = (
+            apex.normalization.FusedLayerNorm(d_in)
+            if fused_layernorm
+            else nn.LayerNorm(d_in)
+        )
 
         self.dropout = nn.Dropout(dropout)
 
@@ -331,31 +361,31 @@ class PositionwiseFeedForward(nn.Module):
         output = self.w_1(output)
 
         if acts is not None:
-            acts['act.{}.conv1'.format(self.name)] = output
+            acts["act.{}.conv1".format(self.name)] = output
 
         output = F.relu(output)
         output = self.w_2(output)
 
         if acts is not None:
-            acts['act.{}.conv2'.format(self.name)] = output
+            acts["act.{}.conv2".format(self.name)] = output
 
         output = output.transpose(1, 2)
         output = self.dropout(output)
         output += residual
 
         if acts is not None:
-            acts['act.{}.residual'.format(self.name)] = output
+            acts["act.{}.residual".format(self.name)] = output
 
         output = self.layer_norm(output)
 
         if acts is not None:
-            acts['act.{}.ln'.format(self.name)] = output
+            acts["act.{}.ln".format(self.name)] = output
 
         return output
 
 
 def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
-    ''' Sinusoid position encoding table '''
+    """Sinusoid position encoding table"""
 
     def cal_angle(position, hid_idx):
         return position / np.power(10000, 2 * (hid_idx // 2) / d_hid)
@@ -363,27 +393,27 @@ def get_sinusoid_encoding_table(n_position, d_hid, padding_idx=None):
     def get_posi_angle_vec(position):
         return [cal_angle(position, hid_j) for hid_j in range(d_hid)]
 
-    sinusoid_table = np.array([get_posi_angle_vec(pos_i)
-                               for pos_i in range(n_position)])
+    sinusoid_table = np.array(
+        [get_posi_angle_vec(pos_i) for pos_i in range(n_position)]
+    )
 
     sinusoid_table[:, 0::2] = np.sin(sinusoid_table[:, 0::2])  # dim 2i
     sinusoid_table[:, 1::2] = np.cos(sinusoid_table[:, 1::2])  # dim 2i+1
 
     if padding_idx is not None:
         # zero vector for padding dimension
-        sinusoid_table[padding_idx] = 0.
+        sinusoid_table[padding_idx] = 0.0
 
     return torch.FloatTensor(sinusoid_table)
 
 
 def get_attn_key_pad_mask(seq_k, seq_q):
-    ''' For masking out the padding part of key sequence. '''
+    """For masking out the padding part of key sequence."""
 
     # Expand to fit the shape of key query attention matrix.
     len_q = seq_q.size(1)
     padding_mask = seq_k.eq(0)  # (b, t)
-    padding_mask = padding_mask.unsqueeze(
-        1).expand(-1, len_q, -1)  # (b, t, t)
+    padding_mask = padding_mask.unsqueeze(1).expand(-1, len_q, -1)  # (b, t, t)
 
     return padding_mask
 
@@ -394,9 +424,16 @@ def get_non_pad_mask(seq):
 
 
 class LengthRegulator(nn.Module):
-    """ Length Regulator """
+    """Length Regulator"""
 
-    def __init__(self, input_size, duration_predictor_filter_size, duration_predictor_kernel_size, dropout, fused_layernorm=False):
+    def __init__(
+        self,
+        input_size,
+        duration_predictor_filter_size,
+        duration_predictor_kernel_size,
+        dropout,
+        fused_layernorm=False,
+    ):
         super(LengthRegulator, self).__init__()
 
         self.duration_predictor = DurationPredictor(
@@ -404,22 +441,19 @@ class LengthRegulator(nn.Module):
             filter_size=duration_predictor_filter_size,
             kernel=duration_predictor_kernel_size,
             dropout=dropout,
-            fused_layernorm=fused_layernorm
+            fused_layernorm=fused_layernorm,
         )
 
     @Nvtx("length regulator", enabled=False)
     def forward(self, input, input_mask, target=None, alpha=1.0):
-        duration = self.duration_predictor(
-            input, input_mask)
+        duration = self.duration_predictor(input, input_mask)
         # print(duration_predictor_output)
 
         if self.training:
-            output, output_pos = self.get_output(
-                input, target, alpha)
+            output, output_pos = self.get_output(input, target, alpha)
         else:
             duration = torch.clamp_min(torch.exp(duration) - 1, 0)
-            output, output_pos = self.get_output(
-                input, duration, alpha)
+            output, output_pos = self.get_output(input, duration, alpha)
 
         return output, output_pos, duration
 
@@ -431,10 +465,10 @@ class LengthRegulator(nn.Module):
             with Nvtx("round #{}".format(i), enabled=False):
                 repeats = torch.round(repeats).long()
             with Nvtx("repeat #{}".format(i), enabled=False):
-                output.append(torch.repeat_interleave(
-                    input[i], repeats, dim=0))
-            output_pos.append(torch.from_numpy(
-                np.indices((output[i].shape[0],))[0] + 1))
+                output.append(torch.repeat_interleave(input[i], repeats, dim=0))
+            output_pos.append(
+                torch.from_numpy(np.indices((output[i].shape[0],))[0] + 1)
+            )
         output = pad_sequence(output, batch_first=True)
         output_pos = pad_sequence(output_pos, batch_first=True)
 
@@ -445,7 +479,7 @@ class LengthRegulator(nn.Module):
 
 
 class DurationPredictor(nn.Module):
-    """ Duration Predictor """
+    """Duration Predictor"""
 
     def __init__(self, input_size, filter_size, kernel, dropout, fused_layernorm=False):
         super(DurationPredictor, self).__init__()
@@ -455,24 +489,28 @@ class DurationPredictor(nn.Module):
         self.kernel = kernel
         self.dropout = dropout
 
-        self.conv1d_1 = nn.Conv1d(self.input_size,
-                                  self.filter_size,
-                                  kernel_size=self.kernel,
-                                  padding=1)
+        self.conv1d_1 = nn.Conv1d(
+            self.input_size, self.filter_size, kernel_size=self.kernel, padding=1
+        )
         self.relu_1 = nn.ReLU()
-        self.layer_norm_1 = apex.normalization.FusedLayerNorm(
-            self.filter_size) if fused_layernorm else nn.LayerNorm(self.filter_size)
+        self.layer_norm_1 = (
+            apex.normalization.FusedLayerNorm(self.filter_size)
+            if fused_layernorm
+            else nn.LayerNorm(self.filter_size)
+        )
 
         self.dropout_1 = nn.Dropout(self.dropout)
 
-        self.conv1d_2 = nn.Conv1d(self.filter_size,
-                                  self.filter_size,
-                                  kernel_size=self.kernel,
-                                  padding=1)
+        self.conv1d_2 = nn.Conv1d(
+            self.filter_size, self.filter_size, kernel_size=self.kernel, padding=1
+        )
         self.relu_2 = nn.ReLU()
 
-        self.layer_norm_2 = apex.normalization.FusedLayerNorm(
-            self.filter_size) if fused_layernorm else nn.LayerNorm(self.filter_size)
+        self.layer_norm_2 = (
+            apex.normalization.FusedLayerNorm(self.filter_size)
+            if fused_layernorm
+            else nn.LayerNorm(self.filter_size)
+        )
 
         self.dropout_2 = nn.Dropout(self.dropout)
 
@@ -482,12 +520,12 @@ class DurationPredictor(nn.Module):
     def forward(self, input, input_mask):
         input *= input_mask.to(input.dtype)
 
-        out = self.conv1d_1(input.transpose(1,2)).transpose(1,2)
+        out = self.conv1d_1(input.transpose(1, 2)).transpose(1, 2)
         out = self.relu_1(out)
         out = self.layer_norm_1(out)
         out = self.dropout_1(out)
 
-        out = self.conv1d_2(out.transpose(1,2)).transpose(1,2)
+        out = self.conv1d_2(out.transpose(1, 2)).transpose(1, 2)
         out = self.relu_2(out)
         out = self.layer_norm_2(out)
         out = self.dropout_2(out)

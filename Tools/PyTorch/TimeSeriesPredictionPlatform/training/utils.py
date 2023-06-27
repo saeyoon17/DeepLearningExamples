@@ -13,13 +13,17 @@
 # limitations under the License.
 
 import dgl
-import torch
 import numpy as np
+import torch
 
 
 def round_dict(input_data, decimal=4):
     rounded_data = {
-        key: (np.around(value, decimal) if isinstance(value, (np.floating, float)) else value)
+        key: (
+            np.around(value, decimal)
+            if isinstance(value, (np.floating, float))
+            else value
+        )
         for key, value in input_data.items()
     }
     return rounded_data
@@ -40,14 +44,20 @@ def set_seed(seed):
     if seed is None:
         return
     if not isinstance(seed, int):
-        raise ValueError(f"Seed has to be an integer or None, but got type {type(seed)}")
+        raise ValueError(
+            f"Seed has to be an integer or None, but got type {type(seed)}"
+        )
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
 
 
 def get_optimization_objectives(config, metrics):
-    objectives = tuple(v if v == v else float('inf') for k,v in metrics.items() if k in config.get('optuna_objectives', []))
+    objectives = tuple(
+        v if v == v else float("inf")
+        for k, v in metrics.items()
+        if k in config.get("optuna_objectives", [])
+    )
     if len(objectives) == 1:
         return objectives[0]
     elif not objectives:

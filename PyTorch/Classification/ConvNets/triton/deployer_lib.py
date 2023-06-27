@@ -14,14 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
+import json
 import os
+import statistics
 import sys
 import time
-import json
-import torch
-import argparse
-import statistics
 from collections import Counter
+
+import torch
 
 torch_type_to_triton_type = {
     torch.bool: "TYPE_BOOL",
@@ -90,13 +91,13 @@ EXECUTION_ACCELERATOR_TEMPLATE = r"""
 
 
 def remove_empty_lines(text):
-    """ removes empty lines from text, returns the result """
+    """removes empty lines from text, returns the result"""
     ret = "".join([s for s in text.strip().splitlines(True) if s.strip()])
     return ret
 
 
 def create_deployer(argv):
-    """ takes a list of arguments, returns a deployer object and the list of unused arguments """
+    """takes a list of arguments, returns a deployer object and the list of unused arguments"""
     parser = argparse.ArgumentParser()
     # required args
     method = parser.add_mutually_exclusive_group(required=True)
@@ -197,15 +198,15 @@ class DeployerLibrary:
         self.platform = None
 
     def set_platform(self, platform):
-        """ sets the platform
-            :: platform :: "pytorch_libtorch" or "onnxruntime_onnx" or "tensorrt_plan"
+        """sets the platform
+        :: platform :: "pytorch_libtorch" or "onnxruntime_onnx" or "tensorrt_plan"
         """
         self.platform = platform
 
     def build_trt_engine(self, model_file, shapes):
-        """ takes a path to an onnx file, and shape information, returns a trt engine
-            :: model_file :: path to an onnx model
-            :: shapes :: dictionary containing min shape, max shape, opt shape for the trt engine
+        """takes a path to an onnx file, and shape information, returns a trt engine
+        :: model_file :: path to an onnx model
+        :: shapes :: dictionary containing min shape, max shape, opt shape for the trt engine
         """
         import tensorrt as trt
 
@@ -235,7 +236,7 @@ class DeployerLibrary:
         return engine
 
     def load_engine(self, engine_filepath):
-        """ loads a trt engine from engine_filepath, returns it """
+        """loads a trt engine from engine_filepath, returns it"""
         import tensorrt as trt
 
         TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
@@ -244,7 +245,7 @@ class DeployerLibrary:
         return engine
 
     def prepare_inputs(self, dataloader, device):
-        """ load sample inputs to device """
+        """load sample inputs to device"""
         inputs = []
         for batch in dataloader:
             if type(batch) is torch.Tensor:
@@ -261,9 +262,9 @@ class DeployerLibrary:
         return inputs
 
     def get_list_of_shapes(self, l, fun):
-        """ returns the list of min/max shapes, depending on fun
-            :: l :: list of tuples of tensors
-            :: fun :: min or max
+        """returns the list of min/max shapes, depending on fun
+        :: l :: list of tuples of tensors
+        :: fun :: min or max
         """
         tensor_tuple = l[0]
         shapes = [list(x.shape) for x in tensor_tuple]
@@ -277,8 +278,8 @@ class DeployerLibrary:
         return shapes  # a list of shapes
 
     def get_tuple_of_min_shapes(self, l):
-        """ returns the tuple of min shapes 
-            :: l :: list of tuples of tensors """
+        """returns the tuple of min shapes
+        :: l :: list of tuples of tensors"""
         shapes = self.get_list_of_shapes(l, min)
         min_batch = 1
         shapes = [[min_batch, *shape[1:]] for shape in shapes]
@@ -286,8 +287,8 @@ class DeployerLibrary:
         return shapes  # tuple of min shapes
 
     def get_tuple_of_max_shapes(self, l):
-        """ returns the tuple of max shapes 
-            :: l :: list of tuples of tensors """
+        """returns the tuple of max shapes
+        :: l :: list of tuples of tensors"""
         shapes = self.get_list_of_shapes(l, max)
         max_batch = max(2, shapes[0][0])
         shapes = [[max_batch, *shape[1:]] for shape in shapes]
@@ -295,8 +296,8 @@ class DeployerLibrary:
         return shapes  # tuple of max shapes
 
     def get_tuple_of_opt_shapes(self, l):
-        """ returns the tuple of opt shapes 
-            :: l :: list of tuples of tensors """
+        """returns the tuple of opt shapes
+        :: l :: list of tuples of tensors"""
         counter = Counter()
         for tensor_tuple in l:
             shapes = [tuple(x.shape) for x in tensor_tuple]
@@ -306,9 +307,9 @@ class DeployerLibrary:
         return shapes  # tuple of most common occuring shapes
 
     def get_tuple_of_dynamic_shapes(self, l):
-        """ returns a tuple of dynamic shapes: variable tensor dimensions 
-            (for ex. batch size) occur as -1 in the tuple
-            :: l :: list of tuples of tensors """
+        """returns a tuple of dynamic shapes: variable tensor dimensions
+        (for ex. batch size) occur as -1 in the tuple
+        :: l :: list of tuples of tensors"""
         tensor_tuple = l[0]
         shapes = [list(x.shape) for x in tensor_tuple]
         for tensor_tuple in l:
@@ -322,7 +323,7 @@ class DeployerLibrary:
         return shapes  # tuple of dynamic shapes
 
     def run_models(self, models, inputs):
-        """ run the models on inputs, return the outputs and execution times """
+        """run the models on inputs, return the outputs and execution times"""
         ret = []
         for model in models:
             torch.cuda.synchronize()
@@ -350,7 +351,7 @@ class DeployerLibrary:
         }
 
     def compute_errors(self, outputs_A, outputs_B):
-        """ returns dictionary with errors statistics """
+        """returns dictionary with errors statistics"""
         device = outputs_A[0][0][0].device
         dtype = outputs_A[0][0][0].dtype
         x_values = torch.zeros(0, device=device, dtype=dtype)
@@ -370,7 +371,7 @@ class DeployerLibrary:
         return Error_stats
 
     def print_errors(self, Error_stats):
-        """ print various statistcs of Linf errors """
+        """print various statistcs of Linf errors"""
         print()
         print("conversion correctness test results")
         print("-----------------------------------")
@@ -381,12 +382,12 @@ class DeployerLibrary:
     def write_config(
         self, config_filename, input_shapes, input_types, output_shapes, output_types
     ):
-        """ writes TRTIS config file 
-            :: config_filename :: the file to write the config file into
-            :: input_shapes :: tuple of dynamic shapes of the input tensors
-            :: input_types :: tuple of torch types of the input tensors
-            :: output_shapes :: tuple of dynamic shapes of the output tensors
-            :: output_types :: tuple of torch types of the output tensors
+        """writes TRTIS config file
+        :: config_filename :: the file to write the config file into
+        :: input_shapes :: tuple of dynamic shapes of the input tensors
+        :: input_types :: tuple of torch types of the input tensors
+        :: output_shapes :: tuple of dynamic shapes of the output tensors
+        :: output_types :: tuple of torch types of the output tensors
         """
         assert self.platform is not None, "error - platform is not set"
 
@@ -475,7 +476,7 @@ class Deployer:
         self.lib = DeployerLibrary(args)
 
     def deploy(self, dataloader, model):
-        """ deploy the model and test for correctness with dataloader """
+        """deploy the model and test for correctness with dataloader"""
         if self.args.ts_script or self.args.ts_trace:
             self.lib.set_platform("pytorch_libtorch")
             print(
@@ -508,7 +509,7 @@ class Deployer:
         print("done")
 
     def to_triton_trt(self, dataloader, model):
-        """ export the model to trt and test correctness on dataloader """
+        """export the model to trt and test correctness on dataloader"""
         import tensorrt as trt
 
         # setup device
@@ -696,7 +697,7 @@ class Deployer:
         onnxruntime.InferenceSession(model_path, None)
 
     def to_triton_onnx(self, dataloader, model):
-        """ export the model to onnx and test correctness on dataloader """
+        """export the model to onnx and test correctness on dataloader"""
         import onnx as local_onnx
 
         global onnx
@@ -839,7 +840,7 @@ class Deployer:
         )
 
     def to_triton_torchscript(self, dataloader, model):
-        """ export the model to torchscript and test correctness on dataloader """
+        """export the model to torchscript and test correctness on dataloader"""
         # setup device
         if self.args.triton_no_cuda:
             device = torch.device("cpu")

@@ -4,7 +4,7 @@ Returns Unet3+ model
 import tensorflow as tf
 from omegaconf import DictConfig
 
-from .backbones import vgg16_backbone, vgg19_backbone, unet3plus_backbone
+from .backbones import unet3plus_backbone, vgg16_backbone, vgg19_backbone
 from .unet3plus import unet3plus
 from .unet3plus_deep_supervision import unet3plus_deepsup
 from .unet3plus_deep_supervision_cgm import unet3plus_deepsup_cgm
@@ -17,21 +17,21 @@ def prepare_model(cfg: DictConfig, training=False):
 
     input_shape = [cfg.INPUT.HEIGHT, cfg.INPUT.WIDTH, cfg.INPUT.CHANNELS]
     input_layer = tf.keras.layers.Input(
-        shape=input_shape,
-        name="input_layer"
+        shape=input_shape, name="input_layer"
     )  # 320*320*3
     filters = [64, 128, 256, 512, 1024]
 
     #  create backbone
     if cfg.MODEL.BACKBONE.TYPE == "unet3plus":
-        backbone_layers = unet3plus_backbone(
-            input_layer,
-            filters
-        )
+        backbone_layers = unet3plus_backbone(input_layer, filters)
     elif cfg.MODEL.BACKBONE.TYPE == "vgg16":
-        backbone_layers = vgg16_backbone(input_layer, )
+        backbone_layers = vgg16_backbone(
+            input_layer,
+        )
     elif cfg.MODEL.BACKBONE.TYPE == "vgg19":
-        backbone_layers = vgg19_backbone(input_layer, )
+        backbone_layers = vgg19_backbone(
+            input_layer,
+        )
     else:
         raise ValueError(
             "Wrong backbone type passed."
@@ -41,17 +41,10 @@ def prepare_model(cfg: DictConfig, training=False):
 
     if cfg.MODEL.TYPE == "unet3plus":
         #  training parameter does not matter in this case
-        outputs, model_name = unet3plus(
-            backbone_layers,
-            cfg.OUTPUT.CLASSES,
-            filters
-        )
+        outputs, model_name = unet3plus(backbone_layers, cfg.OUTPUT.CLASSES, filters)
     elif cfg.MODEL.TYPE == "unet3plus_deepsup":
         outputs, model_name = unet3plus_deepsup(
-            backbone_layers,
-            cfg.OUTPUT.CLASSES,
-            filters,
-            training
+            backbone_layers, cfg.OUTPUT.CLASSES, filters, training
         )
     elif cfg.MODEL.TYPE == "unet3plus_deepsup_cgm":
         if cfg.OUTPUT.CLASSES != 1:
@@ -60,10 +53,7 @@ def prepare_model(cfg: DictConfig, training=False):
                 "\nOnly works when model output classes are equal to 1"
             )
         outputs, model_name = unet3plus_deepsup_cgm(
-            backbone_layers,
-            cfg.OUTPUT.CLASSES,
-            filters,
-            training
+            backbone_layers, cfg.OUTPUT.CLASSES, filters, training
         )
     else:
         raise ValueError(
@@ -71,11 +61,7 @@ def prepare_model(cfg: DictConfig, training=False):
             "\nPlease check config file for possible options."
         )
 
-    return tf.keras.Model(
-        inputs=input_layer,
-        outputs=outputs,
-        name=model_name
-    )
+    return tf.keras.Model(inputs=input_layer, outputs=outputs, name=model_name)
 
 
 if __name__ == "__main__":
@@ -87,10 +73,13 @@ if __name__ == "__main__":
         "INPUT": {"HEIGHT": 320, "WIDTH": 320, "CHANNELS": 3},
         "OUTPUT": {"CLASSES": 1},
         # available variants are unet3plus, unet3plus_deepsup, unet3plus_deepsup_cgm
-        "MODEL": {"TYPE": "unet3plus",
-                  # available variants are unet3plus, vgg16, vgg19
-                  "BACKBONE": {"TYPE": "vgg19", }
-                  }
+        "MODEL": {
+            "TYPE": "unet3plus",
+            # available variants are unet3plus, vgg16, vgg19
+            "BACKBONE": {
+                "TYPE": "vgg19",
+            },
+        },
     }
     unet_3P = prepare_model(OmegaConf.create(cfg), True)
     unet_3P.summary()

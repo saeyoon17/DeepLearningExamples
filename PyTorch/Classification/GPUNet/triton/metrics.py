@@ -13,11 +13,12 @@
 # limitations under the License.
 
 import os
-import numpy as np
 import pickle
+
+import numpy as np
 import torch
+from timm.utils import AverageMeter, accuracy
 from triton.deployment_toolkit.core import BaseMetricsCalculator
-from timm.utils import accuracy, AverageMeter
 
 
 class MetricsCalculator(BaseMetricsCalculator):
@@ -27,7 +28,7 @@ class MetricsCalculator(BaseMetricsCalculator):
 
     @property
     def metrics(self):
-        return {'top1': self.top1.avg, 'top5': self.top5.avg}
+        return {"top1": self.top1.avg, "top5": self.top5.avg}
 
     def update(
         self,
@@ -37,7 +38,7 @@ class MetricsCalculator(BaseMetricsCalculator):
         y_real,
     ):
         output = torch.from_numpy(y_pred["OUTPUT__0"]).float()
-        label = torch.from_numpy(y_real['OUTPUT__0'][:,0]).long()
+        label = torch.from_numpy(y_real["OUTPUT__0"][:, 0]).long()
         acc1, acc5 = accuracy(output.detach(), label, topk=(1, 5))
         self.top1.update(acc1.item(), output.shape[0])
         self.top5.update(acc5.item(), output.shape[0])

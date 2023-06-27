@@ -2,16 +2,16 @@
 Evaluation script used to calculate accuracy of trained model
 """
 import os
-import hydra
-from omegaconf import DictConfig
-import tensorflow as tf
-from tensorflow.keras import mixed_precision
 
+import hydra
+import tensorflow as tf
 from data_generators import data_generator
-from utils.general_utils import join_paths, set_gpus, suppress_warnings
-from models.model import prepare_model
 from losses.loss import DiceCoefficient
 from losses.unet_loss import unet3p_hybrid_loss
+from models.model import prepare_model
+from omegaconf import DictConfig
+from tensorflow.keras import mixed_precision
+from utils.general_utils import join_paths, set_gpus, suppress_warnings
 
 
 def evaluate(cfg: DictConfig):
@@ -30,7 +30,7 @@ def evaluate(cfg: DictConfig):
 
     if cfg.OPTIMIZATION.AMP:
         print("Enabling Automatic Mixed Precision(AMP) training")
-        policy = mixed_precision.Policy('mixed_float16')
+        policy = mixed_precision.Policy("mixed_float16")
         mixed_precision.set_global_policy(policy)
 
     if cfg.OPTIMIZATION.XLA:
@@ -44,28 +44,24 @@ def evaluate(cfg: DictConfig):
         strategy = tf.distribute.MirroredStrategy(
             cross_device_ops=tf.distribute.HierarchicalCopyAllReduce()
         )
-        print('Number of visible gpu devices: {}'.format(strategy.num_replicas_in_sync))
+        print("Number of visible gpu devices: {}".format(strategy.num_replicas_in_sync))
         with strategy.scope():
             optimizer = tf.keras.optimizers.Adam(
                 learning_rate=cfg.HYPER_PARAMETERS.LEARNING_RATE
             )  # optimizer
             if cfg.OPTIMIZATION.AMP:
-                optimizer = mixed_precision.LossScaleOptimizer(
-                    optimizer,
-                    dynamic=True
-                )
+                optimizer = mixed_precision.LossScaleOptimizer(optimizer, dynamic=True)
             dice_coef = DiceCoefficient(post_processed=True, classes=cfg.OUTPUT.CLASSES)
-            dice_coef = tf.keras.metrics.MeanMetricWrapper(name="dice_coef", fn=dice_coef)
+            dice_coef = tf.keras.metrics.MeanMetricWrapper(
+                name="dice_coef", fn=dice_coef
+            )
             model = prepare_model(cfg, training=True)
     else:
         optimizer = tf.keras.optimizers.Adam(
             learning_rate=cfg.HYPER_PARAMETERS.LEARNING_RATE
         )  # optimizer
         if cfg.OPTIMIZATION.AMP:
-            optimizer = mixed_precision.LossScaleOptimizer(
-                optimizer,
-                dynamic=True
-            )
+            optimizer = mixed_precision.LossScaleOptimizer(optimizer, dynamic=True)
         dice_coef = DiceCoefficient(post_processed=True, classes=cfg.OUTPUT.CLASSES)
         dice_coef = tf.keras.metrics.MeanMetricWrapper(name="dice_coef", fn=dice_coef)
         model = prepare_model(cfg, training=True)
@@ -80,11 +76,12 @@ def evaluate(cfg: DictConfig):
     checkpoint_path = join_paths(
         cfg.WORK_DIR,
         cfg.CALLBACKS.MODEL_CHECKPOINT.PATH,
-        f"{cfg.MODEL.WEIGHTS_FILE_NAME}.hdf5"
+        f"{cfg.MODEL.WEIGHTS_FILE_NAME}.hdf5",
     )
 
-    assert os.path.exists(checkpoint_path), \
-        f"Model weight's file does not exist at \n{checkpoint_path}"
+    assert os.path.exists(
+        checkpoint_path
+    ), f"Model weight's file does not exist at \n{checkpoint_path}"
 
     # TODO: verify without augment it produces same results
     # load model weights

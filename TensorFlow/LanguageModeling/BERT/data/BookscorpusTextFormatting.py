@@ -14,6 +14,7 @@
 import glob
 import os
 
+
 class BookscorpusTextFormatting:
     def __init__(self, books_path, output_filename, recursive = False):
         self.books_path = books_path

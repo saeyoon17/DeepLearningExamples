@@ -14,22 +14,25 @@
 
 import torch
 import torch.nn as nn
-from torchvision.models.resnet import resnet18, resnet34, resnet50, resnet101, resnet152
+from torchvision.models.resnet import (resnet18, resnet34, resnet50, resnet101,
+                                       resnet152)
 
 
 class ResNet(nn.Module):
-    def __init__(self, backbone='resnet50', backbone_path=None, weights="IMAGENET1K_V1"):
+    def __init__(
+        self, backbone="resnet50", backbone_path=None, weights="IMAGENET1K_V1"
+    ):
         super().__init__()
-        if backbone == 'resnet18':
+        if backbone == "resnet18":
             backbone = resnet18(weights=None if backbone_path else weights)
             self.out_channels = [256, 512, 512, 256, 256, 128]
-        elif backbone == 'resnet34':
+        elif backbone == "resnet34":
             backbone = resnet34(weights=None if backbone_path else weights)
             self.out_channels = [256, 512, 512, 256, 256, 256]
-        elif backbone == 'resnet50':
+        elif backbone == "resnet50":
             backbone = resnet50(weights=None if backbone_path else weights)
             self.out_channels = [1024, 512, 512, 256, 256, 256]
-        elif backbone == 'resnet101':
+        elif backbone == "resnet101":
             backbone = resnet101(weights=None if backbone_path else weights)
             self.out_channels = [1024, 512, 512, 256, 256, 256]
         else:  # backbone == 'resnet152':
@@ -37,7 +40,6 @@ class ResNet(nn.Module):
             self.out_channels = [1024, 512, 512, 256, 256, 256]
         if backbone_path:
             backbone.load_state_dict(torch.load(backbone_path))
-
 
         self.feature_extractor = nn.Sequential(*list(backbone.children())[:7])
 
@@ -53,7 +55,7 @@ class ResNet(nn.Module):
 
 
 class SSD300(nn.Module):
-    def __init__(self, backbone=ResNet('resnet50')):
+    def __init__(self, backbone=ResNet("resnet50")):
         super().__init__()
 
         self.feature_extractor = backbone
@@ -66,7 +68,9 @@ class SSD300(nn.Module):
 
         for nd, oc in zip(self.num_defaults, self.feature_extractor.out_channels):
             self.loc.append(nn.Conv2d(oc, nd * 4, kernel_size=3, padding=1))
-            self.conf.append(nn.Conv2d(oc, nd * self.label_num, kernel_size=3, padding=1))
+            self.conf.append(
+                nn.Conv2d(oc, nd * self.label_num, kernel_size=3, padding=1)
+            )
 
         self.loc = nn.ModuleList(self.loc)
         self.conf = nn.ModuleList(self.conf)
@@ -74,13 +78,22 @@ class SSD300(nn.Module):
 
     def _build_additional_features(self, input_size):
         self.additional_blocks = []
-        for i, (input_size, output_size, channels) in enumerate(zip(input_size[:-1], input_size[1:], [256, 256, 128, 128, 128])):
+        for i, (input_size, output_size, channels) in enumerate(
+            zip(input_size[:-1], input_size[1:], [256, 256, 128, 128, 128])
+        ):
             if i < 3:
                 layer = nn.Sequential(
                     nn.Conv2d(input_size, channels, kernel_size=1, bias=False),
                     nn.BatchNorm2d(channels),
                     nn.ReLU(inplace=True),
-                    nn.Conv2d(channels, output_size, kernel_size=3, padding=1, stride=2, bias=False),
+                    nn.Conv2d(
+                        channels,
+                        output_size,
+                        kernel_size=3,
+                        padding=1,
+                        stride=2,
+                        bias=False,
+                    ),
                     nn.BatchNorm2d(output_size),
                     nn.ReLU(inplace=True),
                 )
@@ -102,13 +115,19 @@ class SSD300(nn.Module):
         layers = [*self.additional_blocks, *self.loc, *self.conf]
         for layer in layers:
             for param in layer.parameters():
-                if param.dim() > 1: nn.init.xavier_uniform_(param)
+                if param.dim() > 1:
+                    nn.init.xavier_uniform_(param)
 
     # Shape the classifier to the view of bboxes
     def bbox_view(self, src, loc, conf):
         ret = []
         for s, l, c in zip(src, loc, conf):
-            ret.append((l(s).reshape(s.size(0), 4, -1), c(s).reshape(s.size(0), self.label_num, -1)))
+            ret.append(
+                (
+                    l(s).reshape(s.size(0), 4, -1),
+                    c(s).reshape(s.size(0), self.label_num, -1),
+                )
+            )
 
         locs, confs = list(zip(*ret))
         locs, confs = torch.cat(locs, 2).contiguous(), torch.cat(confs, 2).contiguous()
@@ -131,38 +150,47 @@ class SSD300(nn.Module):
 
 class Loss(nn.Module):
     """
-        Implements the loss as the sum of the followings:
-        1. Confidence Loss: All labels, with hard negative mining
-        2. Localization Loss: Only on positive labels
-        Suppose input dboxes has the shape 8732x4
+    Implements the loss as the sum of the followings:
+    1. Confidence Loss: All labels, with hard negative mining
+    2. Localization Loss: Only on positive labels
+    Suppose input dboxes has the shape 8732x4
     """
+
     def __init__(self, dboxes):
         super(Loss, self).__init__()
-        self.scale_xy = 1.0/dboxes.scale_xy
-        self.scale_wh = 1.0/dboxes.scale_wh
+        self.scale_xy = 1.0 / dboxes.scale_xy
+        self.scale_wh = 1.0 / dboxes.scale_wh
 
-        self.sl1_loss = nn.SmoothL1Loss(reduction='none')
-        self.dboxes = nn.Parameter(dboxes(order="xywh").transpose(0, 1).unsqueeze(dim = 0),
-            requires_grad=False)
+        self.sl1_loss = nn.SmoothL1Loss(reduction="none")
+        self.dboxes = nn.Parameter(
+            dboxes(order="xywh").transpose(0, 1).unsqueeze(dim=0), requires_grad=False
+        )
         # Two factor are from following links
         # http://jany.st/post/2017-11-05-single-shot-detector-ssd-from-scratch-in-tensorflow.html
-        self.con_loss = nn.CrossEntropyLoss(reduction='none')
+        self.con_loss = nn.CrossEntropyLoss(reduction="none")
 
     def _loc_vec(self, loc):
         """
-            Generate Location Vectors
+        Generate Location Vectors
         """
-        gxy = self.scale_xy*(loc[:, :2, :] - self.dboxes[:, :2, :])/self.dboxes[:, 2:, ]
-        gwh = self.scale_wh*(loc[:, 2:, :]/self.dboxes[:, 2:, :]).log()
+        gxy = (
+            self.scale_xy
+            * (loc[:, :2, :] - self.dboxes[:, :2, :])
+            / self.dboxes[
+                :,
+                2:,
+            ]
+        )
+        gwh = self.scale_wh * (loc[:, 2:, :] / self.dboxes[:, 2:, :]).log()
         return torch.cat((gxy, gwh), dim=1).contiguous()
 
     def forward(self, ploc, plabel, gloc, glabel):
         """
-            ploc, plabel: Nx4x8732, Nxlabel_numx8732
-                predicted location and labels
+        ploc, plabel: Nx4x8732, Nxlabel_numx8732
+            predicted location and labels
 
-            gloc, glabel: Nx4x8732, Nx8732
-                ground truth location and labels
+        gloc, glabel: Nx4x8732, Nx8732
+            ground truth location and labels
         """
         mask = glabel > 0
         pos_num = mask.sum(dim=1)
@@ -171,7 +199,7 @@ class Loss(nn.Module):
 
         # sum on four coordinates, and mask
         sl1 = self.sl1_loss(ploc, vec_gd).sum(dim=1)
-        sl1 = (mask.float()*sl1).sum(dim=1)
+        sl1 = (mask.float() * sl1).sum(dim=1)
 
         # hard negative mining
         con = self.con_loss(plabel, glabel)
@@ -183,15 +211,15 @@ class Loss(nn.Module):
         _, con_rank = con_idx.sort(dim=1)
 
         # number of negative three times positive
-        neg_num = torch.clamp(3*pos_num, max=mask.size(1)).unsqueeze(-1)
+        neg_num = torch.clamp(3 * pos_num, max=mask.size(1)).unsqueeze(-1)
         neg_mask = con_rank < neg_num
 
-        #print(con.shape, mask.shape, neg_mask.shape)
-        closs = (con*((mask + neg_mask).float())).sum(dim=1)
+        # print(con.shape, mask.shape, neg_mask.shape)
+        closs = (con * ((mask + neg_mask).float())).sum(dim=1)
 
         # avoid no object detected
         total_loss = sl1 + closs
         num_mask = (pos_num > 0).float()
         pos_num = pos_num.float().clamp(min=1e-6)
-        ret = (total_loss*num_mask/pos_num).mean(dim=0)
+        ret = (total_loss * num_mask / pos_num).mean(dim=0)
         return ret

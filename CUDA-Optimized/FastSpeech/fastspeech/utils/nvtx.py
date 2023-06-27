@@ -24,8 +24,8 @@
 
 from torch.cuda import nvtx
 
+
 class Nvtx(object):
-    
     def __init__(self, name, enabled=True):
         self.name = name
         self.enabled = enabled
@@ -34,12 +34,13 @@ class Nvtx(object):
         def wrapped_f(*args, **kwargs):
             with Nvtx(self.name, self.enabled):
                 return f(*args, **kwargs)
+
         return wrapped_f
-    
+
     def __enter__(self):
         if self.enabled:
             nvtx.range_push(self.name)
-    
+
     def __exit__(self, *exc_info):
         if self.enabled:
             nvtx.range_pop()

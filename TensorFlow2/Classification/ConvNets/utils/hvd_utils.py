@@ -18,8 +18,9 @@
 import horovod.tensorflow as hvd
 
 __all__ = [
-    'is_using_hvd',
+    "is_using_hvd",
 ]
+
 
 def is_using_hvd():
     return hvd.size() > 1

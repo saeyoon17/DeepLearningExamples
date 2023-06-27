@@ -16,8 +16,10 @@ import argparse
 import logging
 import os
 from pathlib import Path
-from tqdm import tqdm
+
 import numpy as np
+from tqdm import tqdm
+
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["TF_ENABLE_DEPRECATION_WARNINGS"] = "1"
 
@@ -25,31 +27,38 @@ os.environ["TF_ENABLE_DEPRECATION_WARNINGS"] = "1"
 if __name__ == "__main__" and __package__ is None:
     __package__ = Path(__file__).parent.name
 
-from .deployment_toolkit.args import ArgParserGenerator  # noqa: E402  module level import not at top of file
+from .deployment_toolkit.args import \
+    ArgParserGenerator  # noqa: E402  module level import not at top of file
 from .deployment_toolkit.core import (  # noqa: E402  module level import not at top of file
-    DATALOADER_FN_NAME,
-    BaseLoader,
-    BaseRunner,
-    Model,
-    load_from_file,
-)
-from .deployment_toolkit.extensions import loaders, runners  # noqa: E402  module level import not at top of file
+    DATALOADER_FN_NAME, BaseLoader, BaseRunner, Model, load_from_file)
+from .deployment_toolkit.extensions import (  # noqa: E402  module level import not at top of file
+    loaders, runners)
 from .model import get_model
 
 LOGGER = logging.getLogger("check_accuracy")
 
+
 def _get_args():
     parser = argparse.ArgumentParser(
-        description="Script for checking accuracy of export and conversion.", allow_abbrev=False
+        description="Script for checking accuracy of export and conversion.",
+        allow_abbrev=False,
     )
     parser.add_argument("--native-model", help="Path to native model", required=True)
     parser.add_argument("--native-type", help="Native model type", required=True)
     parser.add_argument("--export-model", help="Path to exported model", required=True)
     parser.add_argument("--export-type", help="Exported model type", required=True)
-    parser.add_argument("--convert-model", help="Path to converted model", required=True)
+    parser.add_argument(
+        "--convert-model", help="Path to converted model", required=True
+    )
     parser.add_argument("--convert-type", help="Converted model type", required=True)
-    parser.add_argument("--dataloader", help="Path to python module containing data loader", required=True)
-    parser.add_argument("-v", "--verbose", help="Verbose logs", action="store_true", default=False)
+    parser.add_argument(
+        "--dataloader",
+        help="Path to python module containing data loader",
+        required=True,
+    )
+    parser.add_argument(
+        "-v", "--verbose", help="Verbose logs", action="store_true", default=False
+    )
     parser.add_argument(
         "--ignore-unknown-parameters",
         help="Ignore unknown parameters (argument often used in CI where set of arguments is constant)",
@@ -69,15 +78,18 @@ def _get_args():
     Runner: BaseRunner = runners.get(args.export_type)
     ArgParserGenerator(Runner).update_argparser(parser)
 
-    if args.convert_type != 'trt':
+    if args.convert_type != "trt":
         Loader: BaseLoader = loaders.get(args.convert_type)
-        ArgParserGenerator(Loader, module_path=args.convert_model).update_argparser(parser)
+        ArgParserGenerator(Loader, module_path=args.convert_model).update_argparser(
+            parser
+        )
         Runner: BaseRunner = runners.get(args.convert_type)
         ArgParserGenerator(Runner).update_argparser(parser)
 
-
     if args.dataloader is not None:
-        get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+        get_dataloader_fn = load_from_file(
+            args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+        )
         ArgParserGenerator(get_dataloader_fn).update_argparser(parser)
 
     if args.ignore_unknown_parameters:
@@ -98,15 +110,15 @@ def main():
     LOGGER.info("args:")
     for key, value in vars(args).items():
         LOGGER.info(f"    {key} = {value}")
-    
+
     LOGGER.info(f"Loading {args.native_model}")
     Runner: BaseRunner = runners.get(args.native_type)
 
     runner_native = ArgParserGenerator(Runner).from_args(args)
-    model_native, _ = get_model(model_dir= args.native_model)
-    model_native = Model(handle=model_native, precision=None, inputs=None, outputs=['target__0'])
-
-
+    model_native, _ = get_model(model_dir=args.native_model)
+    model_native = Model(
+        handle=model_native, precision=None, inputs=None, outputs=["target__0"]
+    )
 
     LOGGER.info(f"Loading {args.export_model}")
     Loader: BaseLoader = loaders.get(args.export_type)
@@ -116,18 +128,22 @@ def main():
     runner_export = ArgParserGenerator(Runner).from_args(args)
     model_export = loader.load(args.export_model)
 
-    if args.convert_type != 'trt':
+    if args.convert_type != "trt":
         LOGGER.info(f"Loading {args.convert_model}")
         Loader: BaseLoader = loaders.get(args.convert_type)
         Runner: BaseRunner = runners.get(args.convert_type)
 
-        loader = ArgParserGenerator(Loader, module_path=args.convert_model).from_args(args)
+        loader = ArgParserGenerator(Loader, module_path=args.convert_model).from_args(
+            args
+        )
         runner_convert = ArgParserGenerator(Runner).from_args(args)
         model_convert = loader.load(args.convert_model)
 
-    get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+    get_dataloader_fn = load_from_file(
+        args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+    )
     dataloader_fn = ArgParserGenerator(get_dataloader_fn).from_args(args)
-    
+
     ids, x, y_real = next(dataloader_fn())
     with runner_native.init_inference(model=model_native) as runner_session:
         y_pred_native = runner_session(x)
@@ -137,15 +153,23 @@ def main():
         y_pred_export = runner_session(x)
     del model_export
     del runner_export
-    e1 = [np.linalg.norm(y_pred_native[k]-y_pred_export[k]) for k in y_pred_native.keys()]
-    assert all([i < 1e-3 for i in e1]), "Error between native and export is {}, limit is 1e-3".format(e1)
-    if args.convert_type != 'trt':
+    e1 = [
+        np.linalg.norm(y_pred_native[k] - y_pred_export[k])
+        for k in y_pred_native.keys()
+    ]
+    assert all(
+        [i < 1e-3 for i in e1]
+    ), "Error between native and export is {}, limit is 1e-3".format(e1)
+    if args.convert_type != "trt":
         with runner_convert.init_inference(model=model_convert) as runner_session:
             y_pred_convert = runner_session(x)
-        e2 = [np.linalg.norm(y_pred_convert[k]-y_pred_export[k]) for k in y_pred_native.keys()]
-        assert all([i < 1e-3 for i in e2]), "Error between export and convert is {}, limit is 1e-3".format(e2)
-
-    
+        e2 = [
+            np.linalg.norm(y_pred_convert[k] - y_pred_export[k])
+            for k in y_pred_native.keys()
+        ]
+        assert all(
+            [i < 1e-3 for i in e2]
+        ), "Error between export and convert is {}, limit is 1e-3".format(e2)
 
 
 if __name__ == "__main__":

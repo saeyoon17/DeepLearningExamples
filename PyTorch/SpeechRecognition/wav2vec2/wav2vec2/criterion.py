@@ -20,11 +20,10 @@
 import editdistance
 import torch
 import torch.nn.functional as F
-from torch.nn.modules.loss import _Loss
-
 from common.fairseq import utils
 from common.fairseq.data.data_utils import post_process
 from common.utils import AttrDict
+from torch.nn.modules.loss import _Loss
 
 
 class Wav2vecCriterion(_Loss):
@@ -42,9 +41,11 @@ class Wav2vecCriterion(_Loss):
         2) the sample size, which is used as the denominator for the gradient
         3) logging outputs to display while training
         """
-        net_output = model(**sample["net_input"],
-                           sub_batch_sizes=sample["sub_batch_sizes"],
-                           sub_batch_lens=sample["sub_batch_lens"])
+        net_output = model(
+            **sample["net_input"],
+            sub_batch_sizes=sample["sub_batch_sizes"],
+            sub_batch_lens=sample["sub_batch_lens"],
+        )
         logits = model.get_logits(net_output).float()
         target = model.get_targets(sample, net_output)
 
@@ -64,10 +65,10 @@ class Wav2vecCriterion(_Loss):
                 logits, target.float(), weights, reduction=reduction
             )
 
-        if 'sample_size' in sample:
-            sample_size = sample['sample_size']
-        elif 'mask_indices' in sample['net_input']:
-            sample_size = sample['net_input']['mask_indices'].sum()
+        if "sample_size" in sample:
+            sample_size = sample["sample_size"]
+        elif "mask_indices" in sample["net_input"]:
+            sample_size = sample["net_input"]["mask_indices"].sum()
         elif self.infonce:
             sample_size = target.numel()
         else:
@@ -85,8 +86,9 @@ class Wav2vecCriterion(_Loss):
             if len(self.loss_weights) == 1 and len(extra_losses) != 1:
                 self.loss_weights = [self.loss_weights[0]] * len(extra_losses)
 
-            assert len(extra_losses) == len(self.loss_weights), \
-                f"{len(extra_losses)}, {len(self.loss_weights)}"
+            assert len(extra_losses) == len(
+                self.loss_weights
+            ), f"{len(extra_losses)}, {len(self.loss_weights)}"
 
             for p, coef in zip(extra_losses, self.loss_weights):
                 if coef != 0 and p is not None:
@@ -113,8 +115,7 @@ class Wav2vecCriterion(_Loss):
                     # If the targets have been mixed with the predictions of
                     # teacher models, find the original targets
                     if hasattr(model, "get_original_targets"):
-                        original_target = model.get_original_targets(
-                            sample, net_output)
+                        original_target = model.get_original_targets(sample, net_output)
                     else:
                         original_target = target
                     log_out["target"] = original_target.cpu().numpy()
@@ -146,8 +147,16 @@ class Wav2vecCriterion(_Loss):
 
 
 class CTCCriterion(_Loss):
-    def __init__(self, target_dictionary, blank_idx=0, pad_idx=1, eos_idx=2,
-                 zero_infinity=True, sentence_avg=True, post_process='letter'):
+    def __init__(
+        self,
+        target_dictionary,
+        blank_idx=0,
+        pad_idx=1,
+        eos_idx=2,
+        zero_infinity=True,
+        sentence_avg=True,
+        post_process="letter",
+    ):
 
         super().__init__()
         # keep all indexes for compatibility with fairseq
@@ -183,28 +192,35 @@ class CTCCriterion(_Loss):
         tgt_lens = sample["target_lengths"]
 
         with torch.backends.cudnn.flags(enabled=False):
-            loss = F.ctc_loss(logp, tgt_flat, lens, tgt_lens,
-                              blank=self.blank_idx, reduction="sum",
-                              zero_infinity=self.zero_infinity)
+            loss = F.ctc_loss(
+                logp,
+                tgt_flat,
+                lens,
+                tgt_lens,
+                blank=self.blank_idx,
+                reduction="sum",
+                zero_infinity=self.zero_infinity,
+            )
         log_out = {
             "loss": utils.item(loss.data),
             "ntokens": sample["ntokens"],
             "nsentences": sample["id"].numel(),
-            "sample_size": B if self.sentence_avg else sample["ntokens"]
+            "sample_size": B if self.sentence_avg else sample["ntokens"],
         }
 
         if not model.training:
             log_out.update(self.calculate_wer(sample, logp, lens))
 
-        return loss, log_out['sample_size'], log_out
+        return loss, log_out["sample_size"], log_out
 
     def calculate_wer(self, sample, logp, lens):
         with torch.no_grad():
-            log = AttrDict({"wv_errs": 0, "w_errs": 0, "w_len": 0,
-                            "c_errs": 0, "c_len": 0})
+            log = AttrDict(
+                {"wv_errs": 0, "w_errs": 0, "w_len": 0, "c_errs": 0, "c_len": 0}
+            )
 
             logp_t = logp.transpose(0, 1).float().contiguous().cpu()
-            tgt_labels = sample.get('target_label', sample['target'])
+            tgt_labels = sample.get("target_label", sample["target"])
 
             head = lambda l: None if l is None or len(l) < 1 else l[0]
 
@@ -229,8 +245,7 @@ class CTCCriterion(_Loss):
                 tgt_words = post_process(tgt_units, self.post_process).split()
 
                 pred_units = self.target_dictionary.string(pred_units_arr)
-                pred_words_raw = post_process(pred_units,
-                                              self.post_process).split()
+                pred_words_raw = post_process(pred_units, self.post_process).split()
 
                 if decoded is not None and "words" in decoded:
                     pred_words = decoded["words"]

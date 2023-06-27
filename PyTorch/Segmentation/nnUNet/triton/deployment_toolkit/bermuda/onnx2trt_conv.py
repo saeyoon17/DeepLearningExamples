@@ -48,7 +48,9 @@ class Onnx2TRTConverter(BaseConverter):
         return model._replace(handle=cuda_engine)
 
     @staticmethod
-    def required_source_model_precision(requested_model_precision: Precision) -> Precision:
+    def required_source_model_precision(
+        requested_model_precision: Precision,
+    ) -> Precision:
         # TensorRT requires source models to be in FP32 precision
         return Precision.FP32
 
@@ -93,7 +95,9 @@ def onnx2trt(
         # onnx model parsing
         if not parser.parse(onnx_model.SerializeToString()):
             for i in range(parser.num_errors):
-                LOGGER.error(f"OnnxParser error {i}/{parser.num_errors}: {parser.get_error(i)}")
+                LOGGER.error(
+                    f"OnnxParser error {i}/{parser.num_errors}: {parser.get_error(i)}"
+                )
             raise RuntimeError("Error during parsing ONNX model (see logs for details)")
 
         # optimization
@@ -111,4 +115,6 @@ def onnx2trt(
     return engine
 
 
-converters.register_extension(f"{Format.ONNX.value}--{Format.TRT.value}", Onnx2TRTConverter)
+converters.register_extension(
+    f"{Format.ONNX.value}--{Format.TRT.value}", Onnx2TRTConverter
+)

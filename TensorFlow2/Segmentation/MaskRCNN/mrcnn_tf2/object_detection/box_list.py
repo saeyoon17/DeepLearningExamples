@@ -49,10 +49,10 @@ class BoxList(object):
               float32 format.
         """
         if len(boxes.get_shape()) != 2 or boxes.get_shape()[-1] != 4:
-            raise ValueError('Invalid dimensions for box data.')
+            raise ValueError("Invalid dimensions for box data.")
         if boxes.dtype != tf.float32:
-            raise ValueError('Invalid tensor type: should be tf.float32')
-        self.data = {'boxes': boxes}
+            raise ValueError("Invalid tensor type: should be tf.float32")
+        self.data = {"boxes": boxes}
 
     def num_boxes(self):
         """Returns number of boxes held in collection.
@@ -60,7 +60,7 @@ class BoxList(object):
         Returns:
           a tensor representing the number of boxes held in the collection.
         """
-        return tf.shape(input=self.data['boxes'])[0]
+        return tf.shape(input=self.data["boxes"])[0]
 
     def num_boxes_static(self):
         """Returns number of boxes held in collection.
@@ -72,9 +72,9 @@ class BoxList(object):
             inferrable at graph construction time.
         """
         try:
-            return self.data['boxes'].get_shape()[0].value
+            return self.data["boxes"].get_shape()[0].value
         except AttributeError:
-            return self.data['boxes'].get_shape()[0]
+            return self.data["boxes"].get_shape()[0]
 
     def get_all_fields(self):
         """Returns all fields."""
@@ -82,7 +82,7 @@ class BoxList(object):
 
     def get_extra_fields(self):
         """Returns all non-box fields (i.e., everything not named 'boxes')."""
-        return [k for k in self.data if k != 'boxes']
+        return [k for k in self.data if k != "boxes"]
 
     def add_field(self, field, field_data):
         """Add field to box list.
@@ -105,7 +105,7 @@ class BoxList(object):
         Returns:
           a tensor with shape [N, 4] representing box coordinates.
         """
-        return self.get_field('boxes')
+        return self.get_field("boxes")
 
     def set(self, boxes):
         """Convenience function for setting box coordinates.
@@ -117,8 +117,8 @@ class BoxList(object):
           ValueError: if invalid dimensions for bbox data
         """
         if len(boxes.get_shape()) != 2 or boxes.get_shape()[-1] != 4:
-            raise ValueError('Invalid dimensions for box data.')
-        self.data['boxes'] = boxes
+            raise ValueError("Invalid dimensions for box data.")
+        self.data["boxes"] = boxes
 
     def get_field(self, field):
         """Accesses a box collection and associated fields.
@@ -137,7 +137,7 @@ class BoxList(object):
           ValueError: if invalid field
         """
         if not self.has_field(field):
-            raise ValueError('field ' + str(field) + ' does not exist')
+            raise ValueError("field " + str(field) + " does not exist")
         return self.data[field]
 
     def set_field(self, field, value):
@@ -153,7 +153,7 @@ class BoxList(object):
           ValueError: if the box_list does not have specified field.
         """
         if not self.has_field(field):
-            raise ValueError('field %s does not exist' % field)
+            raise ValueError("field %s does not exist" % field)
         self.data[field] = value
 
     def get_center_coordinates_and_sizes(self, scope=None):
@@ -170,8 +170,8 @@ class BoxList(object):
         ymin, xmin, ymax, xmax = tf.unstack(tf.transpose(a=box_corners))
         width = xmax - xmin
         height = ymax - ymin
-        ycenter = ymin + height / 2.
-        xcenter = xmin + width / 2.
+        ycenter = ymin + height / 2.0
+        xcenter = xmin + width / 2.0
         return [ycenter, xcenter, height, width]
 
     def transpose_coordinates(self, scope=None):
@@ -182,7 +182,8 @@ class BoxList(object):
         """
 
         y_min, x_min, y_max, x_max = tf.split(
-            value=self.get(), num_or_size_splits=4, axis=1)
+            value=self.get(), num_or_size_splits=4, axis=1
+        )
         self.set(tf.concat([x_min, y_min, x_max, y_max], 1))
 
     def as_tensor_dict(self, fields=None):
@@ -203,6 +204,6 @@ class BoxList(object):
             fields = self.get_all_fields()
         for field in fields:
             if not self.has_field(field):
-                raise ValueError('boxlist must contain all specified fields')
+                raise ValueError("boxlist must contain all specified fields")
             tensor_dict[field] = self.get_field(field)
         return tensor_dict

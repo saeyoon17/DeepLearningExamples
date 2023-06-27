@@ -16,13 +16,12 @@ import json
 from pathlib import Path
 
 import numpy as np
-
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.distributed import DistributedSampler
 
-from .audio import (audio_from_file, AudioSegment, GainPerturbation,
-                    ShiftPerturbation, SpeedPerturbation)
+from .audio import (AudioSegment, GainPerturbation, ShiftPerturbation,
+                    SpeedPerturbation, audio_from_file)
 from .text import _clean_text, punctuation_map
 
 
@@ -35,7 +34,7 @@ def normalize_string(s, labels, punct_map):
     labels = set(labels)
     try:
         text = _clean_text(s, ["english_cleaners"], punct_map).strip()
-        return ''.join([tok for tok in text if all(t in labels for t in tok)])
+        return "".join([tok for tok in text if all(t in labels for t in tok)])
     except:
         print(f"WARNING: Normalizing failed: {s}")
         return None
@@ -43,15 +42,19 @@ def normalize_string(s, labels, punct_map):
 
 class FilelistDataset(Dataset):
     def __init__(self, filelist_fpath):
-        self.samples = [line.strip() for line in open(filelist_fpath, 'r')]
+        self.samples = [line.strip() for line in open(filelist_fpath, "r")]
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, index):
         audio, audio_len = audio_from_file(self.samples[index])
-        return (audio.squeeze(0), audio_len, torch.LongTensor([0]),
-                torch.LongTensor([0]))
+        return (
+            audio.squeeze(0),
+            audio_len,
+            torch.LongTensor([0]),
+            torch.LongTensor([0]),
+        )
 
 
 class SingleAudioDataset(FilelistDataset):
@@ -60,12 +63,24 @@ class SingleAudioDataset(FilelistDataset):
 
 
 class AudioDataset(Dataset):
-    def __init__(self, data_dir, manifest_fpaths, labels,
-                 sample_rate=16000, min_duration=0.1, max_duration=float("inf"),
-                 pad_to_max_duration=False, max_utts=0, normalize_transcripts=True,
-                 sort_by_duration=False, trim_silence=False,
-                 speed_perturbation=None, gain_perturbation=None,
-                 shift_perturbation=None, ignore_offline_speed_perturbation=False):
+    def __init__(
+        self,
+        data_dir,
+        manifest_fpaths,
+        labels,
+        sample_rate=16000,
+        min_duration=0.1,
+        max_duration=float("inf"),
+        pad_to_max_duration=False,
+        max_utts=0,
+        normalize_transcripts=True,
+        sort_by_duration=False,
+        trim_silence=False,
+        speed_perturbation=None,
+        gain_perturbation=None,
+        shift_perturbation=None,
+        ignore_offline_speed_perturbation=False,
+    ):
         """Loads audio, transcript and durations listed in a .json file.
 
         Args:
@@ -122,27 +137,33 @@ class AudioDataset(Dataset):
             self._load_json_manifest(fpath)
 
         if sort_by_duration:
-            self.samples = sorted(self.samples, key=lambda s: s['duration'])
+            self.samples = sorted(self.samples, key=lambda s: s["duration"])
 
     def __getitem__(self, index):
         s = self.samples[index]
-        rn_indx = np.random.randint(len(s['audio_filepath']))
-        duration = s['audio_duration'][rn_indx] if 'audio_duration' in s else 0
-        offset = s.get('offset', 0)
+        rn_indx = np.random.randint(len(s["audio_filepath"]))
+        duration = s["audio_duration"][rn_indx] if "audio_duration" in s else 0
+        offset = s.get("offset", 0)
 
         segment = AudioSegment(
-            s['audio_filepath'][rn_indx], target_sr=self.sample_rate,
-            offset=offset, duration=duration, trim=self.trim_silence)
+            s["audio_filepath"][rn_indx],
+            target_sr=self.sample_rate,
+            offset=offset,
+            duration=duration,
+            trim=self.trim_silence,
+        )
 
         for p in self.perturbations:
             p.maybe_apply(segment, self.sample_rate)
 
         segment = torch.FloatTensor(segment.samples)
 
-        return (segment,
-                torch.tensor(segment.shape[0]).int(),
-                torch.tensor(s["transcript"]),
-                torch.tensor(len(s["transcript"])).int())
+        return (
+            segment,
+            torch.tensor(segment.shape[0]).int(),
+            torch.tensor(s["transcript"]),
+            torch.tensor(len(s["transcript"])).int(),
+        )
 
     def __len__(self):
         return len(self.samples)
@@ -152,23 +173,22 @@ class AudioDataset(Dataset):
 
             if self.pad_to_max_duration and not self.ignore_offline_speed_perturbation:
                 # require all perturbed samples to be < self.max_duration
-                s_max_duration = max(f['duration'] for f in s['files'])
+                s_max_duration = max(f["duration"] for f in s["files"])
             else:
                 # otherwise we allow perturbances to be > self.max_duration
-                s_max_duration = s['original_duration']
+                s_max_duration = s["original_duration"]
 
-            s['duration'] = s.pop('original_duration')
+            s["duration"] = s.pop("original_duration")
             if not (self.min_duration <= s_max_duration <= self.max_duration):
-                self.duration_filtered += s['duration']
+                self.duration_filtered += s["duration"]
                 continue
 
             # Prune and normalize according to transcript
-            tr = (s.get('transcript', None) or
-                  self.load_transcript(s['text_filepath']))
+            tr = s.get("transcript", None) or self.load_transcript(s["text_filepath"])
 
             if not isinstance(tr, str):
-                print(f'WARNING: Skipped sample (transcript not a str): {tr}.')
-                self.duration_filtered += s['duration']
+                print(f"WARNING: Skipped sample (transcript not a str): {tr}.")
+                self.duration_filtered += s["duration"]
                 continue
 
             if self.normalize_transcripts:
@@ -176,23 +196,22 @@ class AudioDataset(Dataset):
 
             s["transcript"] = self.to_vocab_inds(tr)
 
-            files = s.pop('files')
+            files = s.pop("files")
             if self.ignore_offline_speed_perturbation:
-                files = [f for f in files if f['speed'] == 1.0]
+                files = [f for f in files if f["speed"] == 1.0]
 
-            s['audio_duration'] = [f['duration'] for f in files]
-            s['audio_filepath'] = [str(Path(self.data_dir, f['fname']))
-                                   for f in files]
+            s["audio_duration"] = [f["duration"] for f in files]
+            s["audio_filepath"] = [str(Path(self.data_dir, f["fname"])) for f in files]
             self.samples.append(s)
-            self.duration += s['duration']
+            self.duration += s["duration"]
 
             if self.max_utts > 0 and len(self.samples) >= self.max_utts:
-                print(f'Reached max_utts={self.max_utts}. Finished parsing {fpath}.')
+                print(f"Reached max_utts={self.max_utts}. Finished parsing {fpath}.")
                 break
 
     def load_transcript(self, transcript_path):
-        with open(transcript_path, 'r', encoding="utf-8") as transcript_file:
-            transcript = transcript_file.read().replace('\n', '')
+        with open(transcript_path, "r", encoding="utf-8") as transcript_file:
+            transcript = transcript_file.read().replace("\n", "")
         return transcript
 
     def to_vocab_inds(self, transcript):
@@ -217,11 +236,16 @@ def collate_fn(batch):
     return audio, audio_lens, transcript, transcript_lens
 
 
-def get_data_loader(dataset, batch_size, multi_gpu=True, shuffle=True,
-                    drop_last=True, num_workers=4):
+def get_data_loader(
+    dataset, batch_size, multi_gpu=True, shuffle=True, drop_last=True, num_workers=4
+):
 
-    kw = {'dataset': dataset, 'collate_fn': collate_fn,
-          'num_workers': num_workers, 'pin_memory': True}
+    kw = {
+        "dataset": dataset,
+        "collate_fn": collate_fn,
+        "num_workers": num_workers,
+        "pin_memory": True,
+    }
 
     if multi_gpu:
         loader_shuffle = False
@@ -230,5 +254,10 @@ def get_data_loader(dataset, batch_size, multi_gpu=True, shuffle=True,
         loader_shuffle = shuffle
         sampler = None
 
-    return DataLoader(batch_size=batch_size, drop_last=drop_last,
-                      sampler=sampler, shuffle=loader_shuffle, **kw)
+    return DataLoader(
+        batch_size=batch_size,
+        drop_last=drop_last,
+        sampler=sampler,
+        shuffle=loader_shuffle,
+        **kw,
+    )

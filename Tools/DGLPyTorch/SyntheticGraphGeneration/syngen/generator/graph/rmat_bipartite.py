@@ -20,21 +20,17 @@ from pathlib import Path
 from typing import List, Optional, Set, Tuple
 
 import numpy as np
-
-from syngen.generator.graph.base_graph_generator import BaseBipartiteGraphGenerator
+from syngen.generator.graph.base_graph_generator import \
+    BaseBipartiteGraphGenerator
 from syngen.generator.graph.fitter import BaseFitter
-from syngen.generator.graph.utils import (
-    effective_nonsquare_rmat_exact,
-    generate_gpu_rmat,
-    get_reversed_part,
-    graph_to_snap_file,
-    rearrange_graph,
-    recreate_graph,
-)
+from syngen.generator.graph.utils import (effective_nonsquare_rmat_exact,
+                                          generate_gpu_rmat, get_reversed_part,
+                                          graph_to_snap_file, rearrange_graph,
+                                          recreate_graph)
 
 
 class RMATBipartiteGenerator(BaseBipartiteGraphGenerator):
-    """ Graph generator based on RMAT that generate bipartite graphs
+    """Graph generator based on RMAT that generate bipartite graphs
     Args:
         seed (int): Seed to reproduce the results. If None then random seed will be used.
         logdir (str): Directory to store the logging results.
@@ -58,7 +54,7 @@ class RMATBipartiteGenerator(BaseBipartiteGraphGenerator):
         dst_set: Set[int],
         is_directed: bool,
     ):
-        """ Fits generator on the graph
+        """Fits generator on the graph
         Args:
             graph (List[Tuple[int, int]]): graph to be fitted on
             src_set (Set[int]): set of source nodes
@@ -74,9 +70,7 @@ class RMATBipartiteGenerator(BaseBipartiteGraphGenerator):
 
         lower, upper = rearrange_graph(graph, src_set, dst_set)
 
-        if (
-            len(lower) and is_directed
-        ):  # No need to fit lower part for undirected graph
+        if len(lower) and is_directed:  # No need to fit lower part for undirected graph
             self._fit_dst_src_results = self.fitter.fit(lower)
 
         if len(upper):
@@ -175,7 +169,7 @@ class RMATBipartiteGenerator(BaseBipartiteGraphGenerator):
         noise: float = 0.5,
         batch_size: int = 1_000_000,
     ):
-        """ Generates graph with approximately `num_nodes_src_set`/`num_nodes_dst_set` nodes
+        """Generates graph with approximately `num_nodes_src_set`/`num_nodes_dst_set` nodes
          and exactly `num_edges_src_dst`/`num_edges_dst_src` edges from generator
         Args:
             num_nodes_src_set (int): approximate number of source nodes to be generated
@@ -188,9 +182,7 @@ class RMATBipartiteGenerator(BaseBipartiteGraphGenerator):
         Returns:
             new_graph (np.array[int, int]): generated graph
         """
-        assert (
-            num_nodes_src_set > 0 and num_nodes_dst_set > 0
-        ), "Wrong number of nodes"
+        assert num_nodes_src_set > 0 and num_nodes_dst_set > 0, "Wrong number of nodes"
 
         assert (
             num_edges_src_dst >= 0 and num_edges_dst_src >= 0
@@ -228,7 +220,7 @@ class RMATBipartiteGenerator(BaseBipartiteGraphGenerator):
         part_shape_upper = (log2_row, log2_col)
         part_shape_lower = (log2_col, log2_row)
 
-        offset = int(2 ** log2_row)
+        offset = int(2**log2_row)
 
         if self._fit_src_dst_results and num_edges_src_dst:
             upper_part = self._generate_part(

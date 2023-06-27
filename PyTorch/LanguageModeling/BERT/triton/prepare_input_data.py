@@ -30,24 +30,35 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["TF_ENABLE_DEPRECATION_WARNINGS"] = "0"
 
 
-from .deployment_toolkit.args import ArgParserGenerator  # noqa: E402  module level import not at top of file
+from .deployment_toolkit.args import \
+    ArgParserGenerator  # noqa: E402  module level import not at top of file
 from .deployment_toolkit.core import (  # noqa: E402  module level import not at top of file
-    DATALOADER_FN_NAME,
-    load_from_file,
-)
+    DATALOADER_FN_NAME, load_from_file)
 
 LOGGER = logging.getLogger("prepare_input_data")
 
 
 def _parse_and_validate_args():
-    parser = argparse.ArgumentParser(description="Dump local inference output of given model", allow_abbrev=False)
-    parser.add_argument("--dataloader", help="Path to python file containing dataloader.", required=True)
-    parser.add_argument("--input-data-dir", help="Path to dir where output files will be stored", required=True)
-    parser.add_argument("-v", "--verbose", help="Verbose logs", action="store_true", default=False)
+    parser = argparse.ArgumentParser(
+        description="Dump local inference output of given model", allow_abbrev=False
+    )
+    parser.add_argument(
+        "--dataloader", help="Path to python file containing dataloader.", required=True
+    )
+    parser.add_argument(
+        "--input-data-dir",
+        help="Path to dir where output files will be stored",
+        required=True,
+    )
+    parser.add_argument(
+        "-v", "--verbose", help="Verbose logs", action="store_true", default=False
+    )
 
     args, *_ = parser.parse_known_args()
 
-    get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+    get_dataloader_fn = load_from_file(
+        args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+    )
     ArgParserGenerator(get_dataloader_fn).update_argparser(parser)
 
     args = parser.parse_args()
@@ -66,11 +77,15 @@ def main():
         LOGGER.info(f"    {key} = {value}")
 
     data = []
-    get_dataloader_fn = load_from_file(args.dataloader, label="dataloader", target=DATALOADER_FN_NAME)
+    get_dataloader_fn = load_from_file(
+        args.dataloader, label="dataloader", target=DATALOADER_FN_NAME
+    )
     dataloader_fn = ArgParserGenerator(get_dataloader_fn).from_args(args)
     LOGGER.info("Data loader initialized; Creating benchmark data")
     for _, x, _ in tqdm(dataloader_fn(), unit="batch", mininterval=10):
-        for input__0, input__1, input__2 in zip(x["input__0"], x["input__1"], x["input__2"]):
+        for input__0, input__1, input__2 in zip(
+            x["input__0"], x["input__1"], x["input__2"]
+        ):
             data.append(
                 {
                     "input__0": input__0.tolist(),

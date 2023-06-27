@@ -11,28 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from PIL import Image
 import argparse
-import numpy as np
 import json
+
+import numpy as np
 import torch
-from torch.cuda.amp import autocast
 import torch.backends.cudnn as cudnn
-
-from image_classification import models
 import torchvision.transforms as transforms
-
-from image_classification.models import (
-    resnet50,
-    resnext101_32x4d,
-    se_resnext101_32x4d,
-    efficientnet_b0,
-    efficientnet_b4,
-    efficientnet_widese_b0,
-    efficientnet_widese_b4,
-    efficientnet_quant_b0,
-    efficientnet_quant_b4,
-)
+from image_classification import models
+from image_classification.models import (efficientnet_b0, efficientnet_b4,
+                                         efficientnet_quant_b0,
+                                         efficientnet_quant_b4,
+                                         efficientnet_widese_b0,
+                                         efficientnet_widese_b4, resnet50,
+                                         resnext101_32x4d, se_resnext101_32x4d)
+from PIL import Image
+from torch.cuda.amp import autocast
 
 
 def available_models():

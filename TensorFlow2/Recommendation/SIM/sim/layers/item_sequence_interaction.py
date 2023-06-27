@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import tensorflow as tf
-
 from sim.layers.item_item_interaction import DIENAttentionUnit
 from sim.layers.rnn import AUGRU
 

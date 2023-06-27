@@ -12,22 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
 import numpy as np
-
+import torch
 from apex.fp16_utils import network_to_half
-
 from dle.inference import prepare_input
 from ssd.model import SSD300, ResNet
-from ssd.utils import dboxes300_coco, Encoder
+from ssd.utils import Encoder, dboxes300_coco
 
 
 def load_checkpoint(model, model_file):
-    cp = torch.load(model_file)['model']
+    cp = torch.load(model_file)["model"]
     model.load_state_dict(cp)
 
 
-def build_predictor(model_file, backbone='resnet50'):
+def build_predictor(model_file, backbone="resnet50"):
     ssd300 = SSD300(backbone=ResNet(backbone=backbone))
     load_checkpoint(ssd300, model_file)
 
@@ -59,11 +57,9 @@ def decode_results(predictions):
     ploc, plabel = [val.float() for val in predictions]
     results = encoder.decode_batch(ploc, plabel, criteria=0.5, max_output=20)
 
-    return [ [ pred.detach().cpu().numpy()
-               for pred in detections
-             ]
-             for detections in results
-           ]
+    return [
+        [pred.detach().cpu().numpy() for pred in detections] for detections in results
+    ]
 
 
 def pick_best(detections, treshold):
@@ -84,12 +80,14 @@ def main(checkpoint_path, imgs):
     best_results = [pick_best(detections, treshold=0.3) for detections in results]
     return best_results
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     best_results = main(
-            checkpoint_path='/checkpoints/SSD300v1.1.pt',
-            imgs=[ 'http://images.cocodataset.org/val2017/000000397133.jpg',
-                   'http://images.cocodataset.org/val2017/000000037777.jpg',
-                   'http://images.cocodataset.org/val2017/000000252219.jpg',
-                 ]
+        checkpoint_path="/checkpoints/SSD300v1.1.pt",
+        imgs=[
+            "http://images.cocodataset.org/val2017/000000397133.jpg",
+            "http://images.cocodataset.org/val2017/000000037777.jpg",
+            "http://images.cocodataset.org/val2017/000000252219.jpg",
+        ],
     )
     print(best_results)

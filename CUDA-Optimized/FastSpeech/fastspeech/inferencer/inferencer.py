@@ -22,27 +22,39 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import abc
+import glob
 import os
 import pathlib
 import time
-import abc
 
 import numpy as np
 import torch
-from tensorboardX import SummaryWriter
-import glob
-from fastspeech.utils.logging import tprint
-from fastspeech.utils.pytorch import to_device_async, to_cpu_numpy
 import torch.nn as nn
+from fastspeech.utils.logging import tprint
+from fastspeech.utils.pytorch import to_cpu_numpy, to_device_async
+from tensorboardX import SummaryWriter
 
-    
+
 class Inferencer(object):
     """
     set seed
     load model
     logging
     """
-    def __init__(self, model_name, model, data_loader=None, ckpt_path=None, ckpt_file=None, log_path=None, device='cuda', use_fp16=False, seed=None):
+
+    def __init__(
+        self,
+        model_name,
+        model,
+        data_loader=None,
+        ckpt_path=None,
+        ckpt_file=None,
+        log_path=None,
+        device="cuda",
+        use_fp16=False,
+        seed=None,
+    ):
         self.data_loader = data_loader
         self.model_name = model_name
         self.model = model
@@ -58,7 +70,7 @@ class Inferencer(object):
         self.model.eval()
         to_device_async(self.model, self.device)
         num_param = sum(param.numel() for param in model.parameters())
-        tprint('The number of {} parameters: {}'.format(self.model_name, num_param))
+        tprint("The number of {} parameters: {}".format(self.model_name, num_param))
 
         # precision
         if self.use_fp16:
@@ -78,7 +90,7 @@ class Inferencer(object):
         # logging
         if log_path:
             # tensorboard log path : {log_path}/YYYYMMDD-HHMMMSS
-            log_path = os.path.join(log_path, time.strftime('%Y%m%d-%H%M%S'))
+            log_path = os.path.join(log_path, time.strftime("%Y%m%d-%H%M%S"))
             self.tbwriter = SummaryWriter(log_dir=log_path, flush_secs=10)
 
         # checkpoint path
@@ -102,26 +114,26 @@ class Inferencer(object):
     def load(self, ckpt_file):
         # load latest checkpoint file if not defined.
         if not ckpt_file:
-            files_exist = glob.glob(os.path.join(self.ckpt_path, '*'))
+            files_exist = glob.glob(os.path.join(self.ckpt_path, "*"))
             if files_exist:
                 ckpt_file = max(files_exist, key=os.path.getctime)
 
         if ckpt_file:
             state_dict = torch.load(ckpt_file, map_location=self.device)
 
-            self.step = state_dict['step']
-            self.model.load_state_dict(state_dict['model'])
+            self.step = state_dict["step"]
+            self.model.load_state_dict(state_dict["model"])
 
-            tprint('[Load] Checkpoint \'{}\'. Step={}'.format(ckpt_file, self.step))
+            tprint("[Load] Checkpoint '{}'. Step={}".format(ckpt_file, self.step))
         else:
-            tprint('No checkpoints in {}. Load skipped.'.format(self.ckpt_path))
+            tprint("No checkpoints in {}. Load skipped.".format(self.ckpt_path))
             raise Exception("No checkpoints found.")
 
     def log(self, output):
         output = {k: to_cpu_numpy(v) for k, v in output.items()}
-        self.console_log('infer', output)
+        self.console_log("infer", output)
         if self.log_path:
-            self.tensorboard_log('infer', output)
+            self.tensorboard_log("infer", output)
 
     @abc.abstractmethod
     def console_log(self, tag, output):
@@ -130,4 +142,3 @@ class Inferencer(object):
     @abc.abstractmethod
     def tensorboard_log(self, tag, output):
         raise NotImplemented
-

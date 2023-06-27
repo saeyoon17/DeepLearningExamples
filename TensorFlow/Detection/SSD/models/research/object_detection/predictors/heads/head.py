@@ -40,42 +40,42 @@ import tensorflow as tf
 
 
 class Head(object):
-  """Mask RCNN head base class."""
+    """Mask RCNN head base class."""
 
-  def __init__(self):
-    """Constructor."""
-    pass
+    def __init__(self):
+        """Constructor."""
+        pass
 
-  @abstractmethod
-  def predict(self, features, num_predictions_per_location):
-    """Returns the head's predictions.
+    @abstractmethod
+    def predict(self, features, num_predictions_per_location):
+        """Returns the head's predictions.
 
-    Args:
-      features: A float tensor of features.
-      num_predictions_per_location: Int containing number of predictions per
-        location.
+        Args:
+          features: A float tensor of features.
+          num_predictions_per_location: Int containing number of predictions per
+            location.
 
-    Returns:
-      A tf.float32 tensor.
-    """
-    pass
+        Returns:
+          A tf.float32 tensor.
+        """
+        pass
 
 
 class KerasHead(tf.keras.Model):
-  """Keras head base class."""
+    """Keras head base class."""
 
-  def call(self, features):
-    """The Keras model call will delegate to the `_predict` method."""
-    return self._predict(features)
+    def call(self, features):
+        """The Keras model call will delegate to the `_predict` method."""
+        return self._predict(features)
 
-  @abstractmethod
-  def _predict(self, features):
-    """Returns the head's predictions.
+    @abstractmethod
+    def _predict(self, features):
+        """Returns the head's predictions.
 
-    Args:
-      features: A float tensor of features.
+        Args:
+          features: A float tensor of features.
 
-    Returns:
-      A tf.float32 tensor.
-    """
-    pass
+        Returns:
+          A tf.float32 tensor.
+        """
+        pass

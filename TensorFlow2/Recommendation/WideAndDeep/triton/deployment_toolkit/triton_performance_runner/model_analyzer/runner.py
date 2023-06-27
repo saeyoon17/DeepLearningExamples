@@ -37,8 +37,12 @@ if LooseVersion(sys.version) >= LooseVersion("3.8.0"):
 else:
     import pkg_resources
 
-    TRITON_CLIENT_VERSION = LooseVersion(pkg_resources.get_distribution("tritonclient").version)
-    TRITON_MODEL_ANALYZER_VERSION = LooseVersion(pkg_resources.get_distribution("triton-model-analyzer").version)
+    TRITON_CLIENT_VERSION = LooseVersion(
+        pkg_resources.get_distribution("tritonclient").version
+    )
+    TRITON_MODEL_ANALYZER_VERSION = LooseVersion(
+        pkg_resources.get_distribution("triton-model-analyzer").version
+    )
 
 LOGGER = logging.getLogger("triton_performance_runner.model_analyzer")
 
@@ -141,7 +145,9 @@ class ModelAnalyzerRunner:
         model_analyzer = ModelAnalyzer(config=self._analyze_config)
         model_analyzer.run(mode=ModelAnalyzerMode.ANALYZE, verbose=self._verbose)
 
-        inference_metrics_file = pathlib.Path("/tmp") / "results" / self._filename_model_inference
+        inference_metrics_file = (
+            pathlib.Path("/tmp") / "results" / self._filename_model_inference
+        )
         gpu_metrics_file = pathlib.Path("/tmp") / "results" / self._filename_model_gpu
 
         for file in [inference_metrics_file, gpu_metrics_file]:
@@ -280,17 +286,23 @@ class ModelAnalyzerRunner:
 
         if TRITON_CLIENT_VERSION >= LooseVersion("2.11.0"):
             perf_analyzer_config["measurement-mode"] = measurement_mode.value
-            perf_analyzer_config["measurement-request-count"] = measurement_request_count
+            perf_analyzer_config[
+                "measurement-request-count"
+            ] = measurement_request_count
 
         if evaluation_mode == EvaluationMode.OFFLINE:
             perf_analyzer_config["shared-memory"] = offline_mode.value
-            perf_analyzer_config["output-shared-memory-size"] = output_shared_memory_size
+            perf_analyzer_config[
+                "output-shared-memory-size"
+            ] = output_shared_memory_size
 
         if input_shapes:
             if TRITON_MODEL_ANALYZER_VERSION > LooseVersion("1.8.0"):
                 perf_analyzer_config["shape"] = input_shapes
             else:
                 perf_analyzer_config["shape"] = input_shapes[0]
-                LOGGER.warning("Model Analyzer <= 1.8.0 support only single shape param for Perf Analyzer.")
+                LOGGER.warning(
+                    "Model Analyzer <= 1.8.0 support only single shape param for Perf Analyzer."
+                )
 
         return perf_analyzer_config

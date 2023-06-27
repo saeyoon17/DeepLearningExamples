@@ -15,27 +15,18 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved
 
 import logging
-
 from functools import partial
 from pathlib import Path
 from typing import Sequence
 
-from omegaconf import DictConfig, open_dict
-from hydra.types import HydraContext
-from hydra.core.singleton import Singleton
 from hydra.core.hydra_config import HydraConfig
-from hydra.types import TaskFunction
-from hydra.core.utils import (
-    JobReturn,
-    configure_log,
-    filter_overrides,
-    run_job,
-    setup_globals,
-    env_override,
-)
-
-from torch.distributed.launcher.api import LaunchConfig, launch_agent
+from hydra.core.singleton import Singleton
+from hydra.core.utils import (JobReturn, configure_log, env_override,
+                              filter_overrides, run_job, setup_globals)
+from hydra.types import HydraContext, TaskFunction
+from omegaconf import DictConfig, open_dict
 from torch.distributed.elastic.multiprocessing import Std
+from torch.distributed.launcher.api import LaunchConfig, launch_agent
 
 from .distributed_launcher import TorchDistributedLauncher
 
@@ -55,26 +46,27 @@ def setup(
 
     c = config.hydra.launcher
     launcher.launch_config = LaunchConfig(
-            min_nodes=c.min_nodes,
-            max_nodes=c.max_nodes,
-            nproc_per_node=c.nproc_per_node,
-            run_id=c.rdzv_id,
-            role=c.role,
-            rdzv_endpoint=c.rdzv_endpoint,
-            rdzv_backend=c.rdzv_backend,
-            rdzv_configs={'rank': 0},
-            max_restarts=c.max_restarts,
-            monitor_interval=c.monitor_interval,
-            start_method='fork', # Works only with fork. Spawn and forkserver require pickling which does't work inside wrapped function
-            redirects=Std.from_str(c.redirects),
-            tee=Std.from_str(c.tee),
-            log_dir=c.get('log_dir'),
-        )
+        min_nodes=c.min_nodes,
+        max_nodes=c.max_nodes,
+        nproc_per_node=c.nproc_per_node,
+        run_id=c.rdzv_id,
+        role=c.role,
+        rdzv_endpoint=c.rdzv_endpoint,
+        rdzv_backend=c.rdzv_backend,
+        rdzv_configs={"rank": 0},
+        max_restarts=c.max_restarts,
+        monitor_interval=c.monitor_interval,
+        start_method="fork",  # Works only with fork. Spawn and forkserver require pickling which does't work inside wrapped function
+        redirects=Std.from_str(c.redirects),
+        tee=Std.from_str(c.tee),
+        log_dir=c.get("log_dir"),
+    )
+
 
 def launch(
     launcher: TorchDistributedLauncher,
     job_overrides: Sequence[Sequence[str]],
-    initial_job_idx: int
+    initial_job_idx: int,
 ) -> Sequence[JobReturn]:
     """
     :param job_overrides: a List of List<String>, where each inner list is the arguments for one job run.
@@ -109,11 +101,15 @@ def launch(
         launcher.singleton_state = Singleton.get_state()
 
         def _task_function(task_function, singleton_state, task_cfg):
-            return launch_agent(launcher.launch_config, 
-                                wrapped_task_function,
-                                [task_function, launcher.singleton_state, task_cfg]
-                                )
-        _task_function = partial(_task_function, launcher.task_function, launcher.singleton_state)
+            return launch_agent(
+                launcher.launch_config,
+                wrapped_task_function,
+                [task_function, launcher.singleton_state, task_cfg],
+            )
+
+        _task_function = partial(
+            _task_function, launcher.task_function, launcher.singleton_state
+        )
 
         ret = run_job(
             hydra_context=launcher.hydra_context,
@@ -126,7 +122,9 @@ def launch(
         # We assume that main process has rank 0
         ret.return_value = ret.return_value[0]
         runs.append(ret)
-        configure_log(launcher.config.hydra.hydra_logging, launcher.config.hydra.verbose)
+        configure_log(
+            launcher.config.hydra.hydra_logging, launcher.config.hydra.verbose
+        )
     return runs
 
 

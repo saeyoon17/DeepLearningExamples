@@ -2,10 +2,19 @@ import tensorflow as tf
 
 
 class Conv2DBlock(tf.keras.layers.Layer):
-
-    def __init__(self, filters, kernel_size, strides, padding='SAME',
-                 use_batch_norm=True, use_relu=True, trainable=True,
-                 trainable_batch_norm=False, *args, **kwargs):
+    def __init__(
+        self,
+        filters,
+        kernel_size,
+        strides,
+        padding="SAME",
+        use_batch_norm=True,
+        use_relu=True,
+        trainable=True,
+        trainable_batch_norm=False,
+        *args,
+        **kwargs
+    ):
         super().__init__(trainable=trainable, *args, **kwargs)
         self.conv2d = None
         self.batch_norm = None
@@ -17,7 +26,7 @@ class Conv2DBlock(tf.keras.layers.Layer):
             strides=strides,
             padding=padding,
             use_bias=not use_batch_norm,
-            trainable=trainable
+            trainable=trainable,
         )
 
         if use_batch_norm:
@@ -27,7 +36,7 @@ class Conv2DBlock(tf.keras.layers.Layer):
                 epsilon=1e-05,
                 trainable=trainable and trainable_batch_norm,
                 fused=True,
-                center=True
+                center=True,
             )
 
         if use_relu:

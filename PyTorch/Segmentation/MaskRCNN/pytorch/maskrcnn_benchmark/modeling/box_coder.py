@@ -1,8 +1,9 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 # Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
 import math
-from maskrcnn_benchmark import _C
+
 import torch
+from maskrcnn_benchmark import _C
 
 
 class BoxCoder(object):
@@ -11,7 +12,7 @@ class BoxCoder(object):
     the representation used for training the regressors.
     """
 
-    def __init__(self, weights, bbox_xform_clip=math.log(1000. / 16)):
+    def __init__(self, weights, bbox_xform_clip=math.log(1000.0 / 16)):
         """
         Arguments:
             weights (4-element tuple)
@@ -32,7 +33,9 @@ class BoxCoder(object):
 
         wx, wy, ww, wh = self.weights
         if reference_boxes.is_cuda and proposals.is_cuda:
-            targets = torch.stack(_C.box_encode(reference_boxes, proposals, wx, wy, ww, wh), dim=1)
+            targets = torch.stack(
+                _C.box_encode(reference_boxes, proposals, wx, wy, ww, wh), dim=1
+            )
         else:
             TO_REMOVE = 1  # TODO remove
             ex_widths = proposals[:, 2] - proposals[:, 0] + TO_REMOVE
@@ -51,7 +54,9 @@ class BoxCoder(object):
             targets_dw = ww * torch.log(gt_widths / ex_widths)
             targets_dh = wh * torch.log(gt_heights / ex_heights)
 
-            targets = torch.stack((targets_dx, targets_dy, targets_dw, targets_dh), dim=1)
+            targets = torch.stack(
+                (targets_dx, targets_dy, targets_dw, targets_dh), dim=1
+            )
         return targets
 
     def decode(self, rel_codes, boxes):

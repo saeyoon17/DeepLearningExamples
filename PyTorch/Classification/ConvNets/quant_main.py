@@ -31,6 +31,7 @@ import argparse
 import random
 from copy import deepcopy
 
+import dllogger
 import torch
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
@@ -38,15 +39,13 @@ import torch.nn.parallel
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
-
+from image_classification.models import (efficientnet_quant_b0,
+                                         efficientnet_quant_b4)
+from image_classification.quantization import *
 from image_classification.training import *
 from image_classification.utils import *
-from image_classification.quantization import *
-from image_classification.models import efficientnet_quant_b0, efficientnet_quant_b4
-
-from main import prepare_for_training, add_parser_arguments as parse_training
-
-import dllogger
+from main import add_parser_arguments as parse_training
+from main import prepare_for_training
 
 
 def available_models():

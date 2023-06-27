@@ -22,17 +22,16 @@ from pathlib import Path
 from typing import Callable, List
 
 import cudf
+import cugraph
+import cugraph.dask as dask_cugraph
 import numpy as np
 import pandas as pd
 import psutil
 import torch
-import cugraph
-from tqdm import tqdm
 import torch.multiprocessing as mp
-import cugraph.dask as dask_cugraph
-from torch.multiprocessing import Pool
-
 from syngen.utils.df_reader import DFReader
+from torch.multiprocessing import Pool
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 log = logger
@@ -80,9 +79,7 @@ def read_edge_list(
             input_data_path, delimiter=delimiter, names=col_names, dtype=dtype
         )
     else:
-        raise ValueError(
-            f"{reader} is not supported, must be one of \ {READERS}"
-        )
+        raise ValueError(f"{reader} is not supported, must be one of \ {READERS}")
 
     return e_list
 
@@ -111,7 +108,7 @@ def _generate_samples(
     i: int = 0,
 ):
     """
-        MP sample generation fn
+    MP sample generation fn
     """
     ext = str(i)
     fp = save_path / f"{fname}_{ext}.csv"
@@ -214,9 +211,7 @@ def chunk_sample_generation(
                 pool.close()
                 pool.join()
         else:
-            for i in tqdm(
-                range(0, n_samples, inc), desc="Generating features..."
-            ):
+            for i in tqdm(range(0, n_samples, inc), desc="Generating features..."):
                 file_paths.append(generate_samples_p(i))
 
     return file_paths

@@ -15,25 +15,24 @@
 import os
 
 import dllogger as logger
-import tensorflow as tf
 import horovod.tensorflow as hvd
 import numpy as np
-from dllogger import StdOutBackend, Verbosity, JSONStreamBackend
-
+import tensorflow as tf
+from dllogger import JSONStreamBackend, StdOutBackend, Verbosity
 from utils.model_fn import unet_fn
 
 
 def set_flags():
-    os.environ['CUDA_CACHE_DISABLE'] = '1'
-    os.environ['HOROVOD_GPU_ALLREDUCE'] = 'NCCL'
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    os.environ['TF_GPU_THREAD_MODE'] = 'gpu_private'
-    os.environ['TF_USE_CUDNN_BATCHNORM_SPATIAL_PERSISTENT'] = '0'
-    os.environ['TF_ADJUST_HUE_FUSED'] = '1'
-    os.environ['TF_ADJUST_SATURATION_FUSED'] = '1'
-    os.environ['TF_ENABLE_WINOGRAD_NONFUSED'] = '1'
-    os.environ['TF_SYNC_ON_FINISH'] = '0'
-    os.environ['TF_AUTOTUNE_THRESHOLD'] = '2'
+    os.environ["CUDA_CACHE_DISABLE"] = "1"
+    os.environ["HOROVOD_GPU_ALLREDUCE"] = "NCCL"
+    os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+    os.environ["TF_GPU_THREAD_MODE"] = "gpu_private"
+    os.environ["TF_USE_CUDNN_BATCHNORM_SPATIAL_PERSISTENT"] = "0"
+    os.environ["TF_ADJUST_HUE_FUSED"] = "1"
+    os.environ["TF_ADJUST_SATURATION_FUSED"] = "1"
+    os.environ["TF_ENABLE_WINOGRAD_NONFUSED"] = "1"
+    os.environ["TF_SYNC_ON_FINISH"] = "0"
+    os.environ["TF_AUTOTUNE_THRESHOLD"] = "2"
 
 
 def prepare_model_dir(params):
@@ -41,27 +40,31 @@ def prepare_model_dir(params):
     model_dir = model_dir if (hvd.rank() == 0 and not params.benchmark) else None
     if model_dir is not None:
         os.makedirs(model_dir, exist_ok=True)
-        if ('train' in params.exec_mode) and (not params.resume_training):
-            os.system('rm -rf {}/*'.format(model_dir))
+        if ("train" in params.exec_mode) and (not params.resume_training):
+            os.system("rm -rf {}/*".format(model_dir))
 
     return model_dir
 
 
 def build_estimator(params, model_dir):
     if params.use_amp:
-        os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'
+        os.environ["TF_ENABLE_AUTO_MIXED_PRECISION"] = "1"
     else:
-        os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '0'
+        os.environ["TF_ENABLE_AUTO_MIXED_PRECISION"] = "0"
 
     np.random.seed(params.seed)
     tf.compat.v1.random.set_random_seed(params.seed)
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
     gpu_options = tf.compat.v1.GPUOptions()
-    config = tf.compat.v1.ConfigProto(gpu_options=gpu_options, allow_soft_placement=True)
+    config = tf.compat.v1.ConfigProto(
+        gpu_options=gpu_options, allow_soft_placement=True
+    )
 
     if params.use_xla:
-        config.graph_options.optimizer_options.global_jit_level = tf.compat.v1.OptimizerOptions.ON_1
+        config.graph_options.optimizer_options.global_jit_level = (
+            tf.compat.v1.OptimizerOptions.ON_1
+        )
 
     config.gpu_options.allow_growth = True
     config.gpu_options.visible_device_list = str(hvd.local_rank())
@@ -70,14 +73,15 @@ def build_estimator(params, model_dir):
         save_summary_steps=1,
         tf_random_seed=params.seed,
         session_config=config,
-        save_checkpoints_steps=(params.max_steps // hvd.size()) if hvd.rank() == 0 else None,
-        keep_checkpoint_max=1)
+        save_checkpoints_steps=(params.max_steps // hvd.size())
+        if hvd.rank() == 0
+        else None,
+        keep_checkpoint_max=1,
+    )
 
     estimator = tf.estimator.Estimator(
-        model_fn=unet_fn,
-        model_dir=model_dir,
-        config=run_config,
-        params=params)
+        model_fn=unet_fn, model_dir=model_dir, config=run_config, params=params
+    )
     return estimator
 
 

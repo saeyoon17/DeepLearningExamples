@@ -21,7 +21,7 @@ class BaseSynthesizer(abc.ABC):
     @classmethod
     def get_synthesizers(cls, include_parents=True):
         """Recursively find sublcasses of `BaseSynthesizer`
-        
+
         Args:
             include_parents (bool): whether to include parents to other classes. (default: `True`)
         """

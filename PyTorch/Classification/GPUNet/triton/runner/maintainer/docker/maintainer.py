@@ -27,7 +27,13 @@ from .containers import TritonServerContainer
 
 class DockerMaintainer(Maintainer):
     def triton_container(
-        self, command: str, image: str, devices: List, volumes: Dict, environment: Dict, log_file: Union[pathlib.Path, str]
+        self,
+        command: str,
+        image: str,
+        devices: List,
+        volumes: Dict,
+        environment: Dict,
+        log_file: Union[pathlib.Path, str],
     ) -> DockerContainer:
         """
         Return triton container

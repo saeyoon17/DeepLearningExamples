@@ -1,12 +1,12 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 import torch
+from maskrcnn_benchmark import _C
 from torch import nn
 from torch.autograd import Function
 from torch.autograd.function import once_differentiable
 from torch.nn.modules.utils import _pair
 
-from maskrcnn_benchmark import _C
 
 class _ROIAlign(Function):
     @staticmethod
@@ -18,14 +18,20 @@ class _ROIAlign(Function):
         ctx.input_shape = input.size()
         ctx.is_nhwc = is_nhwc
         output = _C.roi_align_forward(
-            input, roi, spatial_scale, output_size[0], output_size[1], sampling_ratio, is_nhwc
+            input,
+            roi,
+            spatial_scale,
+            output_size[0],
+            output_size[1],
+            sampling_ratio,
+            is_nhwc,
         )
         return output
 
     @staticmethod
     @once_differentiable
     def backward(ctx, grad_output):
-        rois, = ctx.saved_tensors
+        (rois,) = ctx.saved_tensors
         output_size = ctx.output_size
         spatial_scale = ctx.spatial_scale
         sampling_ratio = ctx.sampling_ratio
@@ -41,12 +47,13 @@ class _ROIAlign(Function):
             h,
             w,
             sampling_ratio,
-            ctx.is_nhwc
+            ctx.is_nhwc,
         )
         return grad_input, None, None, None, None, None
 
 
 roi_align = _ROIAlign.apply
+
 
 class ROIAlign(nn.Module):
     def __init__(self, output_size, spatial_scale, sampling_ratio, is_nhwc):
@@ -59,7 +66,12 @@ class ROIAlign(nn.Module):
     @torch.cuda.amp.custom_fwd(cast_inputs=torch.float32)
     def forward(self, input, rois):
         return roi_align(
-            input, rois, self.output_size, self.spatial_scale, self.sampling_ratio, self.nhwc
+            input,
+            rois,
+            self.output_size,
+            self.spatial_scale,
+            self.sampling_ratio,
+            self.nhwc,
         )
 
     def __repr__(self):

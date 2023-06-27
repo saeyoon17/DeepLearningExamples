@@ -20,23 +20,15 @@ from typing import Dict, Optional, Tuple, Union
 import tensorflow as tf
 from tensorflow.python.eager import wrap_function
 from tf2onnx.shape_inference import infer_shape
-from tf2onnx.tf_loader import freeze_session, inputs_without_resource, is_function, remove_redundant_inputs, tf_optimize
+from tf2onnx.tf_loader import (freeze_session, inputs_without_resource,
+                               is_function, remove_redundant_inputs,
+                               tf_optimize)
 
 from ..args import filter_fn_args
-from ..core import (
-    GET_MODEL_FN_NAME,
-    GET_SERVING_INPUT_RECEIVER_FN,
-    BaseLoader,
-    BaseRunner,
-    BaseRunnerSession,
-    BaseSaver,
-    ExportFormat,
-    Format,
-    Model,
-    ModelInputType,
-    TensorSpec,
-    load_from_file,
-)
+from ..core import (GET_MODEL_FN_NAME, GET_SERVING_INPUT_RECEIVER_FN,
+                    BaseLoader, BaseRunner, BaseRunnerSession, BaseSaver,
+                    ExportFormat, Format, Model, ModelInputType, TensorSpec,
+                    load_from_file)
 from ..extensions import loaders, runners, savers
 
 # pytype: enable=import-error
@@ -49,13 +41,17 @@ def is_tf2():
     return tf.__version__.startswith("2.")
 
 
-def create_session_config(*, allow_growth=False, use_xla=False, gpu_memory_fraction=1.0):
+def create_session_config(
+    *, allow_growth=False, use_xla=False, gpu_memory_fraction=1.0
+):
     gpu_options = tf.compat.v1.GPUOptions(
         per_process_gpu_memory_fraction=gpu_memory_fraction, allow_growth=allow_growth
     )
     config = tf.compat.v1.ConfigProto(gpu_options=gpu_options)
     if use_xla:
-        config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+        config.graph_options.optimizer_options.global_jit_level = (
+            tf.OptimizerOptions.ON_1
+        )
 
     LOGGER.debug(
         f"Using gpu memory fraction: allow_growth={allow_growth} "
@@ -92,9 +88,8 @@ def _from_saved_model_v1(sess, model_path, tag, signatures):
             continue
         signatures.append(k)
     try:
-        from tensorflow.contrib.saved_model.python.saved_model import (  # pytype: disable=import-error
-            signature_def_utils,
-        )
+        from tensorflow.contrib.saved_model.python.saved_model import \
+            signature_def_utils  # pytype: disable=import-error
 
         def get_signature_def(meta_graph_def, k):
             return signature_def_utils.get_signature_def_by_key(meta_graph_def, k)
@@ -113,7 +108,9 @@ def _from_saved_model_v1(sess, model_path, tag, signatures):
         outputs_tensor_info = get_signature_def(imported, k).outputs
         for name, output_tensor in outputs_tensor_info.items():
             outputs[name] = output_tensor.name
-    frozen_graph = freeze_session(sess, input_names=list(inputs.values()), output_names=list(outputs.values()))
+    frozen_graph = freeze_session(
+        sess, input_names=list(inputs.values()), output_names=list(outputs.values())
+    )
     return frozen_graph, inputs, outputs
 
 
@@ -128,21 +125,29 @@ class TFEstimatorLoader(BaseLoader):
             model_path = model_path.as_posix()
 
         get_model = load_from_file(model_path, "model", GET_MODEL_FN_NAME)
-        get_serving_input_receiver_fn = load_from_file(model_path, "model", GET_SERVING_INPUT_RECEIVER_FN)
+        get_serving_input_receiver_fn = load_from_file(
+            model_path, "model", GET_SERVING_INPUT_RECEIVER_FN
+        )
 
         if get_model is None:
             raise RuntimeError(f"Could not find {GET_MODEL_FN_NAME} in {model_path}")
         if get_serving_input_receiver_fn is None:
-            raise RuntimeError(f"Could not find {GET_SERVING_INPUT_RECEIVER_FN} in {model_path}")
+            raise RuntimeError(
+                f"Could not find {GET_SERVING_INPUT_RECEIVER_FN} in {model_path}"
+            )
 
         model_args = filter_fn_args(self._model_args, fn=get_model)
-        serving_input_receiver_args = filter_fn_args(self._model_args, fn=get_serving_input_receiver_fn)
+        serving_input_receiver_args = filter_fn_args(
+            self._model_args, fn=get_serving_input_receiver_fn
+        )
 
         session_config = create_session_config(allow_growth=True)
         tf.compat.v1.reset_default_graph()
         with tf.compat.v1.Session(config=session_config) as sess:
             estimator = get_model(**model_args)
-            serving_input_receiver_fn = get_serving_input_receiver_fn(**serving_input_receiver_args)
+            serving_input_receiver_fn = get_serving_input_receiver_fn(
+                **serving_input_receiver_args
+            )
 
             input_receiver = serving_input_receiver_fn()
             estimator_spec = estimator.model_fn(
@@ -154,22 +159,36 @@ class TFEstimatorLoader(BaseLoader):
 
             input_tensors_dict = input_receiver.receiver_tensors
             output_tensors_dict = estimator_spec.predictions
-            inputs_dict = {k: tensor2tensor_spec(tensor) for k, tensor in input_tensors_dict.items()}
-            outputs_dict = {k: tensor2tensor_spec(tensor) for k, tensor in output_tensors_dict.items()}
+            inputs_dict = {
+                k: tensor2tensor_spec(tensor)
+                for k, tensor in input_tensors_dict.items()
+            }
+            outputs_dict = {
+                k: tensor2tensor_spec(tensor)
+                for k, tensor in output_tensors_dict.items()
+            }
 
             input_tensor_names = [t.name for t in inputs_dict.values()]
             output_tensor_names = [t.name for t in outputs_dict.values()]
 
-            graph_saver = estimator_spec.scaffold.saver or tf.compat.v1.train.Saver(sharded=True)
+            graph_saver = estimator_spec.scaffold.saver or tf.compat.v1.train.Saver(
+                sharded=True
+            )
             graph_saver.restore(sess, estimator.latest_checkpoint())
 
             input_tensor_names = inputs_without_resource(sess, input_tensor_names)
-            frozen_graph = freeze_session(sess, input_names=input_tensor_names, output_names=output_tensor_names)
-            input_tensor_names = remove_redundant_inputs(frozen_graph, input_tensor_names)
+            frozen_graph = freeze_session(
+                sess, input_names=input_tensor_names, output_names=output_tensor_names
+            )
+            input_tensor_names = remove_redundant_inputs(
+                frozen_graph, input_tensor_names
+            )
 
         tf.compat.v1.reset_default_graph()
         with tf.compat.v1.Session(config=estimator.config.session_config):
-            frozen_graph = tf_optimize(input_tensor_names, output_tensor_names, frozen_graph)
+            frozen_graph = tf_optimize(
+                input_tensor_names, output_tensor_names, frozen_graph
+            )
         tf.compat.v1.reset_default_graph()
 
         return Model(frozen_graph, None, inputs_dict, outputs_dict)
@@ -216,14 +235,21 @@ class TFKerasLoader(BaseLoader):
         }
 
         concrete_func = call_fn.get_concrete_function(
-            *(tf.TensorSpec(shape=spec.shape, dtype=spec.dtype, name=name) for name, spec in inputs_dict.items())
+            *(
+                tf.TensorSpec(shape=spec.shape, dtype=spec.dtype, name=name)
+                for name, spec in inputs_dict.items()
+            )
         )
 
         output_tensors_names = [tensor.name for tensor in concrete_func.outputs]
 
         outputs_dict: Dict[str, TensorSpec] = {
-            output_name: TensorSpec(output_tensor_name, t.dtype.name, tuple(t.shape.as_list()))
-            for output_name, output_tensor_name, t in zip(model.output_names, output_tensors_names, model.outputs)
+            output_name: TensorSpec(
+                output_tensor_name, t.dtype.name, tuple(t.shape.as_list())
+            )
+            for output_name, output_tensor_name, t in zip(
+                model.output_names, output_tensors_names, model.outputs
+            )
         }
 
         tf.keras.backend.clear_session()
@@ -234,7 +260,10 @@ class TFKerasLoader(BaseLoader):
                 spec = spec._replace(name=spec.name + ":0")
             return spec
 
-        inputs_dict = {name: _add_suffix_as_quickfix_for_tf24_func_refactor(spec) for name, spec in inputs_dict.items()}
+        inputs_dict = {
+            name: _add_suffix_as_quickfix_for_tf24_func_refactor(spec)
+            for name, spec in inputs_dict.items()
+        }
 
         return Model(model, None, inputs_dict, outputs_dict)
 
@@ -254,7 +283,8 @@ class TFSavedModelLoader(BaseLoader):
                 tf.config.experimental.set_memory_growth(device, True)
 
         if is_tf2():
-            from tf2onnx.tf_loader import _from_saved_model_v2  # pytype: disable=import-error
+            from tf2onnx.tf_loader import \
+                _from_saved_model_v2  # pytype: disable=import-error
 
             (
                 graph_def,
@@ -288,17 +318,33 @@ class TFSavedModelLoader(BaseLoader):
                 assert concrete_func._num_positional_args in [0, 1]
                 input_names = concrete_func._arg_keywords
 
-            input_tensors = [tensor for tensor in concrete_func.inputs if tensor.dtype != tf.dtypes.resource]
-            inputs = {name: tensor.name for name, tensor in zip(input_names, input_tensors)}
+            input_tensors = [
+                tensor
+                for tensor in concrete_func.inputs
+                if tensor.dtype != tf.dtypes.resource
+            ]
+            inputs = {
+                name: tensor.name for name, tensor in zip(input_names, input_tensors)
+            }
 
             # they are already flattened
-            output_tensors = [tensor for tensor in concrete_func.outputs if tensor.dtype != tf.dtypes.resource]
-            output_names = sorted(concrete_func.structured_outputs)  # because outputs are in flatten form
-            outputs = {name: tensor.name for name, tensor in zip(output_names, output_tensors)}
+            output_tensors = [
+                tensor
+                for tensor in concrete_func.outputs
+                if tensor.dtype != tf.dtypes.resource
+            ]
+            output_names = sorted(
+                concrete_func.structured_outputs
+            )  # because outputs are in flatten form
+            outputs = {
+                name: tensor.name for name, tensor in zip(output_names, output_tensors)
+            }
         else:
             session_config = create_session_config(allow_growth=True)
             with tf.compat.v1.Session(config=session_config) as sess:
-                graph_def, inputs, outputs = _from_saved_model_v1(sess, model_path, tag=None, signatures=[])
+                graph_def, inputs, outputs = _from_saved_model_v1(
+                    sess, model_path, tag=None, signatures=[]
+                )
 
         inputs, outputs = handle_tensor_specs(graph_def, inputs, outputs)
 
@@ -339,10 +385,12 @@ class TF1RunnerSession(BaseRunnerSession):
         tf.import_graph_def(self._model.handle, name="")
 
         self._inputs = {
-            name: self._session.graph.get_tensor_by_name(spec.name) for name, spec in self._model.inputs.items()
+            name: self._session.graph.get_tensor_by_name(spec.name)
+            for name, spec in self._model.inputs.items()
         }
         self._outputs = {
-            name: self._session.graph.get_tensor_by_name(spec.name) for name, spec in self._model.outputs.items()
+            name: self._session.graph.get_tensor_by_name(spec.name)
+            for name, spec in self._model.outputs.items()
         }
         return self
 
@@ -373,7 +421,8 @@ class TF2RunnerSession(BaseRunnerSession):
             self._model.handle, input_tensor_names, output_tensor_names
         )
         self._concrete_func._signature = [
-            tf.TensorSpec(shape=spec.shape, dtype=spec.dtype, name=name) for name, spec in self._model.inputs.items()
+            tf.TensorSpec(shape=spec.shape, dtype=spec.dtype, name=name)
+            for name, spec in self._model.inputs.items()
         ]
         return self
 
@@ -395,7 +444,9 @@ class TFSavedModelSaver(BaseSaver):
         if isinstance(model_path, Path):
             model_path = model_path.as_posix()
         if is_tf2():
-            tf.keras.models.save_model(model=model.handle, filepath=model_path, overwrite=True)
+            tf.keras.models.save_model(
+                model=model.handle, filepath=model_path, overwrite=True
+            )
         else:
             session_config = create_session_config(allow_growth=True)
             with tf.compat.v1.Session(config=session_config) as sess:
@@ -405,8 +456,14 @@ class TFSavedModelSaver(BaseSaver):
                 if not is_func:
                     infer_shape(sess.graph, {})
 
-                inputs = {name: sess.graph.get_tensor_by_name(spec.name) for name, spec in model.inputs.items()}
-                outputs = {name: sess.graph.get_tensor_by_name(spec.name) for name, spec in model.outputs.items()}
+                inputs = {
+                    name: sess.graph.get_tensor_by_name(spec.name)
+                    for name, spec in model.inputs.items()
+                }
+                outputs = {
+                    name: sess.graph.get_tensor_by_name(spec.name)
+                    for name, spec in model.outputs.items()
+                }
 
                 def _ensure_shape(tensors_dict, tensors_specs):
                     for name, tensor in tensors_dict.items():
@@ -420,20 +477,30 @@ class TFSavedModelSaver(BaseSaver):
                 LOGGER.info(inputs)
                 LOGGER.info(outputs)
 
-                tf.compat.v1.saved_model.simple_save(sess, model_path, inputs, outputs, legacy_init_op=None)
+                tf.compat.v1.saved_model.simple_save(
+                    sess, model_path, inputs, outputs, legacy_init_op=None
+                )
 
 
 def handle_tensor_specs(
     graph_def, inputs: Dict[str, str], outputs: Dict[str, str]
 ) -> Tuple[Dict[str, TensorSpec], Dict[str, TensorSpec]]:
-    session_config = tf.compat.v1.ConfigProto(graph_options=tf.compat.v1.GraphOptions(infer_shapes=True))
+    session_config = tf.compat.v1.ConfigProto(
+        graph_options=tf.compat.v1.GraphOptions(infer_shapes=True)
+    )
     tf.compat.v1.reset_default_graph()
     with tf.compat.v1.Session(config=session_config) as sess:
         tf.import_graph_def(graph_def, name="")
 
         def _get_spec(tensors_dict):
-            tensors_dict = {name: sess.graph.get_tensor_by_name(tname) for name, tname in tensors_dict.items()}
-            return {name: tensor2tensor_spec(tensor) for name, tensor in tensors_dict.items()}
+            tensors_dict = {
+                name: sess.graph.get_tensor_by_name(tname)
+                for name, tname in tensors_dict.items()
+            }
+            return {
+                name: tensor2tensor_spec(tensor)
+                for name, tensor in tensors_dict.items()
+            }
 
         inputs = _get_spec(inputs)
         outputs = _get_spec(outputs)

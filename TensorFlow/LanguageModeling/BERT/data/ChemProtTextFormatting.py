@@ -11,11 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import csv
-import zipfile
 import argparse
+import csv
+import os
 import re
+import zipfile
+
 
 class ChemProtTextFormatting:
     """A basic formatter to preprocess the chemprot dataset.

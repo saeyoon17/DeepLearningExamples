@@ -19,7 +19,8 @@ from typing import List, Optional
 if __package__ is None:
     __package__ = pathlib.Path(__file__).parent.name
 
-from ..core import EvaluationMode, MeasurementMode, OfflineMode, PerformanceTool
+from ..core import (EvaluationMode, MeasurementMode, OfflineMode,
+                    PerformanceTool)
 from .model_analyzer import ModelAnalyzerRunner
 from .perf_analyzer import PerfAnalyzerRunner, PerfAnalyzerWarmupRunner
 

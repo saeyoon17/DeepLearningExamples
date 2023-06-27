@@ -34,5 +34,6 @@ def main(cfg):
     preprocessor.save_state()
     preprocessor.save_datasets(train, valid, test)
 
+
 if __name__ == "__main__":
     main()

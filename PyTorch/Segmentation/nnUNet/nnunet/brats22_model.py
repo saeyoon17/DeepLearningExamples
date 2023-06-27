@@ -47,7 +47,15 @@ def get_transp_conv(in_channels, out_channels, kernel_size, stride, dim):
     conv = convolutions[f"ConvTranspose{dim}d"]
     padding = get_padding(kernel_size, stride)
     output_padding = get_output_padding(kernel_size, stride, padding)
-    return conv(in_channels, out_channels, kernel_size, stride, padding, output_padding, bias=True)
+    return conv(
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding,
+        output_padding,
+        bias=True,
+    )
 
 
 def get_padding(kernel_size, stride):
@@ -113,10 +121,14 @@ class ConvBlock(nn.Module):
 class UpsampleBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, **kwargs):
         super(UpsampleBlock, self).__init__()
-        self.conv_block = ConvBlock(out_channels + in_channels, out_channels, kernel_size, 1, **kwargs)
+        self.conv_block = ConvBlock(
+            out_channels + in_channels, out_channels, kernel_size, 1, **kwargs
+        )
 
     def forward(self, x, x_skip):
-        x = nn.functional.interpolate(x, scale_factor=2, mode="trilinear", align_corners=True)
+        x = nn.functional.interpolate(
+            x, scale_factor=2, mode="trilinear", align_corners=True
+        )
         x = torch.cat((x, x_skip), dim=1)
         x = self.conv_block(x)
         return x
@@ -125,7 +137,9 @@ class UpsampleBlock(nn.Module):
 class OutputBlock(nn.Module):
     def __init__(self, in_channels, out_channels, dim):
         super(OutputBlock, self).__init__()
-        self.conv = get_conv(in_channels, out_channels, kernel_size=1, stride=1, dim=dim, bias=True)
+        self.conv = get_conv(
+            in_channels, out_channels, kernel_size=1, stride=1, dim=dim, bias=True
+        )
 
     def forward(self, input_data):
         return self.conv(input_data)
@@ -189,7 +203,15 @@ class UNet3D(nn.Module):
                 out.append(self.deep_supervision_heads[i](decoder_out))
         return out
 
-    def get_conv_block(self, conv_block, in_channels, out_channels, kernel_size, stride, drop_block=False):
+    def get_conv_block(
+        self,
+        conv_block,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        drop_block=False,
+    ):
         return conv_block(
             dim=self.dim,
             stride=stride,
@@ -200,15 +222,23 @@ class UNet3D(nn.Module):
         )
 
     def get_output_block(self, decoder_level):
-        return OutputBlock(in_channels=self.filters[decoder_level], out_channels=self.n_class, dim=self.dim)
+        return OutputBlock(
+            in_channels=self.filters[decoder_level],
+            out_channels=self.n_class,
+            dim=self.dim,
+        )
 
     def get_deep_supervision_heads(self):
         return nn.ModuleList([self.get_output_block(1), self.get_output_block(2)])
 
     def get_module_list(self, in_channels, out_channels, kernels, strides, conv_block):
         layers = []
-        for in_channel, out_channel, kernel, stride in zip(in_channels, out_channels, kernels, strides):
-            conv_layer = self.get_conv_block(conv_block, in_channel, out_channel, kernel, stride)
+        for in_channel, out_channel, kernel, stride in zip(
+            in_channels, out_channels, kernels, strides
+        ):
+            conv_layer = self.get_conv_block(
+                conv_block, in_channel, out_channel, kernel, stride
+            )
             layers.append(conv_layer)
         return nn.ModuleList(layers)
 

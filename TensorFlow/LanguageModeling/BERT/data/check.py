@@ -14,7 +14,6 @@
 
 import csv
 
-
 o = csv.reader(open("data/biobert/chemprot-data_treeLSTM/dev.tsv", "r"), delimiter="\t")
 nv = csv.reader(open("data/biobert/ChemProt_NV/dev.tsv", "r"), delimiter="\t")
 

@@ -19,7 +19,7 @@ import numpy as np
 import tensorflow as tf
 
 EPSILON = 1e-8
-BBOX_XFORM_CLIP = np.log(1000. / 16.)
+BBOX_XFORM_CLIP = np.log(1000.0 / 16.0)
 
 
 def jitter_boxes(boxes, noise_scale=0.025):
@@ -41,9 +41,10 @@ def jitter_boxes(boxes, noise_scale=0.025):
     """
     if boxes.shape[-1] != 4:
         raise ValueError(
-            'boxes.shape[-1] is {:d}, but must be 4.'.format(boxes.shape[-1]))
+            "boxes.shape[-1] is {:d}, but must be 4.".format(boxes.shape[-1])
+        )
 
-    with tf.name_scope('jitter_boxes'):
+    with tf.name_scope("jitter_boxes"):
         bbox_jitters = tf.random.normal(boxes.get_shape(), stddev=noise_scale)
         ymin = boxes[..., 0:1]
         xmin = boxes[..., 1:2]
@@ -55,11 +56,15 @@ def jitter_boxes(boxes, noise_scale=0.025):
         new_center_y = (ymin + ymax) / 2.0 + bbox_jitters[..., 1:2] * height
         new_width = width * tf.exp(bbox_jitters[..., 2:3])
         new_height = height * tf.exp(bbox_jitters[..., 3:4])
-        jittered_boxes = tf.concat([
-            new_center_y - new_height * 0.5,
-            new_center_x - new_width * 0.5,
-            new_center_y + new_height * 0.5,
-            new_center_x + new_width * 0.5], axis=-1)
+        jittered_boxes = tf.concat(
+            [
+                new_center_y - new_height * 0.5,
+                new_center_x - new_width * 0.5,
+                new_center_y + new_height * 0.5,
+                new_center_x + new_width * 0.5,
+            ],
+            axis=-1,
+        )
 
         return jittered_boxes
 
@@ -83,9 +88,10 @@ def normalize_boxes(boxes, image_shape):
     """
     if boxes.shape[-1] != 4:
         raise ValueError(
-            'boxes.shape[-1] is {:d}, but must be 4.'.format(boxes.shape[-1]))
+            "boxes.shape[-1] is {:d}, but must be 4.".format(boxes.shape[-1])
+        )
 
-    with tf.name_scope('normalize_boxes'):
+    with tf.name_scope("normalize_boxes"):
         if isinstance(image_shape, (list, tuple)):
             height, width = image_shape
         else:
@@ -119,7 +125,7 @@ def denormalize_boxes(boxes, image_shape):
     Raises:
       ValueError: If the last dimension of boxes is not 4.
     """
-    with tf.name_scope('denormalize_boxes'):
+    with tf.name_scope("denormalize_boxes"):
         if isinstance(image_shape, (list, tuple)):
             height, width = image_shape
         else:
@@ -155,9 +161,10 @@ def clip_boxes(boxes, image_shape):
     """
     if boxes.shape[-1] != 4:
         raise ValueError(
-            'boxes.shape[-1] is {:d}, but must be 4.'.format(boxes.shape[-1]))
+            "boxes.shape[-1] is {:d}, but must be 4.".format(boxes.shape[-1])
+        )
 
-    with tf.name_scope('clip_boxes'):
+    with tf.name_scope("clip_boxes"):
         if isinstance(image_shape, (list, tuple)):
             height, width = image_shape
         else:
@@ -176,8 +183,8 @@ def clip_boxes(boxes, image_shape):
         clipped_xmax = tf.maximum(tf.minimum(xmax, width - 1.0), 0.0)
 
         clipped_boxes = tf.concat(
-            [clipped_ymin, clipped_xmin, clipped_ymax, clipped_xmax],
-            axis=-1)
+            [clipped_ymin, clipped_xmin, clipped_ymax, clipped_xmax], axis=-1
+        )
         return clipped_boxes
 
 
@@ -199,16 +206,21 @@ def compute_outer_boxes(boxes, image_shape, scale=1.0):
     """
     if scale < 1.0:
         raise ValueError(
-            'scale is {}, but outer box scale must be greater than 1.0.'.format(
-                scale))
+            "scale is {}, but outer box scale must be greater than 1.0.".format(scale)
+        )
     centers_y = (boxes[..., 0] + boxes[..., 2]) / 2.0
     centers_x = (boxes[..., 1] + boxes[..., 3]) / 2.0
     box_height = (boxes[..., 2] - boxes[..., 0]) * scale
     box_width = (boxes[..., 3] - boxes[..., 1]) * scale
-    outer_boxes = tf.stack([centers_y - box_height / 2.0,
-                            centers_x - box_width / 2.0,
-                            centers_y + box_height / 2.0,
-                            centers_x + box_width / 2.0], axis=1)
+    outer_boxes = tf.stack(
+        [
+            centers_y - box_height / 2.0,
+            centers_x - box_width / 2.0,
+            centers_y + box_height / 2.0,
+            centers_x + box_width / 2.0,
+        ],
+        axis=1,
+    )
     outer_boxes = clip_boxes(outer_boxes, image_shape)
     return outer_boxes
 
@@ -232,9 +244,10 @@ def encode_boxes(boxes, anchors, weights=None):
     """
     if boxes.shape[-1] != 4:
         raise ValueError(
-            'boxes.shape[-1] is {:d}, but must be 4.'.format(boxes.shape[-1]))
+            "boxes.shape[-1] is {:d}, but must be 4.".format(boxes.shape[-1])
+        )
 
-    with tf.name_scope('encode_boxes'):
+    with tf.name_scope("encode_boxes"):
         boxes = tf.cast(boxes, dtype=anchors.dtype)
         ymin = boxes[..., 0:1]
         xmin = boxes[..., 1:2]
@@ -265,8 +278,8 @@ def encode_boxes(boxes, anchors, weights=None):
             encoded_dw *= weights[3]
 
         encoded_boxes = tf.concat(
-            [encoded_dy, encoded_dx, encoded_dh, encoded_dw],
-            axis=-1)
+            [encoded_dy, encoded_dx, encoded_dh, encoded_dw], axis=-1
+        )
         return encoded_boxes
 
 
@@ -286,10 +299,12 @@ def decode_boxes(encoded_boxes, anchors, weights=None):
     """
     if encoded_boxes.shape[-1] != 4:
         raise ValueError(
-            'encoded_boxes.shape[-1] is {:d}, but must be 4.'
-                .format(encoded_boxes.shape[-1]))
+            "encoded_boxes.shape[-1] is {:d}, but must be 4.".format(
+                encoded_boxes.shape[-1]
+            )
+        )
 
-    with tf.name_scope('decode_boxes'):
+    with tf.name_scope("decode_boxes"):
         encoded_boxes = tf.cast(encoded_boxes, dtype=anchors.dtype)
         dy = encoded_boxes[..., 0:1]
         dx = encoded_boxes[..., 1:2]
@@ -323,9 +338,14 @@ def decode_boxes(encoded_boxes, anchors, weights=None):
         decoded_boxes_xmax = decoded_boxes_xmin + decoded_boxes_w - 1.0
 
         decoded_boxes = tf.concat(
-            [decoded_boxes_ymin, decoded_boxes_xmin,
-             decoded_boxes_ymax, decoded_boxes_xmax],
-            axis=-1)
+            [
+                decoded_boxes_ymin,
+                decoded_boxes_xmin,
+                decoded_boxes_ymax,
+                decoded_boxes_xmax,
+            ],
+            axis=-1,
+        )
         return decoded_boxes
 
 
@@ -352,9 +372,10 @@ def filter_boxes(boxes, scores, image_shape, min_size_threshold):
     """
     if boxes.shape[-1] != 4:
         raise ValueError(
-            'boxes.shape[1] is {:d}, but must be 4.'.format(boxes.shape[-1]))
+            "boxes.shape[1] is {:d}, but must be 4.".format(boxes.shape[-1])
+        )
 
-    with tf.name_scope('filter_boxes'):
+    with tf.name_scope("filter_boxes"):
         if isinstance(image_shape, (list, tuple)):
             height, width = image_shape
         else:
@@ -375,15 +396,18 @@ def filter_boxes(boxes, scores, image_shape, min_size_threshold):
         min_size = tf.cast(tf.maximum(min_size_threshold, 1.0), dtype=boxes.dtype)
 
         filtered_size_mask = tf.logical_and(
-            tf.greater(h, min_size), tf.greater(w, min_size))
+            tf.greater(h, min_size), tf.greater(w, min_size)
+        )
         filtered_center_mask = tf.logical_and(
             tf.logical_and(tf.greater(yc, 0.0), tf.less(yc, height)),
-            tf.logical_and(tf.greater(xc, 0.0), tf.less(xc, width)))
+            tf.logical_and(tf.greater(xc, 0.0), tf.less(xc, width)),
+        )
         filtered_mask = tf.logical_and(filtered_size_mask, filtered_center_mask)
 
         filtered_scores = tf.where(filtered_mask, scores, tf.zeros_like(scores))
-        filtered_boxes = tf.cast(
-            tf.expand_dims(filtered_mask, axis=-1), dtype=boxes.dtype) * boxes
+        filtered_boxes = (
+            tf.cast(tf.expand_dims(filtered_mask, axis=-1), dtype=boxes.dtype) * boxes
+        )
 
         return filtered_boxes, filtered_scores
 
@@ -407,13 +431,15 @@ def filter_boxes_by_scores(boxes, scores, min_score_threshold):
     """
     if boxes.shape[-1] != 4:
         raise ValueError(
-            'boxes.shape[1] is {:d}, but must be 4.'.format(boxes.shape[-1]))
+            "boxes.shape[1] is {:d}, but must be 4.".format(boxes.shape[-1])
+        )
 
-    with tf.name_scope('filter_boxes_by_scores'):
+    with tf.name_scope("filter_boxes_by_scores"):
         filtered_mask = tf.greater(scores, min_score_threshold)
         filtered_scores = tf.where(filtered_mask, scores, tf.zeros_like(scores))
-        filtered_boxes = tf.cast(
-            tf.expand_dims(filtered_mask, axis=-1), dtype=boxes.dtype) * boxes
+        filtered_boxes = (
+            tf.cast(tf.expand_dims(filtered_mask, axis=-1), dtype=boxes.dtype) * boxes
+        )
 
         return filtered_boxes, filtered_scores
 
@@ -434,18 +460,17 @@ def top_k_boxes(boxes, scores, k):
       selected_scores: a tensor of shape [batch_size, k] representing the selected
         top k box scores.
     """
-    with tf.name_scope('top_k_boxes'):
+    with tf.name_scope("top_k_boxes"):
         selected_scores, top_k_indices = tf.nn.top_k(scores, k=k, sorted=True)
 
         batch_size, _ = scores.get_shape().as_list()
         if batch_size == 1:
-            selected_boxes = tf.squeeze(
-                tf.gather(boxes, top_k_indices, axis=1), axis=1)
+            selected_boxes = tf.squeeze(tf.gather(boxes, top_k_indices, axis=1), axis=1)
         else:
             top_k_indices_shape = tf.shape(input=top_k_indices)
-            batch_indices = (
-                    tf.expand_dims(tf.range(top_k_indices_shape[0]), axis=-1) *
-                    tf.ones([1, top_k_indices_shape[-1]], dtype=tf.int32))
+            batch_indices = tf.expand_dims(
+                tf.range(top_k_indices_shape[0]), axis=-1
+            ) * tf.ones([1, top_k_indices_shape[-1]], dtype=tf.int32)
             gather_nd_indices = tf.stack([batch_indices, top_k_indices], axis=-1)
             selected_boxes = tf.gather_nd(boxes, gather_nd_indices)
 
@@ -467,11 +492,13 @@ def bbox_overlap(boxes, gt_boxes):
     Returns:
       iou: a tensor with as a shape of [batch_size, N, MAX_NUM_INSTANCES].
     """
-    with tf.name_scope('bbox_overlap'):
+    with tf.name_scope("bbox_overlap"):
         bb_y_min, bb_x_min, bb_y_max, bb_x_max = tf.split(
-            value=boxes, num_or_size_splits=4, axis=2)
+            value=boxes, num_or_size_splits=4, axis=2
+        )
         gt_y_min, gt_x_min, gt_y_max, gt_x_max = tf.split(
-            value=gt_boxes, num_or_size_splits=4, axis=2)
+            value=gt_boxes, num_or_size_splits=4, axis=2
+        )
 
         # Calculates the intersection area.
         i_xmin = tf.maximum(bb_x_min, tf.transpose(a=gt_x_min, perm=[0, 2, 1]))

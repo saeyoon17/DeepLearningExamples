@@ -13,16 +13,17 @@
 # limitations under the License.
 
 import sys
-import pandas as pd
 from pathlib import Path
 
-if __name__ == '__main__':
+import pandas as pd
+
+if __name__ == "__main__":
     data_path = sys.argv[1]
     save_path = Path(data_path).parent
-    save_path = save_path / 'data.csv'
+    save_path = save_path / "data.csv"
     df = pd.read_csv(data_path)
-    df['user'] = df['first'] + df['last']
-    df = df.groupby(['user', 'merchant'], axis=0).tail(1).reset_index(drop=True)
-    df = df.drop(columns=['user'])
+    df["user"] = df["first"] + df["last"]
+    df = df.groupby(["user", "merchant"], axis=0).tail(1).reset_index(drop=True)
+    df = df.drop(columns=["user"])
     # - save data
     df.to_csv(save_path, index=False)

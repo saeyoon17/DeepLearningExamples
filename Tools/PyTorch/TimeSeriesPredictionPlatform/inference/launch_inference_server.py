@@ -17,11 +17,13 @@ import os
 import shutil
 import subprocess
 from typing import Dict, List, Optional, Tuple
+
 import dllogger
-import shutil
 import hydra
-from triton.dataloader import get_dataloader_fn
 from loggers.log_helper import setup_logger
+from triton.dataloader import get_dataloader_fn
+
+
 def run_server_launch(config):
     cfg = config
     # export model
@@ -29,18 +31,33 @@ def run_server_launch(config):
     tspp_main_dir = os.path.sep + os.path.join(*(os.getcwd().split(os.path.sep)[:-3]))
 
     # get the actual model name
-    if not os.path.isdir(os.path.join(output_path, "navigator_workspace")) or not os.path.isdir(
+    if not os.path.isdir(
+        os.path.join(output_path, "navigator_workspace")
+    ) or not os.path.isdir(
         os.path.join(output_path, "navigator_workspace/model-store")
     ):
-        if os.path.isdir(os.path.join(output_path, "navigator_workspace/final-model-store")):
-            shutil.copytree(os.path.join(output_path, "navigator_workspace/final-model-store"), os.path.join(output_path, "navigator_workspace/model-store"))
+        if os.path.isdir(
+            os.path.join(output_path, "navigator_workspace/final-model-store")
+        ):
+            shutil.copytree(
+                os.path.join(output_path, "navigator_workspace/final-model-store"),
+                os.path.join(output_path, "navigator_workspace/model-store"),
+            )
         else:
             assert (
                 False
             ), "This checkpoint directory is not configured correctly, there should be a dir/deployment/navigator_workspace/model-store/ directory"
-    files_in_store = list(os.listdir(os.path.join(output_path, "navigator_workspace/model-store")))
+    files_in_store = list(
+        os.listdir(os.path.join(output_path, "navigator_workspace/model-store"))
+    )
     if len(files_in_store) < 1:
         assert False, "There needs to be exactly 1 model in the model-store directory"
-    model_name = cfg.get("model_name") if cfg.get("model_name", None) else files_in_store[0]
+    model_name = (
+        cfg.get("model_name") if cfg.get("model_name", None) else files_in_store[0]
+    )
     # deploy
-    subprocess.run(["bash", "inference/deploy.sh", output_path, str(cfg.gpu)], cwd=tspp_main_dir, check=True)
+    subprocess.run(
+        ["bash", "inference/deploy.sh", output_path, str(cfg.gpu)],
+        cwd=tspp_main_dir,
+        check=True,
+    )

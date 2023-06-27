@@ -40,12 +40,15 @@ This module is borrowed from TPU RetinaNet implementation:
 https://github.com/tensorflow/tpu/blob/master/models/official/retinanet/anchors.py
 """
 import collections
+
 import numpy as np
 import torch
 import torch.nn as nn
-from torchvision.ops.boxes import remove_small_boxes, batched_nms
+from effdet.object_detection import (ArgMaxMatcher, BoxList,
+                                     FasterRcnnBoxCoder, IouSimilarity,
+                                     TargetAssigner)
+from torchvision.ops.boxes import batched_nms, remove_small_boxes
 
-from effdet.object_detection import ArgMaxMatcher, FasterRcnnBoxCoder, BoxList, IouSimilarity, TargetAssigner
 from .layers.nms_layer import batched_soft_nms
 
 # The minimum score to consider a logit for identifying detections.
@@ -61,7 +64,7 @@ MAX_DETECTION_POINTS = 5000
 MAX_DETECTIONS_PER_IMAGE = 100
 
 
-def decode_box_outputs(rel_codes, anchors, output_xyxy: bool=False):
+def decode_box_outputs(rel_codes, anchors, output_xyxy: bool = False):
     """Transforms relative regression coordinates to absolute positions.
 
     Network predictions are normalized and relative to a given anchor; this
@@ -87,10 +90,10 @@ def decode_box_outputs(rel_codes, anchors, output_xyxy: bool=False):
     h = torch.exp(th) * ha
     ycenter = ty * ha + ycenter_a
     xcenter = tx * wa + xcenter_a
-    ymin = ycenter - h / 2.
-    xmin = xcenter - w / 2.
-    ymax = ycenter + h / 2.
-    xmax = xcenter + w / 2.
+    ymin = ycenter - h / 2.0
+    xmin = xcenter - w / 2.0
+    ymax = ycenter + h / 2.0
+    xmax = xcenter + w / 2.0
     if output_xyxy:
         out = torch.stack([xmin, ymin, xmax, ymax], dim=1)
     else:
@@ -123,7 +126,9 @@ def _generate_anchor_configs(min_level, max_level, num_scales, aspect_ratios):
         anchor_configs[level] = []
         for scale_octave in range(num_scales):
             for aspect in aspect_ratios:
-                anchor_configs[level].append((2 ** level, scale_octave / float(num_scales), aspect))
+                anchor_configs[level].append(
+                    (2**level, scale_octave / float(num_scales), aspect)
+                )
     return anchor_configs
 
 
@@ -153,7 +158,7 @@ def _generate_anchor_boxes(image_size, anchor_scale, anchor_configs):
             stride, octave_scale, aspect = config
             if image_size % stride != 0:
                 raise ValueError("input size must be divided by the stride.")
-            base_anchor_size = anchor_scale * stride * 2 ** octave_scale
+            base_anchor_size = anchor_scale * stride * 2**octave_scale
             anchor_size_x_2 = base_anchor_size * aspect[0] / 2.0
             anchor_size_y_2 = base_anchor_size * aspect[1] / 2.0
 
@@ -163,8 +168,14 @@ def _generate_anchor_boxes(image_size, anchor_scale, anchor_configs):
             xv = xv.reshape(-1)
             yv = yv.reshape(-1)
 
-            boxes = np.vstack((yv - anchor_size_y_2, xv - anchor_size_x_2,
-                               yv + anchor_size_y_2, xv + anchor_size_x_2))
+            boxes = np.vstack(
+                (
+                    yv - anchor_size_y_2,
+                    xv - anchor_size_x_2,
+                    yv + anchor_size_y_2,
+                    xv + anchor_size_x_2,
+                )
+            )
             boxes = np.swapaxes(boxes, 0, 1)
             boxes_level.append(np.expand_dims(boxes, axis=1))
         # concat anchors on the same level to the reshape NxAx4
@@ -183,8 +194,16 @@ def clip_boxes_xyxy(boxes: torch.Tensor, size: torch.Tensor):
 
 
 def generate_detections(
-        cls_outputs, box_outputs, anchor_boxes, indices, classes, img_scale, img_size,
-        max_det_per_image: int = MAX_DETECTIONS_PER_IMAGE, soft_nms: bool = False):
+    cls_outputs,
+    box_outputs,
+    anchor_boxes,
+    indices,
+    classes,
+    img_scale,
+    img_size,
+    max_det_per_image: int = MAX_DETECTIONS_PER_IMAGE,
+    soft_nms: bool = False,
+):
     """Generates detections with RetinaNet model outputs and anchors.
 
     Args:
@@ -223,7 +242,13 @@ def generate_detections(
     scores = cls_outputs.sigmoid().squeeze(1).float()
     if soft_nms:
         top_detection_idx, soft_scores = batched_soft_nms(
-            boxes, scores, classes, method_gaussian=True, iou_threshold=0.3, score_threshold=.001)
+            boxes,
+            scores,
+            classes,
+            method_gaussian=True,
+            iou_threshold=0.3,
+            score_threshold=0.001,
+        )
         scores[top_detection_idx] = soft_scores
     else:
         top_detection_idx = batched_nms(boxes, scores, classes, iou_threshold=0.5)
@@ -244,18 +269,26 @@ def generate_detections(
     # stack em and pad out to MAX_DETECTIONS_PER_IMAGE if necessary
     detections = torch.cat([boxes, scores, classes.float()], dim=1)
     if len(top_detection_idx) < max_det_per_image:
-        detections = torch.cat([
-            detections,
-            torch.zeros(
-                (max_det_per_image - len(top_detection_idx), 6), device=detections.device, dtype=detections.dtype)
-        ], dim=0)
+        detections = torch.cat(
+            [
+                detections,
+                torch.zeros(
+                    (max_det_per_image - len(top_detection_idx), 6),
+                    device=detections.device,
+                    dtype=detections.dtype,
+                ),
+            ],
+            dim=0,
+        )
     return detections
 
 
 class Anchors(nn.Module):
     """RetinaNet Anchors class."""
 
-    def __init__(self, min_level, max_level, num_scales, aspect_ratios, anchor_scale, image_size):
+    def __init__(
+        self, min_level, max_level, num_scales, aspect_ratios, anchor_scale, image_size
+    ):
         """Constructs multiscale RetinaNet anchors.
 
         Args:
@@ -286,11 +319,13 @@ class Anchors(nn.Module):
         self.anchor_scale = anchor_scale
         self.image_size = image_size
         self.config = self._generate_configs()
-        self.register_buffer('boxes', self._generate_boxes())
+        self.register_buffer("boxes", self._generate_boxes())
 
     def _generate_configs(self):
         """Generate configurations of anchor boxes."""
-        return _generate_anchor_configs(self.min_level, self.max_level, self.num_scales, self.aspect_ratios)
+        return _generate_anchor_configs(
+            self.min_level, self.max_level, self.num_scales, self.aspect_ratios
+        )
 
     def _generate_boxes(self):
         """Generates multiscale anchor boxes."""
@@ -302,10 +337,9 @@ class Anchors(nn.Module):
         return self.num_scales * len(self.aspect_ratios)
 
 
-#@torch.jit.script
+# @torch.jit.script
 class AnchorLabeler(object):
-    """Labeler for multiscale anchor boxes.
-    """
+    """Labeler for multiscale anchor boxes."""
 
     def __init__(self, anchors, num_classes: int, match_threshold: float = 0.5):
         """Constructs anchor labeler to assign labels to anchors.
@@ -323,7 +357,8 @@ class AnchorLabeler(object):
             match_threshold,
             unmatched_threshold=match_threshold,
             negatives_lower_than_unmatched=True,
-            force_match_for_each_row=True)
+            force_match_for_each_row=True,
+        )
         box_coder = FasterRcnnBoxCoder()
 
         self.target_assigner = TargetAssigner(similarity_calc, matcher, box_coder)
@@ -332,7 +367,7 @@ class AnchorLabeler(object):
         self.num_classes = num_classes
         self.feat_size = {}
         for level in range(self.anchors.min_level, self.anchors.max_level + 1):
-            self.feat_size[level] = int(self.anchors.image_size / 2 ** level)
+            self.feat_size[level] = int(self.anchors.image_size / 2**level)
         self.indices_cache = {}
 
     def label_anchors(self, gt_boxes, gt_labels):
@@ -362,7 +397,9 @@ class AnchorLabeler(object):
         anchor_box_list = BoxList(self.anchors.boxes)
 
         # cls_weights, box_weights are not used
-        cls_targets, _, box_targets, _, matches = self.target_assigner.assign(anchor_box_list, gt_box_list, gt_labels)
+        cls_targets, _, box_targets, _, matches = self.target_assigner.assign(
+            anchor_box_list, gt_box_list, gt_labels
+        )
 
         # class labels start from 1 and the background class = -1
         cls_targets -= 1
@@ -373,13 +410,17 @@ class AnchorLabeler(object):
         count = 0
         for level in range(self.anchors.min_level, self.anchors.max_level + 1):
             feat_size = self.feat_size[level]
-            steps = feat_size ** 2 * self.anchors.get_anchors_per_location()
+            steps = feat_size**2 * self.anchors.get_anchors_per_location()
             indices = torch.arange(count, count + steps, device=cls_targets.device)
             count += steps
-            cls_key = 'cls_targets_%d' % (level - self.anchors.min_level + 1)
-            bbox_key = 'box_targets_%d' % (level - self.anchors.min_level + 1)
-            cls_targets_out[cls_key] = torch.index_select(cls_targets, 0, indices).view([feat_size, feat_size, -1])
-            box_targets_out[bbox_key] = torch.index_select(box_targets, 0, indices).view([feat_size, feat_size, -1])
+            cls_key = "cls_targets_%d" % (level - self.anchors.min_level + 1)
+            bbox_key = "box_targets_%d" % (level - self.anchors.min_level + 1)
+            cls_targets_out[cls_key] = torch.index_select(cls_targets, 0, indices).view(
+                [feat_size, feat_size, -1]
+            )
+            box_targets_out[bbox_key] = torch.index_select(
+                box_targets, 0, indices
+            ).view([feat_size, feat_size, -1])
 
         num_positives = (matches.match_results != -1).float().sum()
 
@@ -391,7 +432,7 @@ class AnchorLabeler(object):
         count = 0
         for level in range(self.anchors.min_level, self.anchors.max_level + 1):
             feat_size = self.feat_size[level]
-            steps = feat_size ** 2 * anchors_per_loc
+            steps = feat_size**2 * anchors_per_loc
             indices = torch.arange(count, count + steps, device=device)
             indices_dict[level] = indices
             count += steps
@@ -414,7 +455,8 @@ class AnchorLabeler(object):
             last_sample = i == batch_size - 1
             # cls_weights, box_weights are not used
             cls_targets, _, box_targets, _, matches = self.target_assigner.assign(
-                anchor_box_list, BoxList(gt_boxes[i]), gt_classes[i])
+                anchor_box_list, BoxList(gt_boxes[i]), gt_classes[i]
+            )
 
             # class labels start from 1 and the background class = -1
             cls_targets -= 1
@@ -427,16 +469,25 @@ class AnchorLabeler(object):
                 feat_size = self.feat_size[level]
                 indices = self._get_indices(cls_targets.device, level)
                 cls_targets_out[level_index].append(
-                    torch.index_select(cls_targets, 0, indices).view([feat_size, feat_size, -1]))
+                    torch.index_select(cls_targets, 0, indices).view(
+                        [feat_size, feat_size, -1]
+                    )
+                )
                 box_targets_out[level_index].append(
-                    torch.index_select(box_targets, 0, indices).view([feat_size, feat_size, -1]))
+                    torch.index_select(box_targets, 0, indices).view(
+                        [feat_size, feat_size, -1]
+                    )
+                )
                 if last_sample:
-                    cls_targets_out[level_index] = torch.stack(cls_targets_out[level_index])
-                    box_targets_out[level_index] = torch.stack(box_targets_out[level_index])
+                    cls_targets_out[level_index] = torch.stack(
+                        cls_targets_out[level_index]
+                    )
+                    box_targets_out[level_index] = torch.stack(
+                        box_targets_out[level_index]
+                    )
 
             num_positives_out.append((matches.match_results != -1).float().sum())
             if last_sample:
                 num_positives_out = torch.stack(num_positives_out)
 
         return cls_targets_out, box_targets_out, num_positives_out
-

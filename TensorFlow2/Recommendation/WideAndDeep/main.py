@@ -12,16 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
 # DO NOT REMOVE THIS IMPORT
 # It is here to initialize nvtabular before tensorflow is initialized.
 # Removing it leads to a drop in nvtabular dataloader performance
 # Do not put other imports before this without running performance validation
-import nvtabular # noqa # pylint: disable=unused-import
+import nvtabular  # noqa # pylint: disable=unused-import
+
 # See above
 
-import os
 
-os.environ["TF_GPU_ALLOCATOR"]="cuda_malloc_async"
+os.environ["TF_GPU_ALLOCATOR"] = "cuda_malloc_async"
 
 from trainer.model.widedeep import wide_deep_model
 from trainer.run import run
@@ -32,7 +34,9 @@ from trainer.utils.setup import create_config
 def main():
     args = parse_args()
     config = create_config(args)
-    model, _ = wide_deep_model(args, config["feature_spec"], config["embedding_dimensions"])
+    model, _ = wide_deep_model(
+        args, config["feature_spec"], config["embedding_dimensions"]
+    )
     run(args, model, config)
 
 

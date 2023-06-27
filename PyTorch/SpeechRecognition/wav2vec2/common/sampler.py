@@ -12,16 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import TypeVar, List
+from typing import List, TypeVar
 
-import torch
 import numpy as np
-from torch.utils.data import (RandomSampler, Sampler,
-                              DistributedSampler as TorchDistributedSampler)
-
+import torch
 from common.fairseq.data import data_utils
+from torch.utils.data import DistributedSampler as TorchDistributedSampler
+from torch.utils.data import RandomSampler, Sampler
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class DistributedSampler(Sampler):
@@ -43,8 +42,9 @@ class DistributedSampler(Sampler):
 
         self.data_len = len(self.dataset)
 
-        self.num_samples = self.data_len // self.global_batch_size \
-            * self.global_batch_size
+        self.num_samples = (
+            self.data_len // self.global_batch_size * self.global_batch_size
+        )
 
     def distribute_batches(self, indices):
         """
@@ -55,7 +55,7 @@ class DistributedSampler(Sampler):
         assert len(indices) == self.num_samples
 
         indices = indices.view(-1, self.batch_size)
-        indices = indices[self.rank::self.world_size].contiguous()
+        indices = indices[self.rank :: self.world_size].contiguous()
         indices = indices.view(-1)
         indices = indices.tolist()
 
@@ -82,7 +82,7 @@ class DistributedSampler(Sampler):
         indices = torch.randperm(self.data_len, generator=g)
 
         # make indices evenly divisible by (batch_size * world_size)
-        indices = indices[:self.num_samples]
+        indices = indices[: self.num_samples]
 
         # assign batches to workers
         indices = self.distribute_batches(indices)
@@ -114,10 +114,10 @@ class BucketingSampler(DistributedSampler):
         super().__init__(dataset, batch_size, world_size, rank)
 
         self.num_buckets = num_buckets
-        len_ids = np.argsort([sample['duration']
-                              for sample in dataset.samples])
-        self.buckets = [torch.from_numpy(t)
-                        for t in np.array_split(len_ids, num_buckets)]
+        len_ids = np.argsort([sample["duration"] for sample in dataset.samples])
+        self.buckets = [
+            torch.from_numpy(t) for t in np.array_split(len_ids, num_buckets)
+        ]
 
     def __iter__(self):
         g = torch.Generator()
@@ -149,7 +149,7 @@ class BucketingSampler(DistributedSampler):
 
 
 class DistributedIndicesSampler(TorchDistributedSampler):
-    """ DistributedSampler operating on indices.
+    """DistributedSampler operating on indices.
 
     Differences wrt. DistributedSampler:
     1) use Numpy RNG instead of PyTorch RNG
@@ -158,6 +158,7 @@ class DistributedIndicesSampler(TorchDistributedSampler):
     3) if `drop_last` is False, pad indices with `fillvalue`
         or don't pad at all if `fillvalue` is None (useful for validation)
     """
+
     def __init__(self, *args, fillvalue=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fillvalue = fillvalue
@@ -165,8 +166,7 @@ class DistributedIndicesSampler(TorchDistributedSampler):
             self.total_size = len(self.dataset)
             # possibly different num_samples for each device,
             # this will work with DDP only for validation
-            self.num_samples = len(range(self.rank, self.total_size,
-                                         self.num_replicas))
+            self.num_samples = len(range(self.rank, self.total_size, self.num_replicas))
 
     def __iter__(self):
         indices = list(self.dataset)
@@ -182,11 +182,11 @@ class DistributedIndicesSampler(TorchDistributedSampler):
                 indices += [self.fillvalue] * padding_size
         else:
             # remove tail of data to make it evenly divisible.
-            indices = indices[:self.total_size]
+            indices = indices[: self.total_size]
         assert len(indices) == self.total_size
 
         # subsample
-        indices = indices[self.rank:self.total_size:self.num_replicas]
+        indices = indices[self.rank : self.total_size : self.num_replicas]
         assert len(indices) == self.num_samples
 
         return iter(indices)
@@ -207,12 +207,13 @@ class RandomSeedableSampler(RandomSampler):
         return super().__iter__()
 
     def set_epoch(self, epoch: int) -> None:
-        """ Allows reproducibility after resuming training. """
+        """Allows reproducibility after resuming training."""
         self.epoch = epoch
 
 
 class IndexMappingSampler(Sampler[T]):
-    """ Transforms index-based sampler to arbitrary one, e.g. batch-based. """
+    """Transforms index-based sampler to arbitrary one, e.g. batch-based."""
+
     def __init__(self, indices_map: List[T], base_sampler: Sampler[int]):
         super().__init__(indices_map)
         self.base_sampler = base_sampler
@@ -226,5 +227,5 @@ class IndexMappingSampler(Sampler[T]):
         return len(self.base_sampler)
 
     def set_epoch(self, epoch: int) -> None:
-        """ Allows reproducibility after resuming training. """
+        """Allows reproducibility after resuming training."""
         self.base_sampler.set_epoch(epoch)

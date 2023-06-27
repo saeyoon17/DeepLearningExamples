@@ -19,84 +19,53 @@
 #
 # ==============================================================================
 
-from model.layers.utils import _log_hparams
-
-from model.layers.activation import crelu
-from model.layers.activation import elu
-from model.layers.activation import leaky_relu
-from model.layers.activation import prelu
-from model.layers.activation import relu
-from model.layers.activation import relu6
-from model.layers.activation import selu
-from model.layers.activation import sigmoid
-from model.layers.activation import softmax
-from model.layers.activation import tanh
-
+from model.layers.activation import (crelu, elu, leaky_relu, prelu, relu,
+                                     relu6, selu, sigmoid, softmax, tanh)
+from model.layers.array_ops import (concat, flatten, reshape, squeeze,
+                                    upscale_2d)
 from model.layers.conv2d import conv2d
 from model.layers.deconv2d import deconv2d
-
 from model.layers.dense import dense
-
 from model.layers.drop_layers import dropout
-
 from model.layers.math_ops import reduce_mean
-
 from model.layers.normalization import batch_norm
-
 from model.layers.padding import pad
-
-from model.layers.pooling import average_pooling2d
-from model.layers.pooling import max_pooling2d
-
-from model.layers.array_ops import concat
-from model.layers.array_ops import flatten
-from model.layers.array_ops import reshape
-from model.layers.array_ops import squeeze
-from model.layers.array_ops import upscale_2d
+from model.layers.pooling import average_pooling2d, max_pooling2d
+from model.layers.utils import _log_hparams
 
 __all__ = [
-
     # activation layers
-    'crelu',
-    'elu',
-    'leaky_relu',
-    'prelu',
-    'relu',
-    'relu6',
-    'selu',
-    'sigmoid',
-    'softmax',
-    'tanh',
-
+    "crelu",
+    "elu",
+    "leaky_relu",
+    "prelu",
+    "relu",
+    "relu6",
+    "selu",
+    "sigmoid",
+    "softmax",
+    "tanh",
     # array ops
-    'concat',
-    'flatten',
-    'reshape',
-    'squeeze',
-    'upscale_2d',
-
+    "concat",
+    "flatten",
+    "reshape",
+    "squeeze",
+    "upscale_2d",
     # conv layers
-    'conv2d',
-
+    "conv2d",
     # deconv layers
-    'deconv2d',
-
+    "deconv2d",
     # dense layers
-    'dense',
-
+    "dense",
     # drop layers
-    'dropout',
-
+    "dropout",
     # math_ops layers
-    'reduce_mean',
-
+    "reduce_mean",
     # normalization layers
-    'batch_norm',
-
+    "batch_norm",
     # padding layers
-    'pad',
-
+    "pad",
     # pooling layers
-    'average_pooling2d',
-    'max_pooling2d',
+    "average_pooling2d",
+    "max_pooling2d",
 ]

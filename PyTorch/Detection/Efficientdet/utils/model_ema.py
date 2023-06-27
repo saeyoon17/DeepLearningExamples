@@ -12,17 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-
-from copy import deepcopy
 import logging
 import logging.handlers
 from collections import OrderedDict
+from copy import deepcopy
+
+import torch
 
 _logger = logging.getLogger(__name__)
 
+
 class ModelEma:
-    """ Model Exponential Moving Average
+    """Model Exponential Moving Average
     Keep a moving average of everything in the model state_dict (parameters and buffers).
     This is intended to allow functionality like
     https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage
@@ -38,7 +39,8 @@ class ModelEma:
     GPU assignment and distributed training wrappers.
     I've tested with the sequence in my own train.py for torch.DataParallel, apex.DDP, and single-GPU.
     """
-    def __init__(self, model, decay=0.9999, device='', resume='', remove_params=[]):
+
+    def __init__(self, model, decay=0.9999, device="", resume="", remove_params=[]):
         # make a copy of the model for accumulating moving average of weights
         self.ema = deepcopy(model)
         self.ema.eval()
@@ -47,24 +49,24 @@ class ModelEma:
         self.device = device  # perform ema on different device from model if set
         if device:
             self.ema.to(device=device)
-        self.ema_has_module = hasattr(self.ema, 'module')
+        self.ema_has_module = hasattr(self.ema, "module")
         if resume:
             self._load_checkpoint(resume)
         for p in self.ema.parameters():
             p.requires_grad_(False)
 
     def _load_checkpoint(self, checkpoint_path):
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
         assert isinstance(checkpoint, dict)
-        if 'state_dict_ema' in checkpoint:
+        if "state_dict_ema" in checkpoint:
             new_state_dict = OrderedDict()
-            for k, v in checkpoint['state_dict_ema'].items():
+            for k, v in checkpoint["state_dict_ema"].items():
                 # Check if key k is in the remove_params list
                 if any(remove_str in k for remove_str in self.remove_params):
                     continue
                 # ema model may have been wrapped by DataParallel, and need module prefix
                 if self.ema_has_module:
-                    name = 'module.' + k if not k.startswith('module') else k
+                    name = "module." + k if not k.startswith("module") else k
                 else:
                     name = k
                 new_state_dict[name] = v
@@ -76,19 +78,23 @@ class ModelEma:
                 self.ema.load_state_dict(new_state_dict)
             _logger.info("Loaded state_dict_ema")
         else:
-            _logger.warning("Failed to find state_dict_ema, starting from loaded model weights")
+            _logger.warning(
+                "Failed to find state_dict_ema, starting from loaded model weights"
+            )
 
     def update(self, model):
         x = []
         y = []
-        needs_module = hasattr(model, 'module') and not self.ema_has_module
+        needs_module = hasattr(model, "module") and not self.ema_has_module
         with torch.no_grad():
-            for ema_v, model_v in zip(self.ema.state_dict().values(), model.state_dict().values()):
+            for ema_v, model_v in zip(
+                self.ema.state_dict().values(), model.state_dict().values()
+            ):
                 x.append(ema_v.type(torch.float32))
                 if self.device:
                     model_v = model_v.detach().to(device=self.device)
                 y.append(model_v.type(torch.float32))
             torch._foreach_mul_(x, self.decay)
-            torch._foreach_add_(x, y, alpha=1.-self.decay)
+            torch._foreach_add_(x, y, alpha=1.0 - self.decay)
             for ind, ema_v in enumerate(self.ema.state_dict().values()):
                 ema_v.copy_(x[ind])

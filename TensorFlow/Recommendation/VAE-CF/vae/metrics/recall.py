@@ -26,7 +26,7 @@ from scipy.sparse import csr_matrix
 
 
 def recall(X_true: csr_matrix, X_top_k: np.array, R=100) -> np.array:
-    """ Calculates recall@R for each users in X_true and X_top_k matrices
+    """Calculates recall@R for each users in X_true and X_top_k matrices
 
     Args:
         X_true: Matrix containing True values for user-item interactions

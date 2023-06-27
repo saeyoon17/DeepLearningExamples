@@ -20,27 +20,31 @@
 # ==============================================================================
 
 import tensorflow as tf
-
 from model.layers.utils import _log_hparams
 
-__all__ = ['pad']
+__all__ = ["pad"]
 
 
-def pad(inputs, paddings, mode='CONSTANT', name='padding', constant_values=0):
+def pad(inputs, paddings, mode="CONSTANT", name="padding", constant_values=0):
 
-    if mode.upper() not in ['CONSTANT', 'REFLECT', 'SYMMETRIC']:
-        raise ValueError("Unknown padding mode: `%s` (accepted: ['CONSTANT', 'REFLECT', 'SYMMETRIC'])" % mode)
+    if mode.upper() not in ["CONSTANT", "REFLECT", "SYMMETRIC"]:
+        raise ValueError(
+            "Unknown padding mode: `%s` (accepted: ['CONSTANT', 'REFLECT', 'SYMMETRIC'])"
+            % mode
+        )
 
-    net = tf.pad(inputs, paddings=paddings, mode=mode, name=name, constant_values=constant_values)
+    net = tf.pad(
+        inputs, paddings=paddings, mode=mode, name=name, constant_values=constant_values
+    )
 
     _log_hparams(
-        classname='Padding',
+        classname="Padding",
         layername=net.name,
         paddings=paddings,
         mode=mode,
         constant_values=constant_values,
         out_shape=str(net.get_shape()),
-        out_dtype=net.dtype
+        out_dtype=net.dtype,
     )
 
     return net

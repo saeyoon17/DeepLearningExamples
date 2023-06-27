@@ -35,16 +35,10 @@ from .pipeline import Pipeline
 from .stages import Stage
 from .task import Experiment, Task
 from .triton import Triton
-from .utils import (
-    clean_directory,
-    exec_command,
-    format_env_key,
-    format_env_value,
-    get_result_path,
-    measurement_env_params,
-    offline_performance_configuration,
-    online_performance_configuration,
-)
+from .utils import (clean_directory, exec_command, format_env_key,
+                    format_env_value, get_result_path, measurement_env_params,
+                    offline_performance_configuration,
+                    online_performance_configuration)
 
 
 class Executor:
@@ -105,7 +99,9 @@ class Executor:
             experiment.start()
 
             LOGGER.info("Running Triton Servers:")
-            log_file = self._workspace / task.logs_dir / f"triton-server-experiment-{idx}.log"
+            log_file = (
+                self._workspace / task.logs_dir / f"triton-server-experiment-{idx}.log"
+            )
             self._triton_container = self._triton_server_container(
                 triton_container_image=task.triton_container_image,
                 framework=task.framework,
@@ -154,7 +150,9 @@ class Executor:
                 f"{Fore.CYAN}================ Experiment: {idx}/{total_experiment} Finished ================{Fore.RESET}"  # noqa: B950
             )
             yield ExperimentResult(
-                status=Status(state=ExperimentStatus.SUCCEED, message="Experiment Succeed"),
+                status=Status(
+                    state=ExperimentStatus.SUCCEED, message="Experiment Succeed"
+                ),
                 experiment=experiment,
                 results=results,
             )
@@ -193,7 +191,9 @@ class Executor:
 
         measurement_params = self._measurement_params(
             max_batch_size=experiment.parameters["max_batch_size"],
-            number_of_model_instances=experiment.parameters["number_of_model_instances"],
+            number_of_model_instances=experiment.parameters[
+                "number_of_model_instances"
+            ],
             batching=task.batching,
             steps_online=task.measurement_steps_online,
             steps_offline=task.measurement_steps_offline,
@@ -205,7 +205,9 @@ class Executor:
         }
 
         if experiment.checkpoint:
-            environment["CHECKPOINT_DIR"] = task.checkpoints[experiment.checkpoint].path.as_posix()
+            environment["CHECKPOINT_DIR"] = task.checkpoints[
+                experiment.checkpoint
+            ].path.as_posix()
 
         if task.datasets_dir:
             environment["DATASETS_DIR"] = task.datasets_dir.as_posix()
@@ -245,7 +247,10 @@ class Executor:
             Container object
         """
         volumes = {
-            self._triton_models_repository_dir: {"bind": Paths.MODEL_REPOSITORY_PATH, "mode": "rw"},
+            self._triton_models_repository_dir: {
+                "bind": Paths.MODEL_REPOSITORY_PATH,
+                "mode": "rw",
+            },
             self._libraries_dir: {"bind": Paths.LIBRARIES_PATH, "mode": "rw"},
         }
 
@@ -260,7 +265,10 @@ class Executor:
             environment["LD_LIBRARY_PATH"] = f"{library_path}:${{LD_LIBRARY_PATH}}"
             environment["LD_PRELOAD"] = Triton.custom_library_path_remote()
 
-        if accelerator == BackendAccelerator.TRT.value and precision == Precision.FP16.value:
+        if (
+            accelerator == BackendAccelerator.TRT.value
+            and precision == Precision.FP16.value
+        ):
             environment["ORT_TENSORRT_FP16_ENABLE"] = 1
 
         strict_mode = False
@@ -282,7 +290,9 @@ class Executor:
 
         return container
 
-    def _save_results(self, task: Task, experiment: Experiment, stage_name: str, results: Dict) -> None:
+    def _save_results(
+        self, task: Task, experiment: Experiment, stage_name: str, results: Dict
+    ) -> None:
         """
         Update results for stage
 
@@ -341,7 +351,9 @@ class Executor:
         )  # noqa: B950
 
         if self._executor_workspace.is_dir():
-            LOGGER.info(f"Removing previous executor workspace: {self._executor_workspace}")
+            LOGGER.info(
+                f"Removing previous executor workspace: {self._executor_workspace}"
+            )
             shutil.rmtree(self._executor_workspace)
 
         for directory in [
@@ -452,7 +464,10 @@ class Executor:
                 number_of_model_instances=number_of_model_instances,
             )
         else:
-            online_batch_sizes, online_concurrency = offline_batch_sizes, offline_concurrency
+            online_batch_sizes, online_concurrency = (
+                offline_batch_sizes,
+                offline_concurrency,
+            )
 
         min_batch_size = min(min(offline_batch_sizes), min(online_batch_sizes))
 

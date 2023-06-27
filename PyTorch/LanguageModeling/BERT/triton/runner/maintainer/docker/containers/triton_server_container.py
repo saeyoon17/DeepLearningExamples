@@ -100,9 +100,15 @@ class TritonServerContainer(DockerContainer):
             container=self._container.id,
             cmd=self._command,
         )
-        stream_generator = self._docker_api_client.exec_start(exec_id=self._triton_exec["Id"], stream=True)
+        stream_generator = self._docker_api_client.exec_start(
+            exec_id=self._triton_exec["Id"], stream=True
+        )
 
-        self._logging_thread = Thread(target=TritonServerContainer._logging, args=(self, stream_generator), daemon=True)
+        self._logging_thread = Thread(
+            target=TritonServerContainer._logging,
+            args=(self, stream_generator),
+            daemon=True,
+        )
         self._logging_thread.start()
 
     def stop(self) -> None:
@@ -110,7 +116,9 @@ class TritonServerContainer(DockerContainer):
         Stop Triton Server Container and save logs to file
         """
         if self._container is not None:
-            triton_result = self._docker_api_client.exec_inspect(self._triton_exec["Id"])
+            triton_result = self._docker_api_client.exec_inspect(
+                self._triton_exec["Id"]
+            )
             if triton_result.get("ExitCode") not in (0, None):
                 LOGGER.info(
                     f"Triton Inference Server instance {self.name} failed. Exit code: {triton_result.get('ExitCode')}"
@@ -133,7 +141,9 @@ class TritonServerContainer(DockerContainer):
             ExecResult
         """
         if not self._container:
-            raise ContainerNotStarted("Triton Server Container is not running. Use .start() first.")
+            raise ContainerNotStarted(
+                "Triton Server Container is not running. Use .start() first."
+            )
 
         return self._container.exec_run(command)
 
@@ -150,4 +160,6 @@ class TritonServerContainer(DockerContainer):
                     txt = log.decode("utf-8")
                     file.write(txt)
             except StopIteration:
-                LOGGER.info(f"Saving Triton Inference Server {self.name} logs in {self._log_file_path}.")
+                LOGGER.info(
+                    f"Saving Triton Inference Server {self.name} logs in {self._log_file_path}."
+                )

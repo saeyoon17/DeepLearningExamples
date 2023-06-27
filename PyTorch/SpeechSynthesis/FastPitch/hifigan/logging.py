@@ -19,68 +19,91 @@ from pathlib import Path
 
 import dllogger
 import numpy as np
-import torch.distributed as dist
 import torch
-from dllogger import StdOutBackend, JSONStreamBackend, Verbosity
-
+import torch.distributed as dist
 from common import tb_dllogger
-from common.tb_dllogger import (stdout_metric_format, stdout_step_format,
-                                unique_log_fpath, TBLogger)
+from common.tb_dllogger import (TBLogger, stdout_metric_format,
+                                stdout_step_format, unique_log_fpath)
+from dllogger import JSONStreamBackend, StdOutBackend, Verbosity
 
 
 def init_logger(output_dir, log_file, ema_decay=0.0):
 
     local_rank = 0 if not dist.is_initialized() else dist.get_rank()
 
-    print('logger init', local_rank)
+    print("logger init", local_rank)
 
     if local_rank == 0:
         Path(output_dir).mkdir(parents=False, exist_ok=True)
-        log_fpath = log_file or Path(output_dir, 'nvlog.json')
+        log_fpath = log_file or Path(output_dir, "nvlog.json")
 
-        dllogger.init(backends=[
-            JSONStreamBackend(Verbosity.DEFAULT, unique_log_fpath(log_fpath)),
-            StdOutBackend(Verbosity.VERBOSE, step_format=stdout_step_format,
-                          metric_format=stdout_metric_format)])
+        dllogger.init(
+            backends=[
+                JSONStreamBackend(Verbosity.DEFAULT, unique_log_fpath(log_fpath)),
+                StdOutBackend(
+                    Verbosity.VERBOSE,
+                    step_format=stdout_step_format,
+                    metric_format=stdout_metric_format,
+                ),
+            ]
+        )
 
         init_train_metadata()
     else:
         dllogger.init(backends=[])
 
-    tb_train = ['train']
-    tb_val = ['val']
-    tb_ema = [k + '_ema' for k in tb_val] if ema_decay > 0.0 else []
+    tb_train = ["train"]
+    tb_val = ["val"]
+    tb_ema = [k + "_ema" for k in tb_val] if ema_decay > 0.0 else []
 
     tb_dllogger.tb_loggers = {
         s: TBLogger(enabled=(local_rank == 0), log_dir=output_dir, name=s)
-        for s in tb_train + tb_val + tb_ema}
+        for s in tb_train + tb_val + tb_ema
+    }
 
 
 def init_train_metadata():
 
-    dllogger.metadata("train_lrate_gen",
-                      {"name": "g lr", "unit": None, "format": ":>3.2e"})
-    dllogger.metadata("train_lrate_discrim",
-                      {"name": "d lr", "unit": None, "format": ":>3.2e"})
-    dllogger.metadata("train_avg_lrate_gen",
-                      {"name": "avg g lr", "unit": None, "format": ":>3.2e"})
-    dllogger.metadata("train_avg_lrate_discrim",
-                      {"name": "avg d lr", "unit": None, "format": ":>3.2e"})
+    dllogger.metadata(
+        "train_lrate_gen", {"name": "g lr", "unit": None, "format": ":>3.2e"}
+    )
+    dllogger.metadata(
+        "train_lrate_discrim", {"name": "d lr", "unit": None, "format": ":>3.2e"}
+    )
+    dllogger.metadata(
+        "train_avg_lrate_gen", {"name": "avg g lr", "unit": None, "format": ":>3.2e"}
+    )
+    dllogger.metadata(
+        "train_avg_lrate_discrim",
+        {"name": "avg d lr", "unit": None, "format": ":>3.2e"},
+    )
 
-    for id_, pref in [('train', ''), ('train_avg', 'avg train '),
-                      ('val', '  avg val '), ('val_ema', '  EMA val ')]:
+    for id_, pref in [
+        ("train", ""),
+        ("train_avg", "avg train "),
+        ("val", "  avg val "),
+        ("val_ema", "  EMA val "),
+    ]:
 
-        dllogger.metadata(f"{id_}_loss_gen",
-                          {"name": f"{pref}g loss", "unit": None, "format": ":>6.3f"})
-        dllogger.metadata(f"{id_}_loss_discrim",
-                          {"name": f"{pref}d loss", "unit": None, "format": ":>6.3f"})
-        dllogger.metadata(f"{id_}_loss_mel",
-                          {"name": f"{pref}mel loss", "unit": None, "format": ":>6.3f"})
+        dllogger.metadata(
+            f"{id_}_loss_gen",
+            {"name": f"{pref}g loss", "unit": None, "format": ":>6.3f"},
+        )
+        dllogger.metadata(
+            f"{id_}_loss_discrim",
+            {"name": f"{pref}d loss", "unit": None, "format": ":>6.3f"},
+        )
+        dllogger.metadata(
+            f"{id_}_loss_mel",
+            {"name": f"{pref}mel loss", "unit": None, "format": ":>6.3f"},
+        )
 
-        dllogger.metadata(f"{id_}_frames/s",
-                          {"name": None, "unit": "frames/s", "format": ":>8.2f"})
-        dllogger.metadata(f"{id_}_took",
-                          {"name": "took", "unit": "s", "format": ":>3.2f"})
+        dllogger.metadata(
+            f"{id_}_frames/s", {"name": None, "unit": "frames/s", "format": ":>8.2f"}
+        )
+        dllogger.metadata(
+            f"{id_}_took", {"name": "took", "unit": "s", "format": ":>3.2f"}
+        )
 
 
 def init_infer_metadata():
@@ -118,11 +141,20 @@ class defaultdict(OrderedDict):
 
 
 class Metrics(dict):
-
-    def __init__(self, scopes=['train', 'train_avg'],
-                 dll_keys=['loss_gen', 'loss_discrim', 'loss_mel',
-                           'frames/s', 'took', 'lrate_gen', 'lrate_discrim'],
-                 benchmark_epochs=0):
+    def __init__(
+        self,
+        scopes=["train", "train_avg"],
+        dll_keys=[
+            "loss_gen",
+            "loss_discrim",
+            "loss_mel",
+            "frames/s",
+            "took",
+            "lrate_gen",
+            "lrate_discrim",
+        ],
+        benchmark_epochs=0,
+    ):
         super().__init__()
 
         self.dll_keys = dll_keys
@@ -131,7 +163,7 @@ class Metrics(dict):
         self.start_time = {scope: None for scope in scopes}
         self.benchmark_epochs = benchmark_epochs
         if benchmark_epochs > 0:
-            self.metrics['train_benchmark'] = defaultdict(list)
+            self.metrics["train_benchmark"] = defaultdict(list)
 
     def __setitem__(self, key, val):
         extract = lambda t: t.item() if type(t) is torch.Tensor else t
@@ -147,7 +179,7 @@ class Metrics(dict):
             self.__setitem__(key, 0.0)
         return super().__getitem__(key)
 
-    def start_accumulating(self, step, start_timer=True, scope='train'):
+    def start_accumulating(self, step, start_timer=True, scope="train"):
         del step  # unused
         self.clear()
         self.metrics[scope].clear()
@@ -155,7 +187,7 @@ class Metrics(dict):
         if start_timer:
             self.start_time[scope] = time.time()
 
-    def accumulate(self, scopes=['train', 'train_avg']):
+    def accumulate(self, scopes=["train", "train_avg"]):
         for scope in scopes:
             for k, v in self.items():
                 self.metrics[scope][k] += v
@@ -163,7 +195,7 @@ class Metrics(dict):
 
         self.clear()
 
-    def finish_accumulating(self, stop_timer=True, scope='train'):
+    def finish_accumulating(self, stop_timer=True, scope="train"):
 
         metr = self.metrics[scope]
         counts = self.metric_counts[scope]
@@ -173,58 +205,57 @@ class Metrics(dict):
 
         if stop_timer:
             took = time.time() - self.start_time[scope]
-            if 'frames' in metr:
-                metr['frames/s'] = metr.pop('frames') * counts['frames'] / took
-            metr['took'] = took
+            if "frames" in metr:
+                metr["frames/s"] = metr.pop("frames") * counts["frames"] / took
+            metr["took"] = took
 
     def start_iter(self, iter, start_timer=True):
-        self.start_accumulating(iter, start_timer, 'train')
+        self.start_accumulating(iter, start_timer, "train")
 
     def start_epoch(self, epoch, start_timer=True):
-        self.start_accumulating(epoch, start_timer, 'train_avg')
+        self.start_accumulating(epoch, start_timer, "train_avg")
 
     def start_val(self, start_timer=True):
-        self.start_accumulating(None, start_timer, 'val')
+        self.start_accumulating(None, start_timer, "val")
 
     def finish_iter(self, stop_timer=True):
-        self.finish_accumulating(stop_timer, 'train')
+        self.finish_accumulating(stop_timer, "train")
 
     def finish_epoch(self, stop_timer=True):
-        self.finish_accumulating(stop_timer, 'train_avg')
+        self.finish_accumulating(stop_timer, "train_avg")
 
-        metr = self.metrics['train_benchmark']
-        for k in ('took', 'frames/s', 'loss_gen', 'loss_discrim', 'loss_mel'):
-            metr[k].append(self.metrics['train_avg'][k])
+        metr = self.metrics["train_benchmark"]
+        for k in ("took", "frames/s", "loss_gen", "loss_discrim", "loss_mel"):
+            metr[k].append(self.metrics["train_avg"][k])
 
             if len(metr[k]) > self.benchmark_epochs:
                 metr[k].pop(0)
 
     def finish_val(self, stop_timer=True):
-        self.finish_accumulating(stop_timer, 'val')
+        self.finish_accumulating(stop_timer, "val")
 
-    def get_metrics(self, scope='train', target='dll'):
+    def get_metrics(self, scope="train", target="dll"):
 
-        if scope == 'train_benchmark':
+        if scope == "train_benchmark":
             metr = self.metrics[scope]
-            ret = {'train_' + k: np.mean(v) for k, v in metr.items()}
-            ret['benchmark_epochs_num'] = len(list(metr.values())[0])
+            ret = {"train_" + k: np.mean(v) for k, v in metr.items()}
+            ret["benchmark_epochs_num"] = len(list(metr.values())[0])
             return ret
 
         ret = copy(self.metrics[scope])
 
-        if scope == 'train':
+        if scope == "train":
             ret.update(self)
 
-        if target == 'dll':
-            ret = {f'{scope}_{k}': v
-                   for k, v in ret.items() if k in self.dll_keys}
+        if target == "dll":
+            ret = {f"{scope}_{k}": v for k, v in ret.items() if k in self.dll_keys}
 
-        elif target == 'tb':
+        elif target == "tb":
             # Rename keys so they would group nicely inside TensorBoard
 
             def split_key(k):
-                pos = k.rfind('_')
-                return k[:pos] + '/' + k[pos+1:] if pos >= 0 else k
+                pos = k.rfind("_")
+                return k[:pos] + "/" + k[pos + 1 :] if pos >= 0 else k
 
             ret = {split_key(k): v for k, v in ret.items()}
 

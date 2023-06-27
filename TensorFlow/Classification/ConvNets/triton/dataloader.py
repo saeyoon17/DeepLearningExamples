@@ -3,18 +3,24 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-
 from rn50_model import HEIGHT, WIDTH
 
 LOGGER = logging.getLogger(__name__)
 
 
 def get_dataloader_fn(
-    *, data_dir: str, batch_size: int = 1, width: int = WIDTH, height: int = HEIGHT, images_num: int = None
+    *,
+    data_dir: str,
+    batch_size: int = 1,
+    width: int = WIDTH,
+    height: int = HEIGHT,
+    images_num: int = None,
 ):
     image_extensions = [".gif", ".png", ".jpeg", ".jpg"]
 
-    image_paths = sorted([p for p in Path(data_dir).rglob("*") if p.suffix.lower() in image_extensions])
+    image_paths = sorted(
+        [p for p in Path(data_dir).rglob("*") if p.suffix.lower() in image_extensions]
+    )
     if images_num is not None:
         image_paths = image_paths[:images_num]
 
@@ -26,7 +32,7 @@ def get_dataloader_fn(
     def _dataloader_fn():
         batch = []
         for image_path in image_paths:
-            img = Image.open(image_path.as_posix()).convert('RGB')
+            img = Image.open(image_path.as_posix()).convert("RGB")
             img = img.resize((width, height))
             img = np.array(img).astype(np.float32)
             true_class = np.array([int(image_path.parent.name)])

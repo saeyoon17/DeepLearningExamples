@@ -25,38 +25,39 @@
 import pprint
 import sys
 import time
+from contextlib import ExitStack
 
 import fire
+import numpy as np
 import torch
-from tqdm import tqdm
-
 from fastspeech import DEFAULT_DEVICE
 from fastspeech import hparam as hp
 from fastspeech.data_load import PadDataLoader
 from fastspeech.dataset.ljspeech_dataset import LJSpeechDataset
+from fastspeech.infer import get_inferencer
+from fastspeech.inferencer.waveglow_inferencer import WaveGlowInferencer
 from fastspeech.model.fastspeech import Fastspeech
 from fastspeech.utils.logging import tprint
 from fastspeech.utils.pytorch import to_cpu_numpy, to_device_async
-from fastspeech.infer import get_inferencer
-from fastspeech.inferencer.waveglow_inferencer import WaveGlowInferencer
-from contextlib import ExitStack
-import numpy as np
+from tqdm import tqdm
 
 try:
     from apex import amp
 except ImportError:
-    ImportError('Required to install apex.')
+    ImportError("Required to install apex.")
 
 pp = pprint.PrettyPrinter(indent=4, width=1000)
 
 WARMUP_ITERS = 3
 
 
-def perf_inference(hparam="infer.yaml",
-                   with_vocoder=False,
-                   n_iters=None,
-                   device=DEFAULT_DEVICE,
-                   **kwargs):
+def perf_inference(
+    hparam="infer.yaml",
+    with_vocoder=False,
+    n_iters=None,
+    device=DEFAULT_DEVICE,
+    **kwargs
+):
     """The script for estimating inference performance.
 
     By default, this script assumes to load parameters in the default config file, fastspeech/hparams/infer.yaml.
@@ -100,37 +101,47 @@ def perf_inference(hparam="infer.yaml",
         fft_conv1d_padding=hp.fft_conv1d_padding,
         dropout=hp.dropout,
         n_mels=hp.num_mels,
-        fused_layernorm=hp.fused_layernorm
+        fused_layernorm=hp.fused_layernorm,
     )
 
-    dataset = LJSpeechDataset(root_path=hp.dataset_path,
-                            sr=hp.sr,
-                            n_fft=hp.n_fft,
-                            win_len=hp.win_len,
-                            hop_len=hp.hop_len,
-                            n_mels=hp.num_mels,
-                            mel_fmin=hp.mel_fmin,
-                            mel_fmax=hp.mel_fmax,
-                            exclude_mels=True,
-                            sort_by_length=True if hp.use_trt and hp.trt_multi_engine else False
-                            )
+    dataset = LJSpeechDataset(
+        root_path=hp.dataset_path,
+        sr=hp.sr,
+        n_fft=hp.n_fft,
+        win_len=hp.win_len,
+        hop_len=hp.hop_len,
+        n_mels=hp.num_mels,
+        mel_fmin=hp.mel_fmin,
+        mel_fmax=hp.mel_fmax,
+        exclude_mels=True,
+        sort_by_length=True if hp.use_trt and hp.trt_multi_engine else False,
+    )
     tprint("Dataset size: {}".format(len(dataset)))
 
-    data_loader = PadDataLoader(dataset,
-                                batch_size=hp.batch_size,
-                                num_workers=hp.n_workers,
-                                shuffle=False if hp.use_trt and hp.trt_multi_engine else True,
-                                drop_last=True,
-                                )
+    data_loader = PadDataLoader(
+        dataset,
+        batch_size=hp.batch_size,
+        num_workers=hp.n_workers,
+        shuffle=False if hp.use_trt and hp.trt_multi_engine else True,
+        drop_last=True,
+    )
 
     fs_inferencer = get_inferencer(model, data_loader, device)
 
     if with_vocoder:
         if hp.use_trt:
-            from fastspeech.trt.waveglow_trt_inferencer import WaveGlowTRTInferencer
-            wb_inferencer = WaveGlowTRTInferencer(ckpt_file=hp.waveglow_path, engine_file=hp.waveglow_engine_path, use_fp16=hp.use_fp16)
+            from fastspeech.trt.waveglow_trt_inferencer import \
+                WaveGlowTRTInferencer
+
+            wb_inferencer = WaveGlowTRTInferencer(
+                ckpt_file=hp.waveglow_path,
+                engine_file=hp.waveglow_engine_path,
+                use_fp16=hp.use_fp16,
+            )
         else:
-            wb_inferencer = WaveGlowInferencer(ckpt_file=hp.waveglow_path, device=device, use_fp16=hp.use_fp16)
+            wb_inferencer = WaveGlowInferencer(
+                ckpt_file=hp.waveglow_path, device=device, use_fp16=hp.use_fp16
+            )
 
     with fs_inferencer, wb_inferencer if with_vocoder else ExitStack():
 
@@ -140,15 +151,15 @@ def perf_inference(hparam="infer.yaml",
         throughputs = []
 
         n_iters = min(n_iters, len(data_loader)) if n_iters else len(data_loader)
-        assert(n_iters > WARMUP_ITERS)
+        assert n_iters > WARMUP_ITERS
         for i in tqdm(range(n_iters)):
             start = time.time()
 
             outputs = fs_inferencer.infer()
 
-            mels = outputs['mel']
-            mel_masks = outputs['mel_mask']
-            assert(mels.is_cuda)
+            mels = outputs["mel"]
+            mel_masks = outputs["mel_mask"]
+            assert mels.is_cuda
 
             if with_vocoder:
                 # remove padding
@@ -166,7 +177,7 @@ def perf_inference(hparam="infer.yaml",
 
             end = time.time()
 
-            if i > WARMUP_ITERS-1:
+            if i > WARMUP_ITERS - 1:
                 time_elapsed = end - start
                 generated_samples = len(mel_masks.nonzero()) * hp.hop_len
                 throughput = generated_samples / time_elapsed
@@ -178,25 +189,28 @@ def perf_inference(hparam="infer.yaml",
 
         avg_latency = np.mean(latencies)
         std_latency = np.std(latencies)
-        latency_90 = max(latencies[:int(len(latencies)*0.90)]) if n_iters > 1 else 0
-        latency_95 = max(latencies[:int(len(latencies)*0.95)]) if n_iters > 1 else 0
-        latency_99 = max(latencies[:int(len(latencies)*0.99)]) if n_iters > 1 else 0
+        latency_90 = max(latencies[: int(len(latencies) * 0.90)]) if n_iters > 1 else 0
+        latency_95 = max(latencies[: int(len(latencies) * 0.95)]) if n_iters > 1 else 0
+        latency_99 = max(latencies[: int(len(latencies) * 0.99)]) if n_iters > 1 else 0
 
         throughput = np.mean(throughputs)
         rtf = throughput / (hp.sr * hp.batch_size)
 
-        tprint("Batch size\tPrecision\tAvg Latency(s)\tStd Latency(s)\tLatency 90%(s)\tLatency 95%(s)\tLatency 99%(s)\tThroughput(samples/s)\tAvg RTF\n\
+        tprint(
+            "Batch size\tPrecision\tAvg Latency(s)\tStd Latency(s)\tLatency 90%(s)\tLatency 95%(s)\tLatency 99%(s)\tThroughput(samples/s)\tAvg RTF\n\
         {}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\t{}\t{:.2f}".format(
-            hp.batch_size,
-            "FP16" if hp.use_fp16 else "FP32",
-            avg_latency,
-            std_latency,
-            latency_90,
-            latency_95,
-            latency_99,
-            int(throughput),
-            rtf))
+                hp.batch_size,
+                "FP16" if hp.use_fp16 else "FP32",
+                avg_latency,
+                std_latency,
+                latency_90,
+                latency_95,
+                latency_99,
+                int(throughput),
+                rtf,
+            )
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     fire.Fire(perf_inference)

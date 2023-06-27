@@ -42,8 +42,10 @@ def word_error_rate(hypotheses, references):
     words = 0
     len_diff = len(references) - len(hypotheses)
     if len_diff > 0:
-        raise ValueError("Uneqal number of hypthoses and references: "
-                         "{0} and {1}".format(len(hypotheses), len(references)))
+        raise ValueError(
+            "Uneqal number of hypthoses and references: "
+            "{0} and {1}".format(len(hypotheses), len(references))
+        )
     elif len_diff < 0:
         hypotheses = hypotheses[:len_diff]
 
@@ -52,8 +54,8 @@ def word_error_rate(hypotheses, references):
         r_list = r.split()
         words += len(r_list)
         scores += __levenshtein(h_list, r_list)
-    if words!=0:
-        wer = 1.0*scores/words
+    if words != 0:
+        wer = 1.0 * scores / words
     else:
-        wer = float('inf')
+        wer = float("inf")
     return wer, scores, words

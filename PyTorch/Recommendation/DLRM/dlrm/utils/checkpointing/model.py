@@ -13,10 +13,10 @@
 # limitations under the License.
 
 import os
-import numpy as np
 from os.path import join
-from typing import Sequence, Any, Dict
+from typing import Any, Dict, Sequence
 
+import numpy as np
 import torch
 
 _BOTTOM_MLP_FILE = "bottom_model.mlp.pt"
@@ -48,25 +48,42 @@ class DlrmCheckpointWriter:
 
     def save_embeddings(self, checkpoint_path: str, model):
         self._ensure_directory(checkpoint_path)
-        for embedding_index, weight in zip(self._embedding_indices, model.bottom_model.embeddings.weights):
-            self._save_as_bytes(weight.data, join(checkpoint_path, _get_embedding_file(embedding_index)))
-            torch.save({"shape": weight.shape}, join(checkpoint_path, _get_embedding_meta_file(embedding_index)))
+        for embedding_index, weight in zip(
+            self._embedding_indices, model.bottom_model.embeddings.weights
+        ):
+            self._save_as_bytes(
+                weight.data, join(checkpoint_path, _get_embedding_file(embedding_index))
+            )
+            torch.save(
+                {"shape": weight.shape},
+                join(checkpoint_path, _get_embedding_meta_file(embedding_index)),
+            )
 
     def save_bottom_mlp(self, checkpoint_path: str, model):
         self._ensure_directory(checkpoint_path)
-        torch.save(self._mlp_state(model.bottom_model.mlp), join(checkpoint_path, _BOTTOM_MLP_FILE))
+        torch.save(
+            self._mlp_state(model.bottom_model.mlp),
+            join(checkpoint_path, _BOTTOM_MLP_FILE),
+        )
 
     def save_top_model(self, checkpoint_path: str, model):
         self._ensure_directory(checkpoint_path)
         # DistributedDataParallel wraps top_model under "module" attribute
-        top_model = model.top_model.module if hasattr(model.top_model, 'module') else model.top_model
+        top_model = (
+            model.top_model.module
+            if hasattr(model.top_model, "module")
+            else model.top_model
+        )
 
         torch.save(self._mlp_state(top_model.mlp), join(checkpoint_path, _TOP_MLP_FILE))
         torch.save(top_model.out.state_dict(), join(checkpoint_path, _TOP_OUT_FILE))
 
     def save_metadata(self, checkpoint_path: str, data: Dict[str, Any]):
         self._ensure_directory(checkpoint_path)
-        torch.save({"data": data, "config": self._config}, join(checkpoint_path, _METADATA_FILE))
+        torch.save(
+            {"data": data, "config": self._config},
+            join(checkpoint_path, _METADATA_FILE),
+        )
 
     def _ensure_directory(self, checkpoint_path: str):
         os.makedirs(checkpoint_path, exist_ok=True)
@@ -74,7 +91,7 @@ class DlrmCheckpointWriter:
     def _mlp_state(self, mlp):
         return {
             "weights": [x.to(torch.float32) for x in mlp.weights],
-            "biases": [x.to(torch.float32) for x in mlp.biases]
+            "biases": [x.to(torch.float32) for x in mlp.biases],
         }
 
     def _save_as_bytes(self, tensor: torch.Tensor, path: str):
@@ -95,18 +112,28 @@ class DlrmCheckpointLoader:
         self._device = device
 
     def load_embeddings(self, checkpoint_path: str, model):
-        embedding_weights = (self._load_from_bytes(join(checkpoint_path, _get_embedding_file(index)),
-                                                   self._get_embedding_shape(checkpoint_path, index))
-                             for index in self._embedding_indices)
+        embedding_weights = (
+            self._load_from_bytes(
+                join(checkpoint_path, _get_embedding_file(index)),
+                self._get_embedding_shape(checkpoint_path, index),
+            )
+            for index in self._embedding_indices
+        )
         model.bottom_model.embeddings.load_weights(embedding_weights)
 
     def load_bottom_mlp(self, checkpoint_path: str, model):
         bottom_mlp_state = self._load(checkpoint_path, _BOTTOM_MLP_FILE)
-        model.bottom_model.mlp.load_state(bottom_mlp_state["weights"], bottom_mlp_state["biases"])
+        model.bottom_model.mlp.load_state(
+            bottom_mlp_state["weights"], bottom_mlp_state["biases"]
+        )
 
     def load_top_model(self, checkpoint_path: str, model):
         # DistributedDataParallel wraps top_model under "module" attribute
-        top_model = model.top_model.module if hasattr(model.top_model, 'module') else model.top_model
+        top_model = (
+            model.top_model.module
+            if hasattr(model.top_model, "module")
+            else model.top_model
+        )
         top_mlp_state = self._load(checkpoint_path, _TOP_MLP_FILE)
         top_model.mlp.load_state(top_mlp_state["weights"], top_mlp_state["biases"])
 
@@ -121,7 +148,7 @@ class DlrmCheckpointLoader:
         # DistributedDataParallel wraps top_model under "module" attribute
         prefix = "module."
         if key.startswith(prefix):
-            return key[len(prefix):]
+            return key[len(prefix) :]
         return key
 
     def _load_from_bytes(self, path: str, shape) -> torch.Tensor:
@@ -130,5 +157,7 @@ class DlrmCheckpointLoader:
             return torch.from_numpy(array).to(self._device)
 
     def _get_embedding_shape(self, checkpoint_path: str, index: int) -> tuple:
-        embedding_meta = torch.load(join(checkpoint_path, _get_embedding_meta_file(index)))
+        embedding_meta = torch.load(
+            join(checkpoint_path, _get_embedding_meta_file(index))
+        )
         return embedding_meta["shape"]

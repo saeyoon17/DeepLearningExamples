@@ -17,10 +17,13 @@ from hydra.core.global_hydra import GlobalHydra
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import OmegaConf
 
+
 def get_config(config_name, config_path, override_list=None, return_hydra_config=False):
     GlobalHydra.instance().clear()
     initialize(config_path=config_path)
-    cfg = compose(config_name, return_hydra_config=return_hydra_config, overrides=override_list)
+    cfg = compose(
+        config_name, return_hydra_config=return_hydra_config, overrides=override_list
+    )
     if return_hydra_config:
         HydraConfig().cfg = cfg
         OmegaConf.resolve(cfg)

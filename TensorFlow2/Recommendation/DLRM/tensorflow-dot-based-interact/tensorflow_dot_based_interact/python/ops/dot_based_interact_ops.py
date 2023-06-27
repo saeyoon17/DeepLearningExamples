@@ -13,17 +13,16 @@
 # limitations under the License.
 
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
-from tensorflow.python.framework import ops
-from tensorflow.python.framework import load_library
+from tensorflow.python.framework import load_library, ops
 from tensorflow.python.platform import resource_loader
 
 dot_based_interact_ops = load_library.load_op_library(
-    resource_loader.get_path_to_datafile('_dot_based_interact_ops.so'))
+    resource_loader.get_path_to_datafile("_dot_based_interact_ops.so")
+)
 dot_based_interact = dot_based_interact_ops.dot_based_interact
+
 
 @ops.RegisterGradient("DotBasedInteract")
 def dot_based_interact_grad(op, grad):

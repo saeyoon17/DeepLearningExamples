@@ -13,13 +13,12 @@
 # limitations under the License.
 # ==============================================================================
 
+import math
 import os
 from contextlib import contextmanager
 
-import torch
-import math
-
 import pynvml
+import torch
 
 pynvml.nvmlInit()
 
@@ -31,12 +30,11 @@ def init_distributed(cuda):
     :param cuda: (bool) if True initializes nccl backend, if False initializes
         gloo backend
     """
-    world_size = int(os.environ.get('WORLD_SIZE', 1))
-    distributed = (world_size > 1)
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    distributed = world_size > 1
     if distributed:
-        backend = 'nccl' if cuda else 'gloo'
-        torch.distributed.init_process_group(backend=backend,
-                                             init_method='env://')
+        backend = "nccl" if cuda else "gloo"
+        torch.distributed.init_process_group(backend=backend, init_method="env://")
         assert torch.distributed.is_initialized()
     return distributed
 
@@ -71,6 +69,7 @@ def get_world_size():
         world_size = 1
     return world_size
 
+
 def get_device_count():
     """
     Gets total number of devices per node
@@ -81,33 +80,34 @@ def get_device_count():
         nproc_per_node = 1
     return nproc_per_node
 
-def all_reduce_item(value, op='sum'):
+
+def all_reduce_item(value, op="sum"):
     """
     All-reduces single scalar value if distributed is in use
     """
     if torch.distributed.is_available() and torch.distributed.is_initialized():
-        if op == 'sum' or op == 'mean':
+        if op == "sum" or op == "mean":
             dop = torch.distributed.ReduceOp.SUM
-        elif op == 'min':
+        elif op == "min":
             dop = torch.distributed.ReduceOp.MIN
-        elif op == 'max':
+        elif op == "max":
             dop = torch.distributed.ReduceOp.MAX
-        elif op == 'product':
+        elif op == "product":
             dop = torch.distributed.ReduceOp.PRODUCT
         else:
-            raise RuntimeError('Unsupported reduce op')
+            raise RuntimeError("Unsupported reduce op")
 
         backend = torch.distributed.get_backend()
         if backend == torch.distributed.Backend.NCCL:
-            device = torch.device('cuda')
+            device = torch.device("cuda")
         elif backend == torch.distributed.Backend.GLOO:
-            device = torch.device('cpu')
+            device = torch.device("cpu")
         else:
-            raise RuntimeError('Unsupported distributed backend')
+            raise RuntimeError("Unsupported distributed backend")
 
         tensor = torch.tensor(value, device=device)
         torch.distributed.all_reduce(tensor, dop)
-        if op == 'mean':
+        if op == "mean":
             tensor /= get_world_size()
         ret = tensor.item()
     else:
@@ -126,6 +126,7 @@ def sync_workers():
     rank = get_rank()
     yield rank
     barrier()
+
 
 def systemGetDriverVersion():
     return pynvml.nvmlSystemGetDriverVersion()
@@ -147,12 +148,12 @@ class device:
         return pynvml.nvmlDeviceGetName(self.handle)
 
     def getCpuAffinity(self):
-        affinity_string = ''
+        affinity_string = ""
         for j in pynvml.nvmlDeviceGetCpuAffinity(
             self.handle, device._nvml_affinity_elements
         ):
             # assume nvml returns list of 64 bit ints
-            affinity_string = '{:064b}'.format(j) + affinity_string
+            affinity_string = "{:064b}".format(j) + affinity_string
         affinity_list = [int(x) for x in affinity_string]
         affinity_list.reverse()  # so core 0 is in 0th element of list
 
@@ -161,7 +162,7 @@ class device:
 
 def set_affinity(gpu_id=None):
     if gpu_id is None:
-        gpu_id = int(os.getenv('LOCAL_RANK', 0))
+        gpu_id = int(os.getenv("LOCAL_RANK", 0))
 
     dev = device(gpu_id)
     os.sched_setaffinity(0, dev.getCpuAffinity())

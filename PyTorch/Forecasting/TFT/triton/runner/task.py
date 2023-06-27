@@ -42,7 +42,9 @@ class GPU(DataObject):
     memory: str
     tdp: str
 
-    def __init__(self, name: str, driver_version: str, cuda_version: str, memory: str, tdp: str):
+    def __init__(
+        self, name: str, driver_version: str, cuda_version: str, memory: str, tdp: str
+    ):
         """
         Args:
             name: name of GPU
@@ -85,7 +87,11 @@ class GPU(DataObject):
             GPU object
         """
         data = subprocess.check_output(
-            ["nvidia-smi", "--query-gpu=name,driver_version,memory.total,power.max_limit", "--format=csv"]
+            [
+                "nvidia-smi",
+                "--query-gpu=name,driver_version,memory.total,power.max_limit",
+                "--format=csv",
+            ]
         ).decode()
 
         lines = data.split(sep="\n")
@@ -123,7 +129,14 @@ class CPU(DataObject):
     min_frequency: float
     max_frequency: float
 
-    def __init__(self, name: str, physical_cores: int, logical_cores: int, min_frequency: float, max_frequency: float):
+    def __init__(
+        self,
+        name: str,
+        physical_cores: int,
+        logical_cores: int,
+        min_frequency: float,
+        max_frequency: float,
+    ):
         """
         Args:
             name: name of CPU unit

@@ -8,7 +8,7 @@
 from . import FairseqLRScheduler, register_lr_scheduler
 
 
-@register_lr_scheduler('fixed')
+@register_lr_scheduler("fixed")
 class FixedSchedule(FairseqLRScheduler):
     """Decay the LR on a fixed schedule."""
 
@@ -16,21 +16,31 @@ class FixedSchedule(FairseqLRScheduler):
         super().__init__(args, optimizer)
 
         # set defaults
-        args.warmup_updates = getattr(args, 'warmup_updates', 0) or 0
+        args.warmup_updates = getattr(args, "warmup_updates", 0) or 0
 
         self.lr = args.lr[0]
         if args.warmup_updates > 0:
-            self.warmup_factor = 1. / args.warmup_updates
+            self.warmup_factor = 1.0 / args.warmup_updates
         else:
             self.warmup_factor = 1
 
     @staticmethod
     def add_args(parser):
         """Add arguments to the parser for this LR scheduler."""
-        parser.add_argument('--force-anneal', '--fa', type=int, metavar='N',
-                            help='force annealing at specified epoch')
-        parser.add_argument('--warmup-updates', default=0, type=int, metavar='N',
-                            help='warmup the learning rate linearly for the first N updates')
+        parser.add_argument(
+            "--force-anneal",
+            "--fa",
+            type=int,
+            metavar="N",
+            help="force annealing at specified epoch",
+        )
+        parser.add_argument(
+            "--warmup-updates",
+            default=0,
+            type=int,
+            metavar="N",
+            help="warmup the learning rate linearly for the first N updates",
+        )
 
     def get_next_lr(self, epoch):
         lrs = self.args.lr
@@ -39,7 +49,9 @@ class FixedSchedule(FairseqLRScheduler):
             next_lr = lrs[min(epoch, len(lrs) - 1)]
         else:
             # annneal based on lr_shrink
-            next_lr = lrs[-1] * self.args.lr_shrink ** (epoch + 1 - self.args.force_anneal)
+            next_lr = lrs[-1] * self.args.lr_shrink ** (
+                epoch + 1 - self.args.force_anneal
+            )
         return next_lr
 
     def step(self, epoch, val_loss=None):

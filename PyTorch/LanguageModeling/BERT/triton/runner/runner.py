@@ -102,7 +102,9 @@ class Runner:
             LOGGER.error(f"Error running task: {str(e)}")
         finally:
             self._executor.stop()
-            self._finalizer.exec(workspace=self.EXECUTOR_WORKSPACE, task=task, results=results)
+            self._finalizer.exec(
+                workspace=self.EXECUTOR_WORKSPACE, task=task, results=results
+            )
 
     def _catch(self, signum, frame):
         """

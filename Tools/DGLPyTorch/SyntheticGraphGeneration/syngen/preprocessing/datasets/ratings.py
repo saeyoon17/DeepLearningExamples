@@ -22,7 +22,6 @@ from typing import List, Union
 import cudf
 import dask_cudf
 import pandas as pd
-
 from syngen.preprocessing.base_preprocessing import BasePreprocessing
 from syngen.utils import write_csv
 from syngen.utils.types import MetaData
@@ -33,7 +32,10 @@ log = logger
 
 class RatingsPreprocessing(BasePreprocessing):
     def __init__(
-        self, cached: bool = True, nrows: int = None, drop_cols: list = [],
+        self,
+        cached: bool = True,
+        nrows: int = None,
+        drop_cols: list = [],
     ):
         """
         preprocessing for http://www.trustlet.org/downloaded_epinions.html
@@ -67,23 +69,18 @@ class RatingsPreprocessing(BasePreprocessing):
         ]
 
     def transform_graph(self, data) -> pd.DataFrame:
-        """ Preprocess data into graph
-        """
+        """Preprocess data into graph"""
         data = self.add_graph_edge_cols(data)
         data = data.fillna(0)
         continuous_columns = [
             c
             for c in data.columns
-            if c
-            in self.graph_info[MetaData.EDGE_DATA][MetaData.CONTINUOUS_COLUMNS]
+            if c in self.graph_info[MetaData.EDGE_DATA][MetaData.CONTINUOUS_COLUMNS]
         ]
         categorical_columns = [
             c
             for c in data.columns
-            if c
-            in self.graph_info[MetaData.EDGE_DATA][
-                MetaData.CATEGORICAL_COLUMNS
-            ]
+            if c in self.graph_info[MetaData.EDGE_DATA][MetaData.CATEGORICAL_COLUMNS]
         ]
 
         columns_to_select = categorical_columns + continuous_columns

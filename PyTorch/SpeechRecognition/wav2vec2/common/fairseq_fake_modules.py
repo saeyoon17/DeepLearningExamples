@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-'''Fake fairseq.* modules allowing to torch.load fairseq checkpoints.'''
+"""Fake fairseq.* modules allowing to torch.load fairseq checkpoints."""
 
 import sys
 
