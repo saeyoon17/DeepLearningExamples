@@ -247,7 +247,7 @@ def preprocess_criteo_parquet(
     print(f"Gathering statistics time: {time() - start}")
 
     start = time()
-    workflow.transform(train_ds)
+    workflow.transform(trains_ds)
     #workflow.apply(trains_ds, record_stats=False, output_path=out_train)
     print(f"train preprocess time: {time() - start}")
 
