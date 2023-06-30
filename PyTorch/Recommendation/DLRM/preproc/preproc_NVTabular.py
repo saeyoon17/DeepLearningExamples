@@ -222,7 +222,7 @@ def preprocess_criteo_parquet(
     print(all_set, train_files, valid_file, test_file)
     print("Creating Workflow Object")
 
-    cont_features = CRITEO_CONTINUOUS_COLUMNS >> ops.FillMissing(fill_val=-2.0) >> (lambda col, _: col.add(2.0)) >> LogOp()
+    cont_features = CRITEO_CONTINUOUS_COLUMNS >> FillMissing(fill_val=-2.0) >> (lambda col, _: col.add(2.0)) >> LogOp()
     cat_features = CRITEO_CATEGORICAL_COLUMNS >> Categorify(freq_threshold=frequency_threshold, out_path=output_path)
   
     workflow = Workflow(cat_features + cont_features + CRITEO_CLICK_COLUMNS)
