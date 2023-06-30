@@ -247,17 +247,17 @@ def preprocess_criteo_parquet(
     print(f"Gathering statistics time: {time() - start}")
 
     start = time()
-    workflow.transform(trains_ds)
+    workflow.transform(trains_ds).to_parquet(out_train)
     #workflow.apply(trains_ds, record_stats=False, output_path=out_train)
     print(f"train preprocess time: {time() - start}")
 
     start = time()
-    workflow.transform(valid_ds)
+    workflow.transform(valid_ds).to_parquet(out_valid)
     #workflow.apply(valid_ds, record_stats=False, output_path=out_valid)
     print(f"valid preprocess time: {time() - start}")
 
     start = time()
-    workflow.transform(test_ds)
+    workflow.transform(test_ds).to_parquet(out_test)
     #workflow.apply(test_ds, record_stats=False, output_path=out_test)
     print(f"test preprocess time: {time() - start}")
 
