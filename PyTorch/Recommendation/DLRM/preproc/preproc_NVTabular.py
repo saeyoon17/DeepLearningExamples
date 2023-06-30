@@ -222,29 +222,11 @@ def preprocess_criteo_parquet(
     print(all_set, train_files, valid_file, test_file)
     print("Creating Workflow Object")
 
-    workflow = Workflow(
-        cat_names=CRITEO_CATEGORICAL_COLUMNS,
-        cont_names=CRITEO_CONTINUOUS_COLUMNS,
-        label_name=CRITEO_CLICK_COLUMNS,
-    )
-
-    # We want to assign 0 to all missing values, and calculate log(x+3) for present values
-    # so if we set missing values to -2, then the result of log(1+2+(-2)) would be 0
-    workflow.add_cont_feature(
-        [
-            FillMissing(fill_val=-2.0),
-            LambdaOp(
-                op_name="Add3ButMinusOneCauseLogAddsOne", f=lambda col, _: col.add(2.0)
-            ),
-            LogOp(),  # Log(1+x)
-        ]
-    )
-
-    workflow.add_cat_preprocess(
-        Categorify(freq_threshold=frequency_threshold, out_path=output_path)
-    )
-
-    workflow.finalize()
+    cont_features = CRITEO_CONTINUOUS_COLUMNS >> nvtabular.ops.FillMissing(fill_val=-2.0) >> LambdaOp(lambda col, _: col.add(2.0)) >> LogOp()
+  nvtabular.ops.Categorify()
+    cat_features = CRITEO_CATEGORICAL_COLUMNS >> Categorify(freq_threshold=frequency_threshold, out_path=output_path)
+  
+    workflow = Workflow(cat_features + cont_features + CRITEO_CLICK_COLUMNS)
 
     print("Creating Dataset Iterator")
     all_ds = Dataset(all_set, engine="parquet", part_mem_fraction=ALL_DS_MEM_FRAC)
