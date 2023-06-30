@@ -31,9 +31,9 @@ export FREQUENCY_LIMIT=${3:-'15'}
 export CRITEO_PARQUET=${4:-'/data/dlrm/criteo_parquet'}
 
 if [ "$DGX_VERSION" = "DGX-2" ]; then
-    export DEVICES=0,
+    export DEVICES=0
 else
-    export DEVICES=0,
+    export DEVICES=0
 fi
 
 echo "Preprocessing data"
