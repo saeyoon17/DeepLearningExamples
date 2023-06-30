@@ -223,7 +223,6 @@ def preprocess_criteo_parquet(
     print("Creating Workflow Object")
 
     cont_features = CRITEO_CONTINUOUS_COLUMNS >> nvtabular.ops.FillMissing(fill_val=-2.0) >> LambdaOp(lambda col, _: col.add(2.0)) >> LogOp()
-  nvtabular.ops.Categorify()
     cat_features = CRITEO_CATEGORICAL_COLUMNS >> Categorify(freq_threshold=frequency_threshold, out_path=output_path)
   
     workflow = Workflow(cat_features + cont_features + CRITEO_CLICK_COLUMNS)
