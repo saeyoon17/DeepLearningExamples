@@ -79,7 +79,7 @@ def _convert_file(path, name, out_dir, gpu_mem_frac, fs, cols, dtypes):
         path,
         engine="csv",
         names=cols,
-        part_memory_fraction=gpu_mem_frac,
+        part_mem_fraction=gpu_mem_frac,
         sep="\t",
         dtypes=dtypes,
     ).to_iter():
