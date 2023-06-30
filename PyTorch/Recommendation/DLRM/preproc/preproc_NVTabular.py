@@ -216,6 +216,7 @@ def preprocess_criteo_parquet(
     ]
     valid_file = os.path.join(input_path, "day_0.part2.parquet")
     test_file = os.path.join(input_path, "day_0.part1.parquet")
+    train_files = [os.path.join(input_path, "day_0.parquet")]
 
     all_set = train_files + [valid_file] + [test_file]
 
