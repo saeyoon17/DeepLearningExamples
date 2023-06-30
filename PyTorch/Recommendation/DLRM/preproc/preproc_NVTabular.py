@@ -242,19 +242,23 @@ def preprocess_criteo_parquet(
     out_test = os.path.join(output_path, "test")
 
     start = time()
-    workflow.update_stats(all_ds)
+    workflow.fit(all_ds)
+    #workflow.update_stats(all_ds)
     print(f"Gathering statistics time: {time() - start}")
 
     start = time()
-    workflow.apply(trains_ds, record_stats=False, output_path=out_train)
+    workflow.transform(train_ds)
+    #workflow.apply(trains_ds, record_stats=False, output_path=out_train)
     print(f"train preprocess time: {time() - start}")
 
     start = time()
-    workflow.apply(valid_ds, record_stats=False, output_path=out_valid)
+    workflow.transform(valid_ds)
+    #workflow.apply(valid_ds, record_stats=False, output_path=out_valid)
     print(f"valid preprocess time: {time() - start}")
 
     start = time()
-    workflow.apply(test_ds, record_stats=False, output_path=out_test)
+    workflow.transform(test_ds)
+    #workflow.apply(test_ds, record_stats=False, output_path=out_test)
     print(f"test preprocess time: {time() - start}")
 
     save_model_size_config(workflow, output_path)
