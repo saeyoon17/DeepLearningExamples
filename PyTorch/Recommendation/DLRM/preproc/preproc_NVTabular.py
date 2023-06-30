@@ -306,7 +306,7 @@ def is_input_parquet(input_dir: str):
 
 
 def start_local_CUDA_cluster(devices, pool):
-    if len(devices) > 1:
+    if len(devices) > 0:
         cluster = LocalCUDACluster(
             n_workers=len(devices),
             CUDA_VISIBLE_DEVICES=",".join(str(x) for x in devices),
