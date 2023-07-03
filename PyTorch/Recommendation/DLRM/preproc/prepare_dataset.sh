@@ -52,7 +52,7 @@ if [ "$3" = "NVTabular" ]; then
 conversion_intermediate_dir=${conversion_intermediate_dir:-'/data/dlrm/intermediate_binary'}
 final_output_dir=${final_output_dir:-'/data/dlrm/binary_dataset'}
 
-source ${DGX_VERSION}_config.sh
+source DGX-A100_config.sh
 
 if [ -d ${final_output_dir}/train ] \
    && [ -d ${final_output_dir}/validation ] \
