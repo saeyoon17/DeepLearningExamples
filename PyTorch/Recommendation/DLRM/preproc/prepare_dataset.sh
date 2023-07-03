@@ -47,18 +47,7 @@ if [ "$3" = "NVTabular" ]; then
     echo "Performing NVTabular preprocessing"
     ./run_NVTabular.sh ${download_dir} ${output_path} $1
     preprocessing_version=NVTabular
-else
-    if [ -f ${output_path}/train/_SUCCESS ] \
-        && [ -f ${output_path}/validation/_SUCCESS ] \
-        && [ -f ${output_path}/test/_SUCCESS ]; then
 
-        echo "Spark preprocessing already carried out"
-    else
-        echo "Performing spark preprocessing"
-        ./run_spark.sh $2 ${download_dir} ${output_path} $1
-    fi
-    preprocessing_version=Spark
-fi
 
 conversion_intermediate_dir=${conversion_intermediate_dir:-'/data/dlrm/intermediate_binary'}
 final_output_dir=${final_output_dir:-'/data/dlrm/binary_dataset'}
