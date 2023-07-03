@@ -47,6 +47,7 @@ if [ "$3" = "NVTabular" ]; then
     echo "Performing NVTabular preprocessing"
     ./run_NVTabular.sh ${download_dir} ${output_path} $1
     preprocessing_version=NVTabular
+fi
 
 
 conversion_intermediate_dir=${conversion_intermediate_dir:-'/data/dlrm/intermediate_binary'}
